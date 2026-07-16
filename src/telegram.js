@@ -637,7 +637,7 @@ function startCustomEmojiCandidates() {
   ];
 }
 
-function catalogCustomEmojiCandidates() {
+function catalogCustomEmojiCandidates(products = []) {
   return [
     customEmojiCandidate(roboEmoji('ok', '👌'), roboCustomEmojiId('ok')),
     sloganCustomEmojiCandidate('catalog'),
@@ -651,8 +651,12 @@ function catalogCustomEmojiCandidates() {
     bannerCustomEmojiCandidate('review'),
     customEmojiCandidate(roboEmoji('party', '🥳'), roboCustomEmojiId('party')),
     bannerCustomEmojiCandidate('kaito'),
+    bannerCustomEmojiCandidate('hot'),
+    bannerCustomEmojiCandidate('new'),
     bannerCustomEmojiCandidate('mmo'),
-    bannerCustomEmojiCandidate('stock')
+    bannerCustomEmojiCandidate('stock'),
+    sloganCustomEmojiCandidate('payment'),
+    ...hotProductsForCatalog(products).map((product) => brandTextEmojiCandidate(product.brand))
   ];
 }
 
@@ -1288,6 +1292,50 @@ export function productMessage(products) {
   ].join('\n\n');
 }
 
+function hotProductsForCatalog(products, limit = 3) {
+  return products
+    .map((product) => normalizePublicProduct(product))
+    .filter((product) => product.active !== false && product.hot)
+    .sort((left, right) => {
+      const availabilityCompare = Number(availableStock(right) > 0) - Number(availableStock(left) > 0);
+      if (availabilityCompare !== 0) return availabilityCompare;
+      const stockCompare = availableStock(right) - availableStock(left);
+      if (stockCompare !== 0) return stockCompare;
+      const sortCompare = Number(left.sortOrder || 1000) - Number(right.sortOrder || 1000);
+      if (sortCompare !== 0) return sortCompare;
+      return String(left.name || left.sku || '').localeCompare(String(right.name || right.sku || ''));
+    })
+    .slice(0, Math.max(0, Number(limit) || 0));
+}
+
+function hotProductSummaryLines(products) {
+  const hotProducts = hotProductsForCatalog(products);
+  if (!hotProducts.length) {
+    return [
+      `${bannerTextEmoji('hot')} <b>Sản phẩm hot</b>`,
+      `${bannerTextEmoji('new')} Đang cập nhật các gói nổi bật.`
+    ];
+  }
+
+  return [
+    `${bannerTextEmoji('hot')} <b>Sản phẩm hot</b>`,
+    ...hotProducts.map((product) => {
+      const available = availableStock(product);
+      const productName = product.name
+        || [product.brand, product.packageType].filter(Boolean).join(' ')
+        || product.sku
+        || 'Gói sản phẩm';
+      const price = Number(product.price) > 0
+        ? `${sloganTextEmoji('payment')} ${escapeHtml(money(product.price, product.currency))}`
+        : `${bannerTextEmoji('contact')} Liên hệ`;
+      const stock = available > 0
+        ? `${bannerTextEmoji('stock')} Còn ${available}`
+        : `${sloganTextEmoji('soldout')} Hết hàng`;
+      return `${brandTextEmoji(product.brand)} <b>${escapeHtml(productName)}</b> · ${price} · ${stock}`;
+    })
+  ];
+}
+
 export function categoryMenuMessage(products) {
   const normalized = products.map((product) => normalizePublicProduct(product));
   const categoryCount = uniqueSorted(normalized.map((product) => product.category)).length;
@@ -1300,6 +1348,8 @@ export function categoryMenuMessage(products) {
       : `${uiTextEmoji('security')} Shop đang chuẩn bị tồn kho và thanh toán, chưa mở nhận đơn.`,
     `${sloganTextEmoji('soldout')} ${bannerTextEmoji('guide')} Gói hết vui lòng liên hệ admin để đặt thêm ${bannerTextEmoji('combo')} ${roboEmoji('please', '🙏')}`,
     `${bannerTextEmoji('contact')} ${supportContactLine()}`,
+    '',
+    ...hotProductSummaryLines(normalized),
     '',
     `${bannerTextEmoji('review')} ${roboEmoji('party', '🥳')} Chọn một danh mục bên dưới ${bannerTextEmoji('kaito')}`,
     `${bannerTextEmoji('mmo')} ${categoryCount} danh mục · ${brandCount} nhãn hàng · ${bannerTextEmoji('stock')} ${availableCount} gói còn hàng.`
@@ -1441,7 +1491,7 @@ async function sendMenuAction(chatId, user, action, products, options = {}) {
       chatId,
       messageId,
       categoryMenuMessage(currentProducts),
-      catalogCustomEmojiCandidates(),
+      catalogCustomEmojiCandidates(currentProducts),
       { reply_markup: buildCategoryKeyboard(currentProducts) }
     );
     return true;

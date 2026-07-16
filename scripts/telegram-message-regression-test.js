@@ -532,7 +532,79 @@ try {
   assert.match(categoryText, /2 danh mục · 2 nhãn hàng · 📦 0 gói còn hàng/);
   assert.match(categoryText, /liên hệ admin/i);
   assert.match(categoryText, /@kaitoukit/);
+  assert.match(categoryText, /🔥 <b>Sản phẩm hot<\/b>/);
+  assert.match(categoryText, /🆕 Đang cập nhật các gói nổi bật/);
   assert.match(categoryText, /Chọn một danh mục bên dưới/);
+
+  const hotCategoryText = categoryMenuMessage([
+    {
+      sku: 'hot-sold-out',
+      name: 'Hot hết hàng',
+      category: 'AI Accounts',
+      brand: 'ChatGPT',
+      price: 99000,
+      currency: 'VND',
+      sortOrder: 1,
+      hot: true,
+      stock: { available: 0 }
+    },
+    {
+      sku: 'hot-in-stock-low',
+      name: 'Hot còn một',
+      category: 'Design Accounts',
+      brand: 'Canva',
+      price: 49000,
+      currency: 'VND',
+      sortOrder: 20,
+      hot: true,
+      stock: { available: 1 }
+    },
+    {
+      sku: 'hot-in-stock-high',
+      name: 'Hot còn nhiều',
+      category: 'AI Accounts',
+      brand: 'Claude',
+      price: 129000,
+      currency: 'VND',
+      sortOrder: 30,
+      hot: true,
+      stock: { available: 3 }
+    },
+    {
+      sku: 'hot-fourth',
+      name: 'Hot thứ tư',
+      category: 'Social/MMO Accounts',
+      brand: 'Telegram',
+      price: 79000,
+      currency: 'VND',
+      sortOrder: 40,
+      hot: true,
+      stock: { available: 2 }
+    }
+  ]);
+  assert.match(hotCategoryText, /🔥 <b>Sản phẩm hot<\/b>/);
+  assert.match(hotCategoryText, /🧠 <b>Hot còn nhiều<\/b> · 💳 129\.000 VND · 📦 Còn 3/);
+  assert.match(hotCategoryText, /🎨 <b>Hot còn một<\/b> · 💳 49\.000 VND · 📦 Còn 1/);
+  assert.match(hotCategoryText, /✈️ <b>Hot thứ tư<\/b> · 💳 79\.000 VND · 📦 Còn 2/);
+  assert.equal(hotCategoryText.includes('Hot hết hàng'), false, 'Catalog should prioritize in-stock hot products within the three-item limit.');
+  assert.ok(
+    hotCategoryText.indexOf('Hot còn nhiều') < hotCategoryText.indexOf('Hot còn một'),
+    'Hot products with more stock should be shown first.'
+  );
+
+  const soldOutHotCategoryText = categoryMenuMessage([
+    {
+      sku: 'hot-sold-out',
+      name: 'Hot hết hàng',
+      category: 'AI Accounts',
+      brand: 'ChatGPT',
+      price: 99000,
+      currency: 'VND',
+      hot: true,
+      stock: { available: 0 }
+    }
+  ]);
+  assert.match(soldOutHotCategoryText, /🤖 <b>Hot hết hàng<\/b> · 💳 99\.000 VND · ⚠️ Hết hàng/);
 
   const categoryKeyboard = buildCategoryKeyboard([
     {
@@ -1068,6 +1140,10 @@ try {
   );
   const catalogCall = calls.find((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => button.callback_data?.startsWith('cat:')));
   assert.ok(catalogCall);
+  assert.match(catalogCall.body.text, /🔥 Sản phẩm hot/);
+  assert.match(catalogCall.body.text, /ChatGPT Plus - 1 tháng/);
+  assert.ok(hasCustomEmojiId(catalogCall, 'ce_banner_hot'), 'Catalog hot heading should use its animated custom emoji.');
+  assert.ok(hasCustomEmojiId(catalogCall, 'ce_chatgpt_file'), 'Catalog hot product should use its animated brand emoji.');
   assertEveryEmojiAnimated(catalogCall, 'catalog message');
   assertAllKeyboardButtonsAnimated(catalogCall.body.reply_markup, 'catalog callback keyboard');
   assert.equal(calls.some((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => /^(buy|confirm):/.test(button.callback_data || ''))), false);

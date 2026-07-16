@@ -441,6 +441,12 @@ npm.cmd run telegram:probe-custom-emojis -- --chat-id 123456789 --only banner
 npm.cmd run telegram:emoji-health -- --chat-id 123456789 --write-report
 ```
 
+If `getCustomEmojiStickers` returns every requested ID but the send probe fails with
+`400 Bad Request: DOCUMENT_INVALID`, the map is valid but the bot is not allowed to
+send custom emoji. Make sure the Telegram account that actually owns the bot in
+BotFather has an active Premium subscription, or that the bot qualifies through an
+additional username purchased on Fragment, then run the probe again.
+
 When custom emoji is enabled and a bot token is configured, readiness also requires a successful live emoji health report that covers every required pack. Validation checks every configured ID in batches of 200 and verifies its Telegram fallback emoji when the map provides one. The report is tied to a SHA-256 fingerprint of the current bot token and ID/emoji map without storing the token itself, so run `telegram:emoji-health` again after rotating the bot token or changing any emoji map. A missing, mismatched, failed, or stale report is reported as a readiness warning. Local runs without a Telegram token do not require a live report.
 
 ## Payment Provider

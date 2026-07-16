@@ -53,13 +53,15 @@ for (const variant of variants) {
 }
 
 const passed = results.filter((result) => result.ok).length;
+const failed = variants.length - passed;
 console.log(JSON.stringify({
-  ok: true,
+  ok: failed === 0,
   checked: variants.length,
   passed,
-  failed: variants.length - passed,
+  failed,
   note: 'OK variants were actually sent to the target Telegram chat.'
 }, null, 2));
+if (failed > 0) process.exitCode = 1;
 
 function buildVariants({ chatId, photoPath, maps }) {
   const roboWave = emojiCandidate('robo.wave', '👋', roboAliasId(maps.robo, 'wave'));
