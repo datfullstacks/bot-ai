@@ -1,3 +1,21 @@
+const DELIVERY_MODES = new Set(['text', 'file']);
+
+export function isDeliveryMode(value) {
+  return DELIVERY_MODES.has(String(value || '').trim().toLowerCase());
+}
+
+export function normalizeDeliveryMode(value, { strict = false } = {}) {
+  const mode = String(value || 'text').trim().toLowerCase();
+  if (isDeliveryMode(mode)) return mode;
+  if (strict) {
+    throw Object.assign(
+      new Error('Delivery mode must be text or file'),
+      { statusCode: 400 }
+    );
+  }
+  return 'text';
+}
+
 export const DEFAULT_CATALOG_PRODUCTS = [
   {
     sku: 'chatgpt-plus-1m',
@@ -265,7 +283,8 @@ export function normalizeProductInput(input = {}) {
     officialPriceNote: String(input.officialPriceNote || '').trim(),
     accountType: String(input.accountType || '').trim(),
     warrantyPolicy: String(input.warrantyPolicy || '').trim(),
-    replacementPolicy: String(input.replacementPolicy || input.exchangePolicy || '').trim()
+    replacementPolicy: String(input.replacementPolicy || input.exchangePolicy || '').trim(),
+    deliveryMode: normalizeDeliveryMode(input.deliveryMode, { strict: true })
   };
 }
 
@@ -280,7 +299,8 @@ export function normalizePublicProduct(product = {}) {
     officialPriceNote: String(product.officialPriceNote || '').trim(),
     accountType: String(product.accountType || '').trim(),
     warrantyPolicy: String(product.warrantyPolicy || '').trim(),
-    replacementPolicy: String(product.replacementPolicy || product.exchangePolicy || '').trim()
+    replacementPolicy: String(product.replacementPolicy || product.exchangePolicy || '').trim(),
+    deliveryMode: normalizeDeliveryMode(product.deliveryMode)
   };
 }
 

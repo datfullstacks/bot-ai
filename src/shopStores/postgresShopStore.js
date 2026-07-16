@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { config, nowIso } from '../config.js';
-import { normalizeProductInput, normalizePublicProduct } from '../catalog.js';
+import { normalizeDeliveryMode, normalizeProductInput, normalizePublicProduct } from '../catalog.js';
 import {
   assertInventoryEncryptionReadyForImport,
   assertInventorySecretsReadyForSale,
@@ -282,6 +282,9 @@ export async function updateProduct(actorId, productId, input) {
     if (input.sortOrder !== undefined) product.sortOrder = Number(input.sortOrder || 1000);
     if (input.active !== undefined) product.active = Boolean(input.active);
     if (input.hot !== undefined) product.hot = Boolean(input.hot);
+    if (input.deliveryMode !== undefined) {
+      product.deliveryMode = normalizeDeliveryMode(input.deliveryMode, { strict: true });
+    }
     if (!product.name || !Number.isSafeInteger(product.price) || product.price <= 0) {
       throw Object.assign(new Error('Name and positive integer price are required'), { statusCode: 400 });
     }
@@ -481,7 +484,8 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         packageType: product.packageType || '',
         accountType: product.accountType || '',
         warrantyPolicy: product.warrantyPolicy || '',
-        replacementPolicy: product.replacementPolicy || ''
+        replacementPolicy: product.replacementPolicy || '',
+        deliveryMode: normalizeDeliveryMode(product.deliveryMode)
       },
       status: 'pending_payment',
       paymentId: null,

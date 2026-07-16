@@ -55,10 +55,12 @@ assert.equal(server.includes('100000'), false, 'Dev order API must not create fa
 assert.ok(server.includes('TELEGRAM_OWNER_USER_ID'), 'Dev order API should fall back to the configured owner chat when no test chat is supplied.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
-for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy']) {
+for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode']) {
   assert.ok(html.includes(`name="${field}"`), `Create product form should expose ${field}.`);
   assert.ok(js.includes(`name="${field}"`), `Product editor should expose ${field}.`);
 }
+assert.ok(html.includes('TXT file'), 'Create product form should expose TXT delivery.');
+assert.ok(js.includes('Text message'), 'Product cards/editor should expose text delivery.');
 assert.ok(js.includes('data.hot ='), 'Product editor should save hot product flags.');
 assert.ok(js.includes("setTab('inventory')"), 'Import-stock action should jump to the Inventory tab.');
 

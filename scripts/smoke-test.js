@@ -46,7 +46,7 @@ function paidEvent(id, order, payment, amount = order.total) {
   };
 }
 
-async function createStockedProduct(actorId, sku, count) {
+async function createStockedProduct(actorId, sku, count, overrides = {}) {
   const product = await shop.createProduct(actorId, {
     sku,
     name: `Smoke ${sku}`,
@@ -55,7 +55,8 @@ async function createStockedProduct(actorId, sku, count) {
     warrantyPolicy: 'Smoke warranty',
     replacementPolicy: 'Smoke replacement policy',
     price: 10000,
-    currency: 'VND'
+    currency: 'VND',
+    ...overrides
   });
   await shop.importInventory(
     actorId,
@@ -121,7 +122,10 @@ try {
     config.sales.testTelegramIds = originalTestTelegramIds;
   }
 
-  const paidProduct = await createStockedProduct(actorId, `smoke-paid-${runId}`, 2);
+  const paidProduct = await createStockedProduct(actorId, `smoke-paid-${runId}`, 2, {
+    deliveryMode: 'file'
+  });
+  assert.equal(paidProduct.deliveryMode, 'file');
   await assert.rejects(
     () => shop.createOrderForUser(user, paidProduct.sku, 'invalid'),
     /Quantity must be an integer/
@@ -143,6 +147,14 @@ try {
   });
   assert.equal(paidOrder.order.status, 'pending_payment');
   assert.equal(paidOrder.order.productSnapshot.accountType, 'Smoke private account');
+  assert.equal(paidOrder.order.productSnapshot.deliveryMode, 'file');
+  await assert.rejects(
+    () => shop.updateProduct(actorId, paidProduct.id, { deliveryMode: 'archive' }),
+    /Delivery mode must be text or file/
+  );
+  await shop.updateProduct(actorId, paidProduct.id, { deliveryMode: 'text' });
+  const snapshottedCheckout = await shop.getOrderCheckoutForUser(user.id, paidOrder.order.id);
+  assert.equal(snapshottedCheckout.order.productSnapshot.deliveryMode, 'file');
   const reusedPaidOrder = await shop.createOrderForUser(user, paidProduct.sku, 2, {
     idempotencyKey: `smoke-paid-${runId}`
   });

@@ -111,6 +111,7 @@ try {
   assert.equal(readiness.webhooks.sepay, 'https://shop.example.test/api/public/payments/sepay-webhook');
   assert.ok(Array.isArray(readiness.checks));
   assert.equal(readiness.checks.some((check) => check.id === 'sepay_webhook_auth' && check.status === 'ok'), true);
+  assert.equal(readiness.checks.some((check) => check.id === 'product_delivery_modes' && check.status === 'ok'), true);
 
   console.log(JSON.stringify({ ok: true, checked: 'runtime readiness detail' }, null, 2));
 } finally {

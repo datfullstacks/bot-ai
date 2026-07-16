@@ -150,6 +150,55 @@ export async function sendTelegramPhotoFile(chatId, photoPath, options = {}) {
   return response.json();
 }
 
+export async function sendTelegramTextDocument(chatId, text, filename, options = {}) {
+  if (!config.telegram.token) return { skipped: true };
+
+  const documentBytes = Buffer.from(String(text ?? ''), 'utf8');
+  const safeFilename = safeTelegramTextFilename(filename);
+  const sanitized = sanitizeTelegramOptions(options, 'caption');
+  const initialOptions = hasRejectedCustomEmojiEntity(sanitized.caption_entities, 'caption_entities')
+    ? fallbackPhotoOptions(sanitized, options)
+    : sanitized;
+  const form = buildTelegramTextDocumentForm(
+    chatId,
+    safeFilename,
+    documentBytes,
+    initialOptions
+  );
+
+  const response = await fetch(apiUrl('sendDocument'), {
+    method: 'POST',
+    body: form
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    const retryError = { status: response.status, body };
+    if (!shouldRetryWithoutCustomEmoji(retryError, initialOptions, 'caption_entities')) {
+      throw telegramDocumentError(response.status);
+    }
+
+    rememberRejectedCustomEmojiIds(initialOptions.caption_entities, 'caption_entities');
+    const fallbackForm = buildTelegramTextDocumentForm(
+      chatId,
+      safeFilename,
+      documentBytes,
+      fallbackPhotoOptions(initialOptions, options)
+    );
+    const fallbackResponse = await fetch(apiUrl('sendDocument'), {
+      method: 'POST',
+      body: fallbackForm
+    });
+    if (!fallbackResponse.ok) {
+      await fallbackResponse.text();
+      throw telegramDocumentError(fallbackResponse.status);
+    }
+    return fallbackResponse.json();
+  }
+
+  return response.json();
+}
+
 function buildTelegramPhotoForm(chatId, photoPath, photoBytes, options = {}) {
   const form = new FormData();
   form.append('chat_id', String(chatId));
@@ -160,6 +209,43 @@ function buildTelegramPhotoForm(chatId, photoPath, photoBytes, options = {}) {
     form.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
   }
   return form;
+}
+
+function buildTelegramTextDocumentForm(chatId, filename, documentBytes, options = {}) {
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append(
+    'document',
+    new Blob([documentBytes], { type: 'text/plain; charset=utf-8' }),
+    filename
+  );
+  for (const [key, value] of Object.entries(options)) {
+    if (key.startsWith('_')) continue;
+    if (value === undefined || value === null || value === '') continue;
+    form.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+  }
+  return form;
+}
+
+function safeTelegramTextFilename(filename) {
+  const leaf = String(filename || '')
+    .replaceAll('\\', '/')
+    .split('/')
+    .at(-1)
+    .replace(/\.txt$/i, '');
+  const stem = leaf
+    .normalize('NFKD')
+    .replace(/[^\x00-\x7F]/g, '')
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/^[._-]+|[._-]+$/g, '')
+    .slice(0, 92);
+  return `${stem || 'kaito-delivery'}.txt`;
+}
+
+function telegramDocumentError(status) {
+  const error = new Error(`Telegram sendDocument failed: ${status}`);
+  error.status = status;
+  return error;
 }
 
 export async function sendTelegramSticker(chatId, sticker, options = {}) {

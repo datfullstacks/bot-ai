@@ -35,6 +35,7 @@ for (const product of DEFAULT_CATALOG_PRODUCTS) {
       accountType: product.accountType,
       warrantyPolicy: product.warrantyPolicy,
       replacementPolicy: product.replacementPolicy,
+      deliveryMode: product.deliveryMode,
       active: true
     });
     updated += 1;

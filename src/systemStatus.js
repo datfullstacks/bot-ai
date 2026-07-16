@@ -1,4 +1,5 @@
 import { config, nowIso } from './config.js';
+import { isDeliveryMode } from './catalog.js';
 import {
   decryptInventorySecret,
   inventoryEncryptionStatus,
@@ -212,6 +213,22 @@ function buildChecks(db = null) {
         );
       } else {
         addOk(checks, 'product_policies', 'Product purchase information', 'Complete');
+      }
+
+      const invalidDeliveryModes = db.products.filter((product) => (
+        product.active !== false
+        && product.deliveryMode !== undefined
+        && !isDeliveryMode(product.deliveryMode)
+      ));
+      if (invalidDeliveryModes.length) {
+        addWarning(
+          checks,
+          'product_delivery_modes',
+          'Product delivery modes are invalid',
+          `${invalidDeliveryModes.length} active product(s) must use text or file.`
+        );
+      } else {
+        addOk(checks, 'product_delivery_modes', 'Product delivery modes', 'Valid');
       }
     }
   }

@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { isDeliveryMode } from './catalog.js';
 import { inventoryEncryptionStatus } from './inventorySecrets.js';
 import { strongWebhookCredential } from './webhookSecurity.js';
 
@@ -97,6 +98,14 @@ export function salesReadinessProblems(product = null, user = null) {
     && String(product.currency || '').trim().toUpperCase() !== 'VND'
   ) {
     problems.push('SePay chỉ hỗ trợ sản phẩm có tiền tệ VND');
+  }
+
+  if (
+    product
+    && product.deliveryMode !== undefined
+    && !isDeliveryMode(product.deliveryMode)
+  ) {
+    problems.push('Chế độ giao hàng phải là text hoặc file');
   }
 
   return problems;

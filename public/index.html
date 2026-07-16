@@ -97,6 +97,12 @@
               <label>Account type<textarea name="accountType" rows="2" placeholder="Private account, shared slot, activation, or account pack"></textarea></label>
               <label>Warranty policy<textarea name="warrantyPolicy" rows="3" placeholder="State the exact warranty period and coverage"></textarea></label>
               <label>Replacement policy<textarea name="replacementPolicy" rows="3" placeholder="State when a faulty delivery is eligible for replacement"></textarea></label>
+              <label>Delivery mode
+                <select name="deliveryMode">
+                  <option value="text">Text message</option>
+                  <option value="file">TXT file</option>
+                </select>
+              </label>
               <label>Official price note<input name="officialPriceNote" placeholder="Official: $20/mo"></label>
               <label>Price<input name="price" type="number" min="1" value="10000" required></label>
               <label>Currency<input name="currency" value="VND" required></label>

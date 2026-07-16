@@ -210,12 +210,17 @@ be used as production secrets on Railway.
 Keep `SALES_ENABLED=false` during setup. In the admin dashboard:
 
 1. Update every active product with description, account type, warranty and replacement policy.
-2. Import one complete delivery payload per inventory line.
-3. Configure and test the SePay webhook.
-4. Put only the owner/test Telegram user ID in `SALES_TEST_TELEGRAM_IDS`, create
+2. Choose a delivery mode for each product:
+   - `text`: send decrypted inventory directly in a Telegram message.
+   - `file`: generate one UTF-8 `.txt` document in memory and send it through Telegram.
+3. Import one complete delivery payload per inventory line. File mode packages the
+   same text payloads into a generated TXT; inventory values are never treated as
+   filesystem paths or uploaded files.
+4. Configure and test the SePay webhook.
+5. Put only the owner/test Telegram user ID in `SALES_TEST_TELEGRAM_IDS`, create
    a controlled order with `/buy <sku> 1` while public sales remain closed,
    then run a small real transfer and confirm automatic delivery.
-5. Remove `SALES_TEST_TELEGRAM_IDS`, set `SALES_ENABLED=true`, and redeploy only
+6. Remove `SALES_TEST_TELEGRAM_IDS`, set `SALES_ENABLED=true`, and redeploy only
    after every readiness warning except the intentional `sales` closed warning
    has been cleared.
 

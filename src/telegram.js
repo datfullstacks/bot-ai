@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { config } from './config.js';
-import { brandSortKey, normalizePublicProduct } from './catalog.js';
+import { brandSortKey, normalizeDeliveryMode, normalizePublicProduct } from './catalog.js';
 import {
   cancelOrderForUser,
   createOrderForUser,
@@ -52,6 +52,7 @@ const {
   sendTelegramPhotoFile,
   sendTelegramPhotoUrl,
   sendTelegramSticker,
+  sendTelegramTextDocument,
   stripCustomEmojiTags,
   telegramJson
 } = telegramTransport;
@@ -66,6 +67,7 @@ export {
   sendTelegramPhotoFile,
   sendTelegramPhotoUrl,
   sendTelegramSticker,
+  sendTelegramTextDocument,
   sloganCustomEmojiId
 };
 
@@ -1120,6 +1122,10 @@ function policyText(value) {
   return escapeHtml(String(value || '').trim() || 'Chưa cập nhật — vui lòng xác nhận với hỗ trợ trước khi mua.');
 }
 
+function deliveryModeLabel(value) {
+  return normalizeDeliveryMode(value) === 'file' ? 'Tệp TXT (.txt)' : 'Tin nhắn Telegram';
+}
+
 export function productDetailMessage(product) {
   const normalized = normalizePublicProduct(product);
   const available = availableStock(normalized);
@@ -1131,6 +1137,7 @@ export function productDetailMessage(product) {
     `👤 Loại tài khoản: ${policyText(normalized.accountType)}`,
     `🛡 Bảo hành: ${policyText(normalized.warrantyPolicy)}`,
     `🔄 Điều kiện đổi lỗi: ${policyText(normalized.replacementPolicy)}`,
+    `📨 Cách giao hàng: ${deliveryModeLabel(normalized.deliveryMode)}`,
     '',
     `💰 Giá: <b>${escapeHtml(money(normalized.price, normalized.currency))}</b>`,
     available > 0 ? `📦 Tồn kho: Còn ${available}` : '⛔ Tồn kho: Hết hàng',
@@ -1170,6 +1177,7 @@ export function confirmationMessage(product, quantity = 1) {
     `🔢 Số lượng: ${qty}`,
     `💰 Đơn giá: ${escapeHtml(money(normalized.price, normalized.currency))}`,
     `💳 Tổng tiền: <b>${escapeHtml(money(normalized.price * qty, normalized.currency))}</b>`,
+    `📨 Giao hàng: ${deliveryModeLabel(normalized.deliveryMode)}`,
     '',
     `⏱ Sau khi xác nhận, hàng được giữ trong ${config.orders.ttlMinutes} phút.`,
     'Chưa có đơn hàng hoặc tồn kho nào bị giữ ở bước này.'
@@ -1233,6 +1241,7 @@ export function orderMessage(order, payment) {
     `📦 Sản phẩm: ${escapeHtml(order.productName)}`,
     `🔢 Số lượng: ${escapeHtml(order.quantity)}`,
     `${roboEmoji('money', '🤑')} 💰 Tổng: ${escapeHtml(money(order.total, order.currency))}`,
+    `📨 Giao hàng: ${deliveryModeLabel(order.productSnapshot?.deliveryMode)}`,
     orderStatusLine(order.status),
     `🏦 Nội dung CK: ${code(payment.reference)}`,
     payment.bankCode ? `🏛 Ngân hàng: ${escapeHtml(payment.bankCode)}` : '',
@@ -1256,6 +1265,64 @@ export function deliveryMessage(order, deliverySecrets) {
   ].join('\n');
 }
 
+export function deliveryDocumentFilename(order) {
+  const safeOrderId = String(order?.id || 'order')
+    .replace(/[^A-Za-z0-9_-]/g, '_')
+    .slice(0, 80) || 'order';
+  return `kaito-delivery-${safeOrderId}.txt`;
+}
+
+export function deliveryDocumentText(order, deliverySecrets) {
+  const lines = [
+    'KAITO AI SHOP — THÔNG TIN GIAO HÀNG',
+    `Mã đơn: ${String(order?.id || '')}`,
+    `Sản phẩm: ${String(order?.productName || '')}`,
+    `Số lượng: ${Number(order?.quantity || deliverySecrets.length || 0)}`,
+    ''
+  ];
+  deliverySecrets.forEach((secret, index) => {
+    lines.push(`[ITEM ${index + 1}]`);
+    lines.push(String(secret));
+    lines.push('');
+  });
+  return `${lines.join('\r\n').replace(/\r\n+$/, '')}\r\n`;
+}
+
+export function deliveryDocumentCaption(order) {
+  return [
+    '📦 <b>Đã giao hàng</b>',
+    `🧾 Mã đơn: ${code(order?.id || '')}`,
+    `📦 Sản phẩm: ${escapeHtml(order?.productName || '')}`,
+    '🔐 Thông tin nhận hàng nằm trong tệp TXT đính kèm.'
+  ].join('\n');
+}
+
+async function sendDeliveryPayload(chatId, order, deliverySecrets, replyMarkup) {
+  if (normalizeDeliveryMode(order?.productSnapshot?.deliveryMode) === 'file') {
+    try {
+      return await sendTelegramTextDocument(
+        chatId,
+        deliveryDocumentText(order, deliverySecrets),
+        deliveryDocumentFilename(order),
+        {
+          caption: deliveryDocumentCaption(order),
+          parse_mode: 'HTML',
+          reply_markup: replyMarkup
+        }
+      );
+    } catch (error) {
+      console.warn(`[telegram] sendDocument failed; falling back to text (${error?.status || 'unknown status'})`);
+    }
+  }
+
+  return sendCustomTelegramMessage(
+    chatId,
+    deliveryMessage(order, deliverySecrets),
+    deliveryCustomEmojiCandidates(),
+    { reply_markup: replyMarkup }
+  );
+}
+
 async function sendWelcome(chatId) {
   await sendSloganCaption(chatId, 'welcome', startPhotoCaptionPayload(), {
     reply_markup: buildMainMenuKeyboard(),
@@ -1272,6 +1339,7 @@ function orderDetailMessage(order, payment) {
     `📦 Sản phẩm: ${escapeHtml(order.productName)}`,
     `🔢 Số lượng: ${escapeHtml(order.quantity)}`,
     `💰 Tổng: ${escapeHtml(money(order.total, order.currency))}`,
+    `📨 Giao hàng: ${deliveryModeLabel(order.productSnapshot?.deliveryMode)}`,
     orderStatusLine(order.status),
     payment?.reference ? `🏦 Nội dung CK: ${code(payment.reference)}` : '',
     order.expiresAt && order.status === 'pending_payment'
@@ -1602,11 +1670,11 @@ async function handleCallbackQuery(callbackQuery) {
       const context = await getOrderCheckoutForUser(user.id, orderId);
       if (context.order.status !== 'delivered') throw new Error('Delivery is not ready');
       const delivery = await getDeliveryForOrder(orderId);
-      await sendCustomTelegramMessage(
+      await sendDeliveryPayload(
         chatId,
-        deliveryMessage(delivery.order, delivery.deliverySecrets),
-        deliveryCustomEmojiCandidates(),
-        { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
+        delivery.order,
+        delivery.deliverySecrets,
+        buildPaymentKeyboard(context.order, context.payment)
       );
     } catch {
       await presentTelegramMessage(chatId, messageId, 'Thông tin giao hàng chưa sẵn sàng.', {
@@ -1635,11 +1703,11 @@ export async function notifyDelivery(orderId) {
   if (!order.telegramId || !deliverySecrets.length) return;
 
   const context = await getOrderCheckoutForUser(order.userId, order.id);
-  await sendCustomTelegramMessage(
+  await sendDeliveryPayload(
     order.telegramId,
-    deliveryMessage(order, deliverySecrets),
-    deliveryCustomEmojiCandidates(),
-    { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
+    order,
+    deliverySecrets,
+    buildPaymentKeyboard(context.order, context.payment)
   );
 }
 

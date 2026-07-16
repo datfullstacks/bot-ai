@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_CATALOG_PRODUCTS,
   brandSortKey,
-  normalizeProductInput
+  normalizeDeliveryMode,
+  normalizeProductInput,
+  normalizePublicProduct
 } from '../src/catalog.js';
 
 assert.ok(DEFAULT_CATALOG_PRODUCTS.length >= 10, 'Catalog should include account package products across brands.');
@@ -18,6 +20,7 @@ for (const product of DEFAULT_CATALOG_PRODUCTS) {
   assert.ok(product.accountType, `${product.sku} should describe the account type.`);
   assert.ok(product.warrantyPolicy, `${product.sku} should describe warranty coverage.`);
   assert.ok(product.replacementPolicy, `${product.sku} should describe replacement conditions.`);
+  assert.equal(product.deliveryMode, 'text', `${product.sku} should default to text delivery.`);
 }
 
 for (const sku of [
@@ -76,7 +79,8 @@ const normalized = normalizeProductInput({
   officialPriceNote: 'Official: $20/mo',
   accountType: 'Tài khoản riêng',
   warrantyPolicy: 'Bảo hành 30 ngày',
-  replacementPolicy: 'Đổi khi lỗi bàn giao'
+  replacementPolicy: 'Đổi khi lỗi bàn giao',
+  deliveryMode: ' FILE '
 });
 
 assert.deepEqual(normalized, {
@@ -94,8 +98,16 @@ assert.deepEqual(normalized, {
   officialPriceNote: 'Official: $20/mo',
   accountType: 'Tài khoản riêng',
   warrantyPolicy: 'Bảo hành 30 ngày',
-  replacementPolicy: 'Đổi khi lỗi bàn giao'
+  replacementPolicy: 'Đổi khi lỗi bàn giao',
+  deliveryMode: 'file'
 });
+
+assert.equal(normalizeDeliveryMode('TEXT'), 'text');
+assert.equal(normalizePublicProduct({ deliveryMode: 'invalid' }).deliveryMode, 'text');
+assert.throws(
+  () => normalizeProductInput({ sku: 'bad-mode', name: 'Bad', price: 1, deliveryMode: 'zip' }),
+  /Delivery mode must be text or file/
+);
 
 assert.equal(brandSortKey({ category: 'AI Accounts', brand: 'ChatGPT', sortOrder: 10 }), 'AI Accounts\x00ChatGPT\x00000010');
 

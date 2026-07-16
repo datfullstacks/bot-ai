@@ -145,7 +145,8 @@ function filteredProducts() {
       product.description,
       product.accountType,
       product.warrantyPolicy,
-      product.replacementPolicy
+      product.replacementPolicy,
+      product.deliveryMode
     ].join(' ').toLowerCase();
 
     if (query && !searchable.includes(query)) return false;
@@ -170,6 +171,12 @@ function renderProductEditor(product) {
         <label>Account type<textarea name="accountType" rows="3">${escapeHtml(product.accountType || '')}</textarea></label>
         <label>Warranty policy<textarea name="warrantyPolicy" rows="3">${escapeHtml(product.warrantyPolicy || '')}</textarea></label>
         <label>Replacement policy<textarea name="replacementPolicy" rows="3">${escapeHtml(product.replacementPolicy || '')}</textarea></label>
+        <label>Delivery mode
+          <select name="deliveryMode">
+            <option value="text" ${(product.deliveryMode || 'text') === 'text' ? 'selected' : ''}>Text message</option>
+            <option value="file" ${product.deliveryMode === 'file' ? 'selected' : ''}>TXT file</option>
+          </select>
+        </label>
         <label>Official price note<input name="officialPriceNote" value="${escapeHtml(product.officialPriceNote || '')}"></label>
         <label>Price<input name="price" type="number" min="1" value="${escapeHtml(product.price)}" required></label>
         <label>Currency<input name="currency" value="${escapeHtml(product.currency || 'VND')}" required></label>
@@ -204,6 +211,7 @@ function renderProductCard(product) {
           ${product.accountType ? `<p><strong>Account type:</strong> ${escapeHtml(product.accountType)}</p>` : ''}
           ${product.warrantyPolicy ? `<p><strong>Warranty:</strong> ${escapeHtml(product.warrantyPolicy)}</p>` : ''}
           ${product.replacementPolicy ? `<p><strong>Replacement:</strong> ${escapeHtml(product.replacementPolicy)}</p>` : ''}
+          <p><strong>Delivery:</strong> ${product.deliveryMode === 'file' ? 'TXT file' : 'Text message'}</p>
           ${product.officialPriceNote ? `<p>${escapeHtml(product.officialPriceNote)}</p>` : ''}
         </div>
         ${renderStatusPill(active ? 'available' : 'cancelled', active ? 'active' : 'disabled')}

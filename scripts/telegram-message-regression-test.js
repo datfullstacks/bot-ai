@@ -340,6 +340,7 @@ await writeFile(regularStickerMapFile, JSON.stringify({
 await writeFile(startImageFile, Buffer.from('fake-start-image'));
 
 const storage = await import('../src/storage.js');
+const shop = await import('../src/shop.js');
 const catalog = await import('../src/catalog.js');
 const telegram = await import('../src/telegram.js');
 const brandAssets = await import('../public/brand-assets.js');
@@ -356,12 +357,16 @@ const {
   buildPaymentKeyboard,
   buildProductDetailKeyboard,
   confirmationMessage,
+  deliveryDocumentCaption,
+  deliveryDocumentFilename,
+  deliveryDocumentText,
   deliveryMessage,
   formatOrderStatus,
   formatStockStatus,
   handleTelegramUpdate,
   configureTelegramMenu,
   notifyBotRestoredToUsers,
+  notifyDelivery,
   TELEGRAM_MENU_LANGUAGE_CODES,
   bannerCustomEmojiId,
   orderMessage,
@@ -627,6 +632,7 @@ try {
     accountType: 'Tài khoản riêng',
     warrantyPolicy: 'Bảo hành 30 ngày',
     replacementPolicy: 'Đổi nếu lỗi từ dữ liệu bàn giao',
+    deliveryMode: 'file',
     price: 10000,
     currency: 'VND',
     stock: { available: 2 }
@@ -636,12 +642,14 @@ try {
   assert.match(detailText, /Loại tài khoản: Tài khoản riêng/);
   assert.match(detailText, /Bảo hành: Bảo hành 30 ngày/);
   assert.match(detailText, /Điều kiện đổi lỗi: Đổi nếu lỗi từ dữ liệu bàn giao/);
+  assert.match(detailText, /Cách giao hàng: Tệp TXT/);
   assert.ok(buildProductDetailKeyboard(detailProduct).inline_keyboard.flat().some((button) => button.callback_data === 'buy:prd_detail:1'));
 
   const confirmText = confirmationMessage(detailProduct, 2);
   assert.match(confirmText, /Xác nhận mua/);
   assert.match(confirmText, /Số lượng: 2/);
   assert.match(confirmText, /20.000 VND/);
+  assert.match(confirmText, /Giao hàng: Tệp TXT/);
   const confirmKeyboard = buildConfirmationKeyboard(detailProduct, 2);
   assert.ok(confirmKeyboard.inline_keyboard.flat().some((button) => button.callback_data === 'confirm:prd_detail:2'));
 
@@ -651,7 +659,8 @@ try {
     quantity: 1,
     total: 10000,
     currency: 'VND',
-    status: 'pending_payment'
+    status: 'pending_payment',
+    productSnapshot: { deliveryMode: 'file' }
   }, {
     reference: 'KAITO<REF>',
     paymentUrl: 'https://pay.local/?memo=A&B',
@@ -668,6 +677,7 @@ try {
   assert.match(orderText, /ord&lt;1&gt;/);
   assert.match(orderText, /Bot &lt;Pro&gt;/);
   assert.match(orderText, /KAITO&lt;REF&gt;/);
+  assert.match(orderText, /Giao hàng: Tệp TXT/);
   assert.equal(orderText.includes('https://pay.local'), false);
   assertNoUnsupportedHtml(orderText);
   const paymentKeyboard = buildPaymentKeyboard({
@@ -694,9 +704,41 @@ try {
   assert.match(deliveryText, /secret&lt;one&gt;&amp;two/);
   assertNoUnsupportedHtml(deliveryText);
 
+  const rawDeliverySecret = 'tài khoản|mật khẩu<&>第二行';
+  const documentText = deliveryDocumentText({
+    id: 'ord/../../<2>',
+    productName: 'Key <VIP>',
+    quantity: 1
+  }, [rawDeliverySecret]);
+  assert.ok(documentText.includes(rawDeliverySecret), 'TXT delivery must preserve the raw secret exactly.');
+  assert.ok(documentText.endsWith('\r\n'));
+  const documentFilename = deliveryDocumentFilename({ id: 'ord/../../<2>' });
+  assert.match(documentFilename, /^kaito-delivery-[A-Za-z0-9._-]+\.txt$/);
+  assert.equal(documentFilename.includes('/'), false);
+  assert.equal(documentFilename.includes('\\'), false);
+  assert.equal(documentFilename.includes('..'), false);
+  const documentCaption = deliveryDocumentCaption({
+    id: 'ord<2>',
+    productName: 'Key <VIP>'
+  });
+  assert.match(documentCaption, /ord&lt;2&gt;/);
+  assert.match(documentCaption, /Key &lt;VIP&gt;/);
+  assert.equal(documentCaption.includes(rawDeliverySecret), false);
+  assertNoUnsupportedHtml(documentCaption);
+
   const calls = [];
+  let forceDocumentFailure = false;
   globalThis.fetch = async (url, options) => {
     calls.push({ url: String(url), body: parseTelegramBody(options.body) });
+    if (forceDocumentFailure && String(url).includes('/sendDocument')) {
+      return {
+        ok: false,
+        status: 500,
+        async text() {
+          return JSON.stringify({ ok: false, description: 'Internal Server Error' });
+        }
+      };
+    }
     return {
       ok: true,
       async json() {
@@ -705,6 +747,64 @@ try {
     };
   };
 
+  const fileDeliveryUser = await shop.upsertTelegramUser({
+    id: '9101',
+    username: 'file-delivery-buyer',
+    first_name: 'File',
+    last_name: 'Buyer'
+  });
+  const fileDeliveryProduct = await shop.createProduct('telegram-message-test', {
+    sku: 'telegram-file-delivery',
+    name: 'Telegram File Delivery',
+    description: 'File delivery regression product',
+    accountType: 'Test account',
+    warrantyPolicy: 'Test warranty',
+    replacementPolicy: 'Test replacement',
+    deliveryMode: 'file',
+    price: 10000,
+    currency: 'VND'
+  });
+  const fileDeliverySecret = 'unicode-user|mật-khẩu<&>第二行';
+  await shop.importInventory('telegram-message-test', fileDeliveryProduct.id, [fileDeliverySecret]);
+  const fileCheckout = await shop.createOrderForUser(fileDeliveryUser, fileDeliveryProduct.sku, 1);
+  await shop.applyPaymentEvent({
+    id: 'evt_telegram_file_delivery',
+    provider: fileCheckout.payment.provider,
+    providerPaymentId: fileCheckout.payment.providerPaymentId,
+    reference: fileCheckout.payment.reference,
+    amount: fileCheckout.order.total,
+    currency: fileCheckout.order.currency,
+    status: 'paid',
+    raw: { regression: true },
+    receivedAt: new Date().toISOString()
+  });
+
+  calls.length = 0;
+  await notifyDelivery(fileCheckout.order.id);
+  const fileDeliveryCall = calls.find((call) => call.url.includes('/sendDocument'));
+  assert.ok(fileDeliveryCall, 'File delivery mode should send one Telegram document.');
+  assert.equal(await fileDeliveryCall.body.document.text(), deliveryDocumentText(
+    { ...fileCheckout.order, status: 'delivered' },
+    [fileDeliverySecret]
+  ));
+  assert.equal(fileDeliveryCall.body.caption.includes(fileDeliverySecret), false);
+  assert.equal(
+    calls.some((call) => call.url.includes('/sendMessage') && String(call.body.text || '').includes(fileDeliverySecret)),
+    false,
+    'Successful file delivery must not duplicate the secret in a text message.'
+  );
+
+  calls.length = 0;
+  forceDocumentFailure = true;
+  await notifyDelivery(fileCheckout.order.id);
+  forceDocumentFailure = false;
+  assert.ok(calls.some((call) => call.url.includes('/sendDocument')), 'Fallback should attempt the TXT document first.');
+  assert.ok(
+    calls.some((call) => call.url.includes('/sendMessage') && String(call.body.text || '').includes('unicode-user|mật-khẩu')),
+    'A failed document delivery should fall back to the existing text delivery.'
+  );
+
+  calls.length = 0;
   await handleTelegramUpdate({
     message: {
       text: '/start',
