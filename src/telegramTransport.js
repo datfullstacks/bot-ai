@@ -6,7 +6,7 @@ const rejectedCustomEmojiIds = new Set();
 const customEmojiCapabilityCooldownMs = normalizeCustomEmojiCapabilityCooldownMs(
   process.env.TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS
 );
-let customEmojiCapabilityRejectedUntil = 0;
+let customEmojiEntityCapabilityRejectedUntil = 0;
 
 function normalizeCustomEmojiCapabilityCooldownMs(value) {
   const parsed = Number(value);
@@ -329,16 +329,16 @@ function hasCustomEmojiEntities(entities = []) {
     && entities.some((entity) => entity?.type === 'custom_emoji');
 }
 
-function isCustomEmojiCapabilityCooldownActive() {
-  if (Date.now() >= customEmojiCapabilityRejectedUntil) {
-    customEmojiCapabilityRejectedUntil = 0;
+function isCustomEmojiEntityCapabilityCooldownActive() {
+  if (Date.now() >= customEmojiEntityCapabilityRejectedUntil) {
+    customEmojiEntityCapabilityRejectedUntil = 0;
     return false;
   }
   return true;
 }
 
-function startCustomEmojiCapabilityCooldown() {
-  customEmojiCapabilityRejectedUntil = Date.now() + customEmojiCapabilityCooldownMs;
+function startCustomEmojiEntityCapabilityCooldown() {
+  customEmojiEntityCapabilityRejectedUntil = Date.now() + customEmojiCapabilityCooldownMs;
 }
 
 function isGenericCustomEmojiCapabilityError(error, payload, entityField) {
@@ -442,21 +442,13 @@ function fallbackButtonPayload(payload) {
   };
 }
 
-function fallbackAllCustomEmojiPayload(payload, entityField, fallbackEntityPayload) {
-  let fallback = payload;
-  if (hasCustomEmojiEntities(fallback?.[entityField])) {
-    fallback = fallbackEntityPayload(fallback);
-  }
-  if (hasButtonCustomEmojiIcons(fallback?.reply_markup)) {
-    fallback = fallbackButtonPayload(fallback);
-  }
-  return fallback;
-}
-
 function applyKnownCustomEmojiFallbacks(payload, entityField, fallbackEntityPayload) {
   let fallback = payload;
-  if (isCustomEmojiCapabilityCooldownActive()) {
-    return fallbackAllCustomEmojiPayload(fallback, entityField, fallbackEntityPayload);
+  if (
+    isCustomEmojiEntityCapabilityCooldownActive()
+    && hasCustomEmojiEntities(fallback?.[entityField])
+  ) {
+    fallback = fallbackEntityPayload(fallback);
   }
   if (hasRejectedCustomEmojiEntity(fallback?.[entityField], entityField)) {
     fallback = fallbackEntityPayload(fallback);
@@ -468,18 +460,21 @@ function applyKnownCustomEmojiFallbacks(payload, entityField, fallbackEntityPayl
 }
 
 function nextCustomEmojiFallback(error, payload, entityField, fallbackEntityPayload) {
-  if (
-    (
-      hasCustomEmojiEntities(payload?.[entityField])
-      || hasButtonCustomEmojiIcons(payload?.reply_markup)
-    )
-    && isGenericCustomEmojiCapabilityError(error, payload, entityField)
-  ) {
-    startCustomEmojiCapabilityCooldown();
-    return fallbackAllCustomEmojiPayload(payload, entityField, fallbackEntityPayload);
-  }
   if (isButtonCustomEmojiError(error) && shouldRetryWithoutButtonCustomEmoji(error, payload)) {
     rememberRejectedButtonCustomEmojiIds(error, payload.reply_markup);
+    return fallbackButtonPayload(payload);
+  }
+  if (
+    hasCustomEmojiEntities(payload?.[entityField])
+    && isGenericCustomEmojiCapabilityError(error, payload, entityField)
+  ) {
+    startCustomEmojiEntityCapabilityCooldown();
+    return fallbackEntityPayload(payload);
+  }
+  if (
+    hasButtonCustomEmojiIcons(payload?.reply_markup)
+    && isGenericCustomEmojiCapabilityError(error, payload, entityField)
+  ) {
     return fallbackButtonPayload(payload);
   }
   if (shouldRetryWithoutCustomEmoji(error, payload, entityField)) {

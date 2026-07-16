@@ -1,9 +1,7 @@
 export const DEFAULT_REQUIRED_EMOJI_PACKS = [
   'brand',
   'ui',
-  'slogan',
   'sloganTile',
-  'banner',
   'news',
   'flame',
   'game',
@@ -111,7 +109,7 @@ export const SLOGAN_TILE_REQUIRED_COUNTS = Object.freeze({
 
 const PACK_NAMES = ['brand', 'ui', 'slogan', 'sloganTile', 'banner', 'news', 'flame', 'game', 'robo', 'retro'];
 const PACK_NAME_BY_NORMALIZED_NAME = new Map(PACK_NAMES.map((name) => [normalizeEmojiKey(name), name]));
-const LEGACY_REQUIRED_PACKS = new Set(['banner', 'ui', 'slogan']);
+const RETIRED_REQUIRED_PACKS = new Set(['banner', 'slogan']);
 
 export function normalizeEmojiKey(value) {
   return String(value || '')
@@ -127,10 +125,7 @@ export function parseRequiredEmojiPacks(value) {
   const configuredPacks = [...new Set(text
     .split(',')
     .map(canonicalEmojiPackName)
-    .filter(Boolean))];
-  const legacyConfig = configuredPacks.length === LEGACY_REQUIRED_PACKS.size
-    && configuredPacks.every((pack) => LEGACY_REQUIRED_PACKS.has(pack));
-  if (legacyConfig) return [...DEFAULT_REQUIRED_EMOJI_PACKS];
+    .filter((pack) => pack && !RETIRED_REQUIRED_PACKS.has(pack)))];
 
   return [...new Set([...DEFAULT_REQUIRED_EMOJI_PACKS, ...configuredPacks])];
 }

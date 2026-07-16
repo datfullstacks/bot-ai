@@ -82,6 +82,7 @@ await writeFile(customEmojiMapFile, JSON.stringify({
     'Gmail.webm': 'ce_gmail_motion',
     'Google.webm': 'ce_google_motion',
     'Microsoft.webm': 'ce_microsoft_motion',
+    'Notion.webm': 'ce_notion_motion',
     'PayPal.webm': 'ce_paypal_motion',
     'Telegram.webm': 'ce_telegram_motion',
     'TikTok.webm': 'ce_tiktok_motion'
@@ -397,6 +398,7 @@ const {
   productMessage,
   sendTelegramMessage,
   sendTelegramPhotoFile,
+  sloganCustomEmojiId,
   startMessage,
   unknownCommandMessage,
   usageMessage
@@ -460,8 +462,58 @@ try {
   assert.match(welcomeText, /<b>KAITO KID AI SHOP<\/b> 🤑 chào bạn/);
   assert.equal(welcomeText.includes('<tg-emoji'), false, 'Caption/text runtime should not send custom emoji entities.');
   assert.equal(welcomeText.includes('ce_'), false, 'Caption/text runtime should not leak custom emoji IDs.');
-  assert.equal(bannerCustomEmojiId('kaito'), 'ce_banner_kaito');
-  assert.equal(bannerCustomEmojiId('auto247'), 'ce_banner_auto247');
+  const replacementBannerIds = {
+    account: 'ce_ui_account',
+    ai: 'ce_chatgpt_file',
+    auto247: 'ce_ui_instant-delivery',
+    instant: 'ce_ui_instant-delivery',
+    checkin: 'ce_notion_motion',
+    news: 'ce_ui_news',
+    guide: 'ce_ui_news',
+    combo: 'ce_ui_offers',
+    contact: newsEmojiIds.adminchat,
+    delivery: 'ce_ui_orders',
+    orders: 'ce_ui_orders',
+    stock: 'ce_ui_orders',
+    event: 'ce_ui_events',
+    minigame: 'ce_ui_events',
+    mmo: 'ce_ui_events',
+    hot: newsEmojiIds.adminfire,
+    kaito: 'ce_ui_reviews',
+    review: 'ce_ui_reviews',
+    welcome: 'ce_robo_wave',
+    logout: 'ce_ui_logout',
+    refund: 'ce_ui_logout',
+    member: 'ce_ui_member',
+    vip: 'ce_ui_member',
+    new: 'ce_ui_notifications',
+    soldout: 'ce_ui_notifications',
+    payment: 'ce_ui_topup',
+    policy: 'ce_ui_security',
+    secure: 'ce_ui_security',
+    trusted: 'ce_ui_security',
+    products: 'ce_game_products',
+    sale: 'ce_ui_promotions',
+    support: 'ce_ui_support'
+  };
+  for (const [key, expectedId] of Object.entries(replacementBannerIds)) {
+    assert.equal(bannerCustomEmojiId(key), expectedId, `Banner alias ${key} should use a live replacement pack.`);
+    assert.equal(expectedId.startsWith('ce_banner_'), false);
+  }
+  const replacementSloganIds = {
+    catalog: 'ce_game_products',
+    checkout: 'ce_robo_ok',
+    payment: 'ce_ui_topup',
+    delivery: 'ce_ui_orders',
+    support: 'ce_ui_support',
+    soldout: 'ce_ui_notifications',
+    welcome: 'ce_ui_reviews',
+    'text-shopping-flow': 'ce_ui_reviews'
+  };
+  for (const [key, expectedId] of Object.entries(replacementSloganIds)) {
+    assert.equal(sloganCustomEmojiId(key), expectedId, `Slogan alias ${key} should use a live replacement pack.`);
+    assert.equal(expectedId.startsWith('ce_slogan_'), false);
+  }
   assert.match(welcomeText, /<b>KAITO KID AI SHOP<\/b> 🤑 chào bạn 👋/);
   assert.ok(welcomeText.includes('🎫 DAILY UPDATE 🎫'), 'Plain welcome fallback should include the readable Daily Update slogan.');
   assert.ok(
@@ -481,14 +533,14 @@ try {
   assert.match(welcomeText, /🔄 Tự động 24\/7, bot xử lý liên tục 🔄/);
   assert.match(welcomeText, /🔍 Theo dõi đơn hàng ngay trong bot 🔍/);
   assert.match(welcomeText, /💬 Admin: @kaitoukit 🛡 💥🔥💯/);
-  assert.equal(usageMessage(), '📜 Cú pháp: <code>/buy sku 1</code>');
+  assert.equal(usageMessage(), '📄 Cú pháp: <code>/buy sku 1</code>');
   assert.match(unknownCommandMessage(), /🛒 Sản phẩm/);
 
   assert.equal(formatOrderStatus('pending_payment'), '💳 Chờ thanh toán');
-  assert.equal(formatOrderStatus('payment_review'), '⚠️ Cần kiểm tra');
+  assert.equal(formatOrderStatus('payment_review'), '📣 Cần kiểm tra');
   assert.equal(formatOrderStatus('delivered'), '📦 Đã giao hàng');
   assert.equal(formatStockStatus({ stock: { available: 2 } }), '📦 Còn 2');
-  assert.equal(formatStockStatus({ stock: { available: 0 } }), '⚠️ Hết hàng');
+  assert.equal(formatStockStatus({ stock: { available: 0 } }), '📣 Hết hàng');
   assert.equal(brandAssets.brandIcon('ChatGPT'), '🤖');
   assert.equal(brandAssets.brandIcon('Claude'), '🧠');
   assert.equal(brandAssets.brandIcon('Canva'), '🎨');
@@ -523,7 +575,7 @@ try {
   ]);
   assert.match(categoryText, /Danh mục sản phẩm/);
   assert.equal(categoryText.includes('<tg-emoji'), false);
-  assert.match(categoryText, /🛍️/);
+  assert.match(categoryText, /🛒/);
   assert.match(categoryText, /⚡/);
   assert.match(categoryText, /🔄/);
   assert.match(categoryText, /👌/);
@@ -535,7 +587,7 @@ try {
   assert.match(categoryText, /liên hệ admin/i);
   assert.match(categoryText, /@kaitoukit/);
   assert.match(categoryText, /🔥 <b>Sản phẩm hot<\/b>/);
-  assert.match(categoryText, /🆕 Đang cập nhật các gói nổi bật/);
+  assert.match(categoryText, /📣 Đang cập nhật các gói nổi bật/);
   assert.match(categoryText, /Chọn một danh mục bên dưới/);
 
   const hotCategoryText = categoryMenuMessage([
@@ -606,7 +658,7 @@ try {
       stock: { available: 0 }
     }
   ]);
-  assert.match(soldOutHotCategoryText, /🤖 <b>Hot hết hàng<\/b> · 💳 99\.000 VND · ⚠️ Hết hàng/);
+  assert.match(soldOutHotCategoryText, /🤖 <b>Hot hết hàng<\/b> · 💳 99\.000 VND · 📣 Hết hàng/);
 
   const categoryKeyboard = buildCategoryKeyboard([
     {
@@ -646,7 +698,7 @@ try {
   assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('Design Accounts'));
   assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('[Hết]'));
   assert.ok(categoryKeyboard.inline_keyboard[0].every((button) => button.callback_data.startsWith('cat:')));
-  assert.equal(categoryKeyboard.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_banner_ai');
+  assert.equal(categoryKeyboard.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_chatgpt_file');
   assert.equal(categoryKeyboard.inline_keyboard[0][1].icon_custom_emoji_id, 'ce_canva_motion');
   assert.ok(categoryKeyboard.inline_keyboard.some((row) => (
     row[0].text === 'Làm mới'
@@ -656,7 +708,7 @@ try {
   assert.ok(categoryKeyboard.inline_keyboard.some((row) => (
     row[0].text === 'Menu chính'
     && row[0].callback_data === 'start:menu'
-    && row[0].icon_custom_emoji_id === 'ce_banner_refund'
+    && row[0].icon_custom_emoji_id === 'ce_ui_logout'
   )));
   assertAllKeyboardButtonsAnimated(categoryKeyboard, 'category keyboard');
   assert.ok(categoryKeyboard.inline_keyboard.flat().every((button) => Buffer.byteLength(button.callback_data || '', 'utf8') <= 64));
@@ -686,7 +738,7 @@ try {
   assert.equal(brandKeyboard.inline_keyboard[0][1].text, 'Claude');
   assert.equal(brandKeyboard.inline_keyboard[0][1].icon_custom_emoji_id, 'ce_claude_file');
   assert.equal(brandKeyboard.inline_keyboard.at(-1)[0].text, 'Tất cả danh mục');
-  assert.equal(brandKeyboard.inline_keyboard.at(-1)[0].icon_custom_emoji_id, 'ce_banner_refund');
+  assert.equal(brandKeyboard.inline_keyboard.at(-1)[0].icon_custom_emoji_id, 'ce_ui_logout');
   assertAllKeyboardButtonsAnimated(brandKeyboard, 'brand keyboard');
 
   const productsText = productMessage([{
@@ -832,12 +884,12 @@ try {
   assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => (
     button.text === 'Thanh toán'
     && button.url === 'https://pay.local/'
-    && button.icon_custom_emoji_id === 'ce_slogan_payment'
+    && button.icon_custom_emoji_id === 'ce_ui_topup'
   )));
   assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => (
     button.text === 'Xem QR'
     && button.url === 'https://qr.local/'
-    && button.icon_custom_emoji_id === 'ce_slogan_payment'
+    && button.icon_custom_emoji_id === 'ce_ui_topup'
   )));
   assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => button.callback_data === 'cancel:ord_1'));
   assertAllKeyboardButtonsAnimated(paymentKeyboard, 'payment keyboard');
@@ -1078,11 +1130,15 @@ try {
     'Startup broadcast should notify every known Telegram user once.'
   );
   assert.ok(
-    restartCalls.every((call) => call.body.text === '🔄 Bot đã hoạt động trở lại'),
+    restartCalls.every((call) => call.body.text === '👋 Bot đã hoạt động trở lại'),
     'Startup broadcast should use the requested restored message.'
   );
   for (const call of restartCalls) {
     assertEveryEmojiAnimated(call, 'startup restored broadcast');
+    assert.ok(
+      hasCustomEmojiId(call, 'ce_robo_wave'),
+      'Startup broadcast should use the live-passing Robo wave custom emoji.'
+    );
   }
 
   calls.length = 0;
@@ -1148,7 +1204,7 @@ try {
   assert.ok(catalogCall);
   assert.match(catalogCall.body.text, /🔥 Sản phẩm hot/);
   assert.match(catalogCall.body.text, /ChatGPT Plus - 1 tháng/);
-  assert.ok(hasCustomEmojiId(catalogCall, 'ce_banner_hot'), 'Catalog hot heading should use its animated custom emoji.');
+  assert.ok(hasCustomEmojiId(catalogCall, newsEmojiIds.adminfire), 'Catalog hot heading should use the live News admin-fire emoji.');
   assert.ok(hasCustomEmojiId(catalogCall, 'ce_chatgpt_file'), 'Catalog hot product should use its animated brand emoji.');
   assertEveryEmojiAnimated(catalogCall, 'catalog message');
   assertAllKeyboardButtonsAnimated(catalogCall.body.reply_markup, 'catalog callback keyboard');
@@ -1230,7 +1286,7 @@ try {
   assert.ok(brandCall, 'Brand callback should present a package chooser.');
   assert.match(brandCall.body.text, /AI Accounts \/ ChatGPT/);
   assert.ok(hasEntityType(brandCall, 'bold'));
-  assert.ok(hasCustomEmojiId(brandCall, 'ce_banner_ai'));
+  assert.ok(hasCustomEmojiId(brandCall, 'ce_chatgpt_file'));
   assert.ok(hasCustomEmojiId(brandCall, 'ce_chatgpt_file'));
   assertEveryEmojiAnimated(brandCall, 'brand package chooser message');
   assert.match(brandCall.body.text, /giữ slot/i);
@@ -1291,7 +1347,7 @@ try {
   assert.ok(supportCall?.body.text.includes('🎧'));
   assert.ok(supportCall?.body.text.includes('🙏'));
   assert.ok(supportCall?.body.text.includes('🫡'));
-  assert.ok(hasCustomEmojiId(supportCall, 'ce_slogan_support'));
+  assert.ok(hasCustomEmojiId(supportCall, 'ce_ui_support'));
   assert.ok(hasCustomEmojiId(supportCall, 'ce_robo_please'));
   assert.ok(hasCustomEmojiId(supportCall, 'ce_robo_salute'));
   assertEveryEmojiAnimated(supportCall, 'support message');
@@ -1342,7 +1398,7 @@ try {
   const supportCommandCall = calls.find((call) => call.url.includes('/sendMessage') && call.body.text.includes('Hỗ trợ'));
   assert.ok(supportCommandCall);
   assert.ok(hasEntityType(supportCommandCall, 'bold'), '/support should preserve bold formatting with entity payloads.');
-  assert.ok(hasCustomEmojiId(supportCommandCall, 'ce_slogan_support'), '/support should animate the owned slogan support emoji.');
+  assert.ok(hasCustomEmojiId(supportCommandCall, 'ce_ui_support'), '/support should animate the live UI support emoji.');
   assertEveryEmojiAnimated(supportCommandCall, '/support command message');
   assertAllKeyboardButtonsAnimated(supportCommandCall.body.reply_markup, '/support keyboard');
 

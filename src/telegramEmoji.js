@@ -119,11 +119,84 @@ export function uiCustomEmojiId(key) {
 }
 
 export function sloganCustomEmojiId(key) {
-  return resolveTelegramCustomEmojiId(telegramEmojiRegistry, { pack: 'slogan', key });
+  switch (normalizeEmojiKey(key)) {
+    case 'catalog':
+      return gameCustomEmojiId('products');
+    case 'checkout':
+      return roboCustomEmojiId('ok');
+    case 'payment':
+      return uiCustomEmojiId('topup');
+    case 'delivery':
+      return uiCustomEmojiId('orders');
+    case 'support':
+      return uiCustomEmojiId('support');
+    case 'soldout':
+      return uiCustomEmojiId('notifications');
+    case 'welcome':
+    case 'textshoppingflow':
+      return uiCustomEmojiId('reviews');
+    default:
+      return '';
+  }
 }
 
 export function bannerCustomEmojiId(key) {
-  return resolveTelegramCustomEmojiId(telegramEmojiRegistry, { pack: 'banner', key });
+  switch (normalizeEmojiKey(key)) {
+    case 'account':
+      return uiCustomEmojiId('account');
+    case 'ai':
+      return brandCustomEmojiId('ChatGPT');
+    case 'auto247':
+    case 'instant':
+      return uiCustomEmojiId('instant-delivery');
+    case 'checkin':
+      return brandCustomEmojiId('Notion');
+    case 'news':
+    case 'guide':
+      return uiCustomEmojiId('news');
+    case 'combo':
+      return uiCustomEmojiId('offers');
+    case 'contact':
+      return newsCustomEmojiId('adminchat');
+    case 'delivery':
+    case 'orders':
+    case 'stock':
+      return uiCustomEmojiId('orders');
+    case 'event':
+    case 'minigame':
+    case 'mmo':
+      return uiCustomEmojiId('events');
+    case 'hot':
+      return newsCustomEmojiId('adminfire');
+    case 'kaito':
+    case 'review':
+      return uiCustomEmojiId('reviews');
+    case 'welcome':
+      return roboCustomEmojiId('wave');
+    case 'logout':
+    case 'refund':
+      return uiCustomEmojiId('logout');
+    case 'member':
+    case 'vip':
+      return uiCustomEmojiId('member');
+    case 'new':
+    case 'soldout':
+      return uiCustomEmojiId('notifications');
+    case 'payment':
+      return uiCustomEmojiId('topup');
+    case 'policy':
+    case 'secure':
+    case 'trusted':
+      return uiCustomEmojiId('security');
+    case 'products':
+      return gameCustomEmojiId('products');
+    case 'sale':
+      return uiCustomEmojiId('promotions');
+    case 'support':
+      return uiCustomEmojiId('support');
+    default:
+      return '';
+  }
 }
 
 export function newsCustomEmojiId(key) {

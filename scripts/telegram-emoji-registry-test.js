@@ -60,9 +60,7 @@ assert.equal(SLOGAN_TILE_REQUIRED_COUNTS.daily_update, 6);
 assert.deepEqual(DEFAULT_REQUIRED_EMOJI_PACKS, [
   'brand',
   'ui',
-  'slogan',
   'sloganTile',
-  'banner',
   'news',
   'flame',
   'game',
@@ -73,6 +71,13 @@ assert.deepEqual(parseRequiredEmojiPacks(''), DEFAULT_REQUIRED_EMOJI_PACKS);
 assert.deepEqual(parseRequiredEmojiPacks('banner,ui,slogan'), DEFAULT_REQUIRED_EMOJI_PACKS);
 assert.deepEqual(parseRequiredEmojiPacks('SLOGAN_TILE,banner'), DEFAULT_REQUIRED_EMOJI_PACKS);
 assert.deepEqual(parseRequiredEmojiPacks('sloganTile,slogan'), DEFAULT_REQUIRED_EMOJI_PACKS);
+assert.deepEqual(
+  parseRequiredEmojiPacks('brand,ui,slogan,sloganTile,banner,news,flame,game,robo,retro'),
+  DEFAULT_REQUIRED_EMOJI_PACKS,
+  'The previous production baseline must not re-add retired banner or slogan packs.'
+);
+assert.equal(parseRequiredEmojiPacks('banner,ui,slogan').includes('banner'), false);
+assert.equal(parseRequiredEmojiPacks('banner,ui,slogan').includes('slogan'), false);
 
 assert.equal(resolveTelegramCustomEmojiId(registry, { pack: 'banner', key: 'kaito' }), 'ce_banner_kaito');
 assert.equal(resolveTelegramCustomEmojiId(registry, { pack: 'banner', key: 'auto-247' }), 'ce_banner_auto247');

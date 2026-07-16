@@ -112,21 +112,21 @@ const UI_TEXT_EMOJI = Object.freeze({
   logout: '🔌',
   close: '🔌',
   refresh: '🔄',
-  back: '↩️',
+  back: '🔌',
   ai: '🤖',
   design: '🎨',
   work: '💻',
-  social: '🎯'
+  social: '🎮'
 });
 
 const SLOGAN_TEXT_EMOJI = Object.freeze({
   welcome: '✨',
-  catalog: '🛍️',
-  checkout: '💎',
+  catalog: '🛒',
+  checkout: '👌',
   payment: '💳',
   delivery: '📦',
   support: '🎧',
-  soldout: '⚠️',
+  soldout: '📣',
   'text-shopping-flow': '✨'
 });
 
@@ -139,25 +139,25 @@ const BANNER_TEXT_EMOJI = Object.freeze({
   contact: '💬',
   delivery: '📦',
   event: '🎮',
-  guide: '📜',
+  guide: '📄',
   hot: '🔥',
   instant: '⚡',
   kaito: '✨',
   logout: '🔌',
   member: '👑',
   minigame: '🎮',
-  mmo: '🎯',
-  new: '🆕',
+  mmo: '🎮',
+  new: '📣',
   news: '📄',
   orders: '📦',
   payment: '💳',
   policy: '🛡️',
   products: '🛒',
-  refund: '↩️',
+  refund: '🔌',
   review: '✨',
   sale: '🎫',
   secure: '🛡️',
-  soldout: '⚠️',
+  soldout: '📣',
   stock: '📦',
   support: '🎧',
   trusted: '🛡️',
@@ -204,11 +204,11 @@ const FLOW_MOTION_BRANDS = new Map([
 
 const ORDER_STATUS_LABELS = new Map([
   ['pending_payment', '💳 Chờ thanh toán'],
-  ['payment_review', '⚠️ Cần kiểm tra'],
+  ['payment_review', '📣 Cần kiểm tra'],
   ['delivered', '📦 Đã giao hàng'],
-  ['cancelled', '↩️ Đã hủy'],
-  ['expired', '⚠️ Hết hạn'],
-  ['refunded', '↩️ Đã hoàn tiền'],
+  ['cancelled', '🔌 Đã hủy'],
+  ['expired', '📣 Hết hạn'],
+  ['refunded', '🔌 Đã hoàn tiền'],
   ['paid', '📝 Đã thanh toán']
 ]);
 
@@ -237,7 +237,7 @@ const TELEGRAM_ALL_MENU_COMMANDS = [
 ];
 
 const TELEGRAM_VISIBLE_COMMAND_ORDER = ['start', 'products', 'orders', 'support', 'account'];
-export const BOT_RESTORED_MESSAGE = `${UI_TEXT_EMOJI['automation-247']} Bot đã hoạt động trở lại`;
+export const BOT_RESTORED_MESSAGE = `${roboEmoji('wave', '👋')} Bot đã hoạt động trở lại`;
 
 export const TELEGRAM_MENU_COMMANDS = TELEGRAM_VISIBLE_COMMAND_ORDER
   .map((command) => TELEGRAM_ALL_MENU_COMMANDS.find((item) => item.command === command))

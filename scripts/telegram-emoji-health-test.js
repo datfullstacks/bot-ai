@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  buildTelegramEmojiRegistry
+  DEFAULT_REQUIRED_EMOJI_PACKS,
+  buildTelegramEmojiRegistry,
+  parseRequiredEmojiPacks
 } from '../src/telegramEmojiRegistry.js';
 import {
   buildTelegramEmojiHealthReport,
@@ -21,6 +23,10 @@ const bannerAltById = {
   ce_banner_welcome: '👋',
   ce_banner_products: '🛒'
 };
+
+assert.equal(DEFAULT_REQUIRED_EMOJI_PACKS.includes('banner'), false);
+assert.equal(DEFAULT_REQUIRED_EMOJI_PACKS.includes('slogan'), false);
+assert.deepEqual(parseRequiredEmojiPacks('banner,ui,slogan'), DEFAULT_REQUIRED_EMOJI_PACKS);
 
 try {
   const registry = buildTelegramEmojiRegistry({

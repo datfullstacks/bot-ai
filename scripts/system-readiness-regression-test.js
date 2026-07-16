@@ -58,7 +58,6 @@ try {
   await Promise.all([
     writeFile(brandEmojiMapFile, JSON.stringify(fileMap(['chatgpt'], 'brand')), 'utf8'),
     writeFile(uiEmojiMapFile, JSON.stringify(fileMap(requiredKeys.ui, 'ui')), 'utf8'),
-    writeFile(sloganEmojiMapFile, JSON.stringify(fileMap(requiredKeys.slogan, 'slogan')), 'utf8'),
     writeFile(sloganTileEmojiMapFile, JSON.stringify({
       stickerType: 'custom_emoji',
       customEmojiIdsByFile: Object.fromEntries(
@@ -76,7 +75,6 @@ try {
         }
       }
     }), 'utf8'),
-    writeFile(bannerEmojiMapFile, JSON.stringify(fileMap(requiredKeys.banner, 'banner')), 'utf8'),
     writeFile(newsEmojiMapFile, JSON.stringify(fileMap(requiredKeys.news, 'news', 'tgs')), 'utf8'),
     writeFile(flameEmojiMapFile, JSON.stringify(fileMap(requiredKeys.flame, 'flame', 'tgs')), 'utf8'),
     writeFile(gameEmojiMapFile, JSON.stringify(fileMap(requiredKeys.game, 'game', 'tgs')), 'utf8'),
@@ -145,9 +143,12 @@ try {
   assert.equal(readiness.telegram.webhookSecretConfigured, true);
   assert.equal(readiness.telegramEmoji.enabled, true);
   assert.deepEqual(readiness.telegramEmoji.requiredPacks, emojiRegistry.DEFAULT_REQUIRED_EMOJI_PACKS);
+  assert.equal(readiness.telegramEmoji.requiredPacks.length, 8);
   assert.equal(readiness.telegramEmoji.requiredPacks.includes('sloganTile'), true);
-  assert.equal(readiness.telegramEmoji.packs.banner.loaded, true);
-  assert.equal(readiness.telegramEmoji.packs.banner.availableRequiredKeys, requiredKeys.banner.length);
+  assert.equal(readiness.telegramEmoji.requiredPacks.includes('banner'), false);
+  assert.equal(readiness.telegramEmoji.requiredPacks.includes('slogan'), false);
+  assert.equal(readiness.telegramEmoji.packs.banner, undefined);
+  assert.equal(readiness.telegramEmoji.packs.slogan, undefined);
   assert.equal(readiness.telegramEmoji.packs.sloganTile.availableRequiredKeys, 1);
   assert.equal(readiness.telegramEmoji.packs.news.loaded, true);
   assert.equal(readiness.telegramEmoji.packs.flame.loaded, true);

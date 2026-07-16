@@ -357,7 +357,7 @@ HTTPS URL, then local file upload. When the URL is blank and the local file is u
 cached as a Telegram `file_id` for later `/start` requests. If the local image is
 missing, the bot falls back to `public/brand/slogan-image/welcome.png`.
 
-Then upload those videos as a separate custom emoji pack and write the ids to the slogan map:
+The separate slogan custom-emoji pack is optional and is no longer part of production readiness. If you still want to maintain it, upload the videos and write the ids to the slogan map:
 
 ```powershell
 npm.cmd run telegram:create-custom-emojis -- --format video --source public/brand/slogan-emoji --output data/telegram-slogan-emoji-map.json --base kaito_ai_shop_slogan_motion --title "KAITO AI SHOP Slogan Motion" --yes
@@ -380,7 +380,7 @@ TELEGRAM_FLAME_EMOJI_MAP_FILE=data/telegram-flame-emoji-map.json
 TELEGRAM_GAME_EMOJI_MAP_FILE=data/telegram-game-emoji-map.json
 TELEGRAM_ROBO_EMOJI_MAP_FILE=data/telegram-robo-emoji-map.json
 TELEGRAM_RETRO_FONT_EMOJI_MAP_FILE=data/telegram-retro-font-emoji-map.json
-TELEGRAM_EMOJI_REQUIRED_PACKS=brand,ui,slogan,sloganTile,banner,news,flame,game,robo,retro
+TELEGRAM_EMOJI_REQUIRED_PACKS=brand,ui,sloganTile,news,flame,game,robo,retro
 TELEGRAM_EMOJI_HEALTH_REPORT_FILE=data/telegram-emoji-health-report.json
 TELEGRAM_EMOJI_HEALTH_MAX_AGE_HOURS=24
 TELEGRAM_EMOJI_RELEASE_REPORT_FILE=data/telegram-emoji-release-report.json
@@ -390,16 +390,14 @@ The required runtime packs are:
 
 - `brand`: brand and package buttons
 - `ui`: menu and navigation actions
-- `slogan`: customer-flow status icons
 - `sloganTile`: the animated `DAILY UPDATE` line on `/start`
-- `banner`: common sales, payment, delivery, support, and state actions
 - `news`, `flame`, and `game`: animated welcome/menu accents
 - `robo`: reaction and compact action icons
 - `retro`: the animated `KAITO KID AI SHOP` heading
 
-`TELEGRAM_EMOJI_REQUIRED_PACKS` is merged with this runtime baseline, so an old production value such as `banner,ui,slogan` cannot make readiness report a partial setup as ready. Pack names are normalized without losing the camel-case `sloganTile` registry key.
+`banner` and `slogan` are retired from readiness and may be absent. `TELEGRAM_EMOJI_REQUIRED_PACKS` is merged with the runtime baseline after removing those retired names, so old production values such as `banner,ui,slogan` or the previous full pack list normalize to the eight packs above instead of requiring deleted packs. Pack names are normalized without losing the camel-case `sloganTile` registry key.
 
-When Telegram rejects a custom emoji entity or inline-button icon, the transport retries once without all custom-emoji fields so customers still receive the ordinary fallback emoji and a usable keyboard. A generic capability rejection starts a short cooldown controlled by `TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS`, preventing every `/start` request from repeating the same slow failed attempt; the bot automatically probes custom emoji again after the cooldown. Set `TELEGRAM_CUSTOM_TEXT_EMOJI=false` to strip text/caption entities and button custom-emoji icons up front.
+When Telegram rejects custom emoji in text or captions, the transport retries without those entities while preserving animated inline-button icons. A generic text capability rejection starts a short cooldown controlled by `TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS`, preventing every `/start` request from repeating the same slow failed text attempt; the bot automatically probes text emoji again after the cooldown. Button-icon failures are degraded only for the affected request, while an explicitly rejected button ID is cached by ID. Set `TELEGRAM_CUSTOM_TEXT_EMOJI=false` to strip text/caption entities and button custom-emoji icons up front.
 
 For the neon menu icon sheet, place the source image at `public/brand/menu-neon/source.png` or pass it directly, then generate tightly cropped PNG sources and Telegram-ready WEBM animations:
 
@@ -422,7 +420,7 @@ npm.cmd run telegram:generate-slogan-tiles
 npm.cmd run telegram:release-emojis -- --packs slogan-tiles --yes
 ```
 
-For GiaSieuRe-style KAITO banner emoji, generate the 32 Telegram-ready WEBM tiles and preview sheet, then upload them as a separate video custom emoji pack:
+The former GiaSieuRe-style KAITO banner pack is optional tooling and is no longer checked by runtime readiness. To recreate it for experiments, generate the 32 Telegram-ready WEBM tiles and preview sheet, then upload them as a separate video custom emoji pack:
 
 ```powershell
 npm.cmd run telegram:generate-banner-emojis
