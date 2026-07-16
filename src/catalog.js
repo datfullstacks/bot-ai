@@ -31,16 +31,20 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     officialPriceNote: 'OpenAI Plus: $20/mo'
   },
   {
-    sku: 'chatgpt-team-slot-1m',
+    sku: 'chatgpt-business-seat-1m',
     category: 'AI Accounts',
     brand: 'ChatGPT',
-    packageType: 'Team Slot 1M',
-    name: 'ChatGPT Team Slot - 1 tháng',
-    description: 'Slot ChatGPT Team 1 tháng cho nhu cầu AI làm việc cường độ cao.',
-    price: 149000,
+    packageType: 'Business Seat 1M',
+    name: 'ChatGPT Business Seat 1M',
+    description: 'Seat thành viên ChatGPT Business trong 1 tháng, cấp quyền truy cập qua workspace do shop quản lý.',
+    price: 400000,
     currency: 'VND',
     sortOrder: 20,
-    officialPriceNote: 'OpenAI Team: from $30/user/mo monthly'
+    officialPriceNote: 'OpenAI ChatGPT Business: per-user pricing varies by billing interval and region',
+    accountType: 'Seat thành viên ChatGPT Business trong workspace; không phải tài khoản ChatGPT riêng.',
+    warrantyPolicy: 'Bảo hành quyền truy cập workspace trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do workspace của shop.',
+    replacementPolicy: 'Đổi seat khi lời mời hoặc quyền truy cập lỗi do workspace của shop; không áp dụng nếu khách tự rời workspace, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách OpenAI.',
+    deliveryMode: 'text'
   },
   {
     sku: 'claude-pro-1m',
@@ -53,6 +57,38 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     currency: 'VND',
     sortOrder: 30,
     officialPriceNote: 'Anthropic Claude Pro: $20/mo'
+  },
+  {
+    sku: 'claude-business-seat-1x-1m',
+    category: 'AI Accounts',
+    brand: 'Claude',
+    packageType: 'Business Seat 1x 1M',
+    name: 'Claude Business Seat 1x 1M',
+    description: 'Seat thành viên Claude Business mức sử dụng 1x trong 1 tháng, cấp quyền truy cập qua organization do shop quản lý.',
+    price: 400000,
+    currency: 'VND',
+    sortOrder: 32,
+    officialPriceNote: 'Anthropic business seat pricing and limits vary by plan, billing interval and region',
+    accountType: 'Seat thành viên Claude Business 1x trong organization; không phải tài khoản Claude riêng.',
+    warrantyPolicy: 'Bảo hành quyền truy cập organization trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do organization của shop.',
+    replacementPolicy: 'Đổi seat khi lời mời hoặc quyền truy cập lỗi do organization của shop; không áp dụng nếu khách tự rời organization, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách Anthropic.',
+    deliveryMode: 'text'
+  },
+  {
+    sku: 'claude-business-seat-6-5x-1m',
+    category: 'AI Accounts',
+    brand: 'Claude',
+    packageType: 'Business Seat 6.5x 1M',
+    name: 'Claude Business Seat 6.5x 1M',
+    description: 'Seat thành viên Claude Business trong 1 tháng với mức phân bổ 6.5x theo tier do shop quy ước.',
+    price: 1800000,
+    currency: 'VND',
+    sortOrder: 34,
+    officialPriceNote: 'Shop tier "6.5x"; not an official Anthropic plan name. Anthropic plan limits and pricing vary by plan and region.',
+    accountType: 'Seat thành viên Claude Business tier 6.5x của shop trong organization; không phải tài khoản Claude riêng.',
+    warrantyPolicy: 'Bảo hành quyền truy cập organization trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do organization của shop.',
+    replacementPolicy: 'Đổi seat khi lời mời, quyền truy cập hoặc tier bàn giao lỗi do organization của shop; không áp dụng nếu khách tự rời organization, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách Anthropic.',
+    deliveryMode: 'text'
   },
   {
     sku: 'gemini-advanced-1m',

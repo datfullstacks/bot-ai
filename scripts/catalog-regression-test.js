@@ -10,6 +10,11 @@ import {
 assert.ok(DEFAULT_CATALOG_PRODUCTS.length >= 10, 'Catalog should include account package products across brands.');
 
 const bySku = new Map(DEFAULT_CATALOG_PRODUCTS.map((product) => [product.sku, product]));
+assert.equal(
+  bySku.size,
+  DEFAULT_CATALOG_PRODUCTS.length,
+  'Default catalog SKUs must be unique.'
+);
 for (const product of DEFAULT_CATALOG_PRODUCTS) {
   const visibleText = `${product.name} ${product.description} ${product.accountType} ${product.warrantyPolicy} ${product.replacementPolicy}`;
   assert.equal(
@@ -25,8 +30,10 @@ for (const product of DEFAULT_CATALOG_PRODUCTS) {
 
 for (const sku of [
   'chatgpt-plus-1m',
-  'chatgpt-team-slot-1m',
+  'chatgpt-business-seat-1m',
   'claude-pro-1m',
+  'claude-business-seat-1x-1m',
+  'claude-business-seat-6-5x-1m',
   'gemini-advanced-1m',
   'cursor-pro-1m',
   'canva-pro-1m',
@@ -39,6 +46,48 @@ for (const sku of [
 ]) {
   assert.ok(bySku.has(sku), `Missing default catalog SKU ${sku}`);
 }
+
+assert.equal(
+  bySku.has('chatgpt-team-slot-1m'),
+  false,
+  'Legacy ChatGPT Team Slot SKU should be replaced by ChatGPT Business Seat.'
+);
+
+for (const expected of [
+  {
+    sku: 'chatgpt-business-seat-1m',
+    name: 'ChatGPT Business Seat 1M',
+    packageType: 'Business Seat 1M',
+    price: 400000
+  },
+  {
+    sku: 'claude-business-seat-1x-1m',
+    name: 'Claude Business Seat 1x 1M',
+    packageType: 'Business Seat 1x 1M',
+    price: 400000
+  },
+  {
+    sku: 'claude-business-seat-6-5x-1m',
+    name: 'Claude Business Seat 6.5x 1M',
+    packageType: 'Business Seat 6.5x 1M',
+    price: 1800000
+  }
+]) {
+  const product = bySku.get(expected.sku);
+  assert.ok(product, `Missing seat product ${expected.sku}.`);
+  assert.equal(product.name, expected.name, `${expected.sku} should use the expected name.`);
+  assert.equal(product.packageType, expected.packageType, `${expected.sku} should use the expected package type.`);
+  assert.equal(product.price, expected.price, `${expected.sku} should use the expected price.`);
+  assert.equal(product.deliveryMode, 'text', `${expected.sku} should use text delivery.`);
+  assert.match(product.accountType, /seat/i, `${expected.sku} should explicitly describe the seat account type.`);
+  assert.match(product.warrantyPolicy, /1 tháng/i, `${expected.sku} should explicitly cover the one-month term.`);
+  assert.match(product.replacementPolicy, /đổi seat/i, `${expected.sku} should explicitly describe seat replacement.`);
+}
+
+assert.match(
+  bySku.get('claude-business-seat-6-5x-1m').officialPriceNote,
+  /shop tier.*not an official Anthropic plan name/i
+);
 
 const defaultBrands = new Set(DEFAULT_CATALOG_PRODUCTS.map((product) => product.brand));
 for (const brand of ['Gmail', 'PayPal', 'Cursor', 'TikTok', 'Facebook', 'Figma']) {
