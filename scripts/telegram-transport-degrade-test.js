@@ -9,6 +9,7 @@ process.env.STORE_DRIVER = 'json';
 process.env.DATA_FILE = dataFile;
 process.env.TELEGRAM_BOT_TOKEN = '123:test';
 process.env.TELEGRAM_CUSTOM_TEXT_EMOJI = 'true';
+process.env.TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS = '20';
 
 const { config } = await import('../src/config.js');
 const {
@@ -22,6 +23,8 @@ const {
 } = await import('../src/telegramTransport.js');
 
 const calls = [];
+let rejectGenericCustomEmojiIds = true;
+let genericCustomEmojiErrorDescription = 'Bad Request: CUSTOM_EMOJI_INVALID';
 globalThis.fetch = async (url, options) => {
   const body = parseTelegramBody(options.body);
   calls.push({ url: String(url), body });
@@ -50,7 +53,7 @@ globalThis.fetch = async (url, options) => {
     const hasGenericButtonCustomEmojiId = buttonCustomEmojiIds
       .some((customEmojiId) => customEmojiId.startsWith('ce_generic_'));
     const shouldRejectButtonCustomEmoji = Boolean(
-      rejectedButtonCustomEmojiId || hasGenericButtonCustomEmojiId
+      rejectedButtonCustomEmojiId || (rejectGenericCustomEmojiIds && hasGenericButtonCustomEmojiId)
     );
     return {
       ok: !shouldRejectButtonCustomEmoji,
@@ -60,7 +63,7 @@ globalThis.fetch = async (url, options) => {
           ok: false,
           description: rejectedButtonCustomEmojiId
             ? `Bad Request: BUTTON_CUSTOM_EMOJI_INVALID for icon_custom_emoji_id "${rejectedButtonCustomEmojiId}"`
-            : 'Bad Request: CUSTOM_EMOJI_INVALID'
+            : genericCustomEmojiErrorDescription
         });
       },
       async json() {
@@ -79,7 +82,9 @@ globalThis.fetch = async (url, options) => {
       .find((customEmojiId) => customEmojiId.startsWith('ce_bad_'));
     const hasGenericCustomEmojiId = customEmojiIds
       .some((customEmojiId) => customEmojiId.startsWith('ce_generic_'));
-    const shouldRejectCustomEmoji = Boolean(rejectedCustomEmojiId || hasGenericCustomEmojiId);
+    const shouldRejectCustomEmoji = Boolean(
+      rejectedCustomEmojiId || (rejectGenericCustomEmojiIds && hasGenericCustomEmojiId)
+    );
     return {
       ok: !shouldRejectCustomEmoji,
       status: shouldRejectCustomEmoji ? 400 : 200,
@@ -88,7 +93,7 @@ globalThis.fetch = async (url, options) => {
           ok: false,
           description: rejectedCustomEmojiId
             ? `Bad Request: CUSTOM_EMOJI_INVALID for custom_emoji_id "${rejectedCustomEmojiId}"`
-            : 'Bad Request: CUSTOM_EMOJI_INVALID'
+            : genericCustomEmojiErrorDescription
         });
       },
       async json() {
@@ -392,6 +397,7 @@ try {
   assert.equal(collectButtonCustomEmojiIds(calls[1].body.reply_markup).length, 0);
 
   calls.length = 0;
+  genericCustomEmojiErrorDescription = 'Bad Request: DOCUMENT_INVALID';
   await sendTelegramMessage(9001, 'X', {
     parse_mode: undefined,
     entities: [{
@@ -409,13 +415,11 @@ try {
       }]]
     }
   });
-  assert.equal(calls.length, 3, 'A generic custom emoji error should degrade entities and button icons safely.');
+  assert.equal(calls.length, 2, 'A generic custom emoji error should remove entities and button icons in one retry.');
   assert.equal(calls[0].body.entities[0].custom_emoji_id, 'ce_generic_entity');
   assert.equal(calls[0].body.reply_markup.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_generic_button');
   assert.equal(calls[1].body.entities, undefined);
-  assert.equal(calls[1].body.reply_markup.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_generic_button');
-  assert.equal(calls[2].body.entities, undefined);
-  assert.equal(collectButtonCustomEmojiIds(calls[2].body.reply_markup).length, 0);
+  assert.equal(collectButtonCustomEmojiIds(calls[1].body.reply_markup).length, 0);
 
   calls.length = 0;
   await sendTelegramMessage(9001, 'X', {
@@ -437,14 +441,43 @@ try {
   });
   assert.equal(
     calls.length,
-    3,
-    'An error without an exact ID must degrade only the current request, not blacklist its IDs.'
+    1,
+    'The capability cooldown should skip custom emoji on the next request.'
   );
+  assert.equal(calls[0].body.entities, undefined);
+  assert.equal(
+    collectButtonCustomEmojiIds(calls[0].body.reply_markup).length,
+    0
+  );
+
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, 40));
+  rejectGenericCustomEmojiIds = false;
+  calls.length = 0;
+  await sendTelegramMessage(9001, 'X', {
+    parse_mode: undefined,
+    entities: [{
+      type: 'custom_emoji',
+      offset: 0,
+      length: 1,
+      custom_emoji_id: 'ce_generic_entity'
+    }],
+    _fallback_text: 'X',
+    reply_markup: {
+      inline_keyboard: [[{
+        text: 'Generic',
+        callback_data: 'generic:button',
+        icon_custom_emoji_id: 'ce_generic_button'
+      }]]
+    }
+  });
+  assert.equal(calls.length, 1, 'Custom emoji should be attempted again after the capability cooldown.');
   assert.equal(calls[0].body.entities[0].custom_emoji_id, 'ce_generic_entity');
   assert.equal(
     calls[0].body.reply_markup.inline_keyboard[0][0].icon_custom_emoji_id,
     'ce_generic_button'
   );
+  rejectGenericCustomEmojiIds = true;
+  genericCustomEmojiErrorDescription = 'Bad Request: CUSTOM_EMOJI_INVALID';
 
   calls.length = 0;
   await sendTelegramMessage(9001, 'Bold', {
@@ -470,6 +503,49 @@ try {
   }], 'Button fallback must preserve unrelated text entities.');
   assert.equal(collectButtonCustomEmojiIds(calls[1].body.reply_markup).length, 0);
 
+  calls.length = 0;
+  await sendTelegramMessage(9001, 'B', {
+    parse_mode: undefined,
+    entities: [{
+      type: 'custom_emoji',
+      offset: 0,
+      length: 1,
+      custom_emoji_id: 'ce_good_after_button_cooldown'
+    }]
+  });
+  assert.equal(calls.length, 1, 'A generic button-only error should start the capability cooldown.');
+  assert.equal(calls[0].body.entities, undefined);
+
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, 40));
+  calls.length = 0;
+  await sendTelegramMessage(9001, 'E', {
+    parse_mode: undefined,
+    entities: [{
+      type: 'custom_emoji',
+      offset: 0,
+      length: 1,
+      custom_emoji_id: 'ce_generic_entity_only'
+    }],
+    _fallback_text: 'E'
+  });
+  assert.equal(calls.length, 2, 'A generic entity-only error should retry without custom emoji.');
+  assert.equal(calls[0].body.entities[0].custom_emoji_id, 'ce_generic_entity_only');
+  assert.equal(calls[1].body.entities, undefined);
+
+  calls.length = 0;
+  await sendTelegramMessage(9001, 'Button after entity cooldown', {
+    reply_markup: {
+      inline_keyboard: [[{
+        text: 'Continue',
+        callback_data: 'cooldown:continue',
+        icon_custom_emoji_id: 'ce_good_after_entity_cooldown'
+      }]]
+    }
+  });
+  assert.equal(calls.length, 1, 'An entity-only capability error should suppress button icons during cooldown.');
+  assert.equal(collectButtonCustomEmojiIds(calls[0].body.reply_markup).length, 0);
+
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, 40));
   calls.length = 0;
   const originalCustomTextEmoji = config.telegram.customTextEmoji;
   try {

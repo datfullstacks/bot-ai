@@ -7,6 +7,7 @@ const startImageFile = resolve(process.cwd(), 'data', `telegram-callback-start-$
 
 process.env.STORE_DRIVER = 'json';
 process.env.DATA_FILE = dataFile;
+process.env.BASE_URL = 'http://localhost:3000';
 process.env.DATABASE_URL = '';
 process.env.REDIS_URL = '';
 process.env.PAYMENT_PROVIDER = 'mock';
@@ -23,21 +24,33 @@ const shop = await import('../src/shop.js');
 const telegram = await import('../src/telegram.js');
 
 const calls = [];
+let releaseChatMenuRequest;
+let blockChatMenuRequest = true;
 globalThis.fetch = async (url, options) => {
-  calls.push({ url: String(url), body: parseTelegramBody(options.body) });
-  return {
-    ok: true,
-    async json() {
-      return { ok: true };
-    }
-  };
+  const call = { url: String(url), body: parseTelegramBody(options.body) };
+  calls.push(call);
+  if (blockChatMenuRequest && call.url.includes('/setChatMenuButton')) {
+    return new Promise((resolveRequest) => {
+      releaseChatMenuRequest = () => resolveRequest(telegramSuccess());
+    });
+  }
+  if (call.url.includes('/sendPhoto')) {
+    return telegramSuccess({
+      ok: true,
+      result: {
+        message_id: calls.length,
+        photo: [{ file_id: 'cached_start_photo_file_id' }]
+      }
+    });
+  }
+  return telegramSuccess();
 };
 
 try {
   await writeFile(startImageFile, Buffer.from('fake-start-image'));
   await storage.initStore();
 
-  await telegram.handleTelegramUpdate({
+  const firstStart = telegram.handleTelegramUpdate({
     message: {
       chat: { id: 91000 },
       message_id: 54,
@@ -45,6 +58,16 @@ try {
       from: { id: 91000, username: 'start-buyer', first_name: 'Start' }
     }
   });
+  const completedBeforeChatMenu = await Promise.race([
+    firstStart.then(() => true),
+    new Promise((resolveRace) => setTimeout(() => resolveRace(false), 250))
+  ]);
+  if (!completedBeforeChatMenu) releaseChatMenuRequest?.();
+  assert.equal(completedBeforeChatMenu, true, '/start must not wait for setChatMenuButton.');
+  releaseChatMenuRequest?.();
+  blockChatMenuRequest = false;
+  await firstStart;
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
 
   const animationCall = calls.find((call) => call.url.includes('/sendAnimation'));
   assert.equal(animationCall, undefined, '/start should not send a separate visual message.');
@@ -56,6 +79,27 @@ try {
   const startMessageCall = calls.find((call) => call.url.includes('/sendMessage') && String(call.body.chat_id) === '91000');
   assert.ok(startMessageCall, '/start should send the menu text separately from the image.');
   assert.ok(startMessageCall.body.reply_markup?.inline_keyboard?.flat().some((button) => button.callback_data === 'catalog:all'));
+
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    message: {
+      chat: { id: 91000 },
+      message_id: 55,
+      text: '/start',
+      from: { id: 91000, username: 'start-buyer', first_name: 'Start' }
+    }
+  });
+  assert.equal(
+    calls.some((call) => call.url.includes('/setChatMenuButton')),
+    false,
+    'A chat with a configured command menu should use the in-process cache.'
+  );
+  const cachedStartPhoto = calls.find((call) => call.url.includes('/sendPhoto'));
+  assert.equal(
+    cachedStartPhoto?.body.photo,
+    'cached_start_photo_file_id',
+    'A successful local upload should reuse Telegram file_id on the next /start.'
+  );
 
   const products = await shop.listProducts();
   const product = products.find((item) => item.sku === 'chatgpt-plus-1m');
@@ -151,4 +195,13 @@ function parseTelegramBody(body) {
     return parsed;
   }
   return JSON.parse(body);
+}
+
+function telegramSuccess(payload = { ok: true }) {
+  return {
+    ok: true,
+    async json() {
+      return payload;
+    }
+  };
 }

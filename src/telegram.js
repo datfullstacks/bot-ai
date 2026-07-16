@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { config } from './config.js';
 import { brandSortKey, normalizeDeliveryMode, normalizePublicProduct } from './catalog.js';
@@ -70,6 +70,9 @@ export {
 };
 
 const regularStickerMap = loadRegularStickerMap();
+const telegramChatMenuButtonCache = new Set();
+const telegramChatMenuButtonInflight = new Map();
+let cachedStartImageFileId = String(config.telegram.startImageFileId || '').trim();
 
 const WELCOME_BRAND_TEXT = 'KAITO KID AI SHOP';
 const FLAME_EMOJI = {
@@ -726,6 +729,79 @@ function startImageFilePath() {
   return configuredImageFilePath(config.telegram.startImageFile) || sloganImageFilePath('welcome');
 }
 
+function httpsImageUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim());
+    return url.protocol === 'https:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function startImagePublicUrl(imagePath = startImageFilePath()) {
+  const configuredUrl = httpsImageUrl(config.telegram.startImageUrl);
+  if (configuredUrl) return configuredUrl;
+  if (!imagePath) return '';
+
+  const baseUrl = httpsImageUrl(config.baseUrl);
+  if (!baseUrl) return '';
+
+  const publicDir = resolve(process.cwd(), 'public');
+  const relativePath = relative(publicDir, imagePath);
+  if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) return '';
+
+  const url = new URL(baseUrl);
+  url.pathname = `/${relativePath.replaceAll('\\', '/')}`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+function telegramPhotoFileId(result) {
+  const photos = result?.result?.photo;
+  if (!Array.isArray(photos) || !photos.length) return '';
+  return String(photos.at(-1)?.file_id || '').trim();
+}
+
+function rememberStartImageFileId(result) {
+  const fileId = telegramPhotoFileId(result);
+  if (fileId) cachedStartImageFileId = fileId;
+  return result;
+}
+
+async function sendStartImage(chatId, imagePath = startImageFilePath()) {
+  const publicUrl = startImagePublicUrl(imagePath);
+  const sources = [
+    cachedStartImageFileId
+      ? { type: 'file_id', value: cachedStartImageFileId }
+      : null,
+    publicUrl
+      ? { type: 'url', value: publicUrl }
+      : null,
+    imagePath
+      ? { type: 'file', value: imagePath }
+      : null
+  ].filter(Boolean);
+
+  let lastError;
+  for (const source of sources) {
+    try {
+      const result = source.type === 'file'
+        ? await sendTelegramPhotoFile(chatId, source.value)
+        : await sendTelegramPhotoUrl(chatId, source.value);
+      return rememberStartImageFileId(result);
+    } catch (error) {
+      lastError = error;
+      if (source.type === 'file_id' && cachedStartImageFileId === source.value) {
+        cachedStartImageFileId = '';
+      }
+    }
+  }
+
+  if (lastError) throw lastError;
+  return { skipped: true };
+}
+
 function genericKeyboardCustomEmojiId() {
   return firstCustomEmojiId(
     bannerCustomEmojiId('kaito'),
@@ -909,10 +985,21 @@ export async function configureTelegramMenu() {
 
 export async function ensureTelegramChatMenuButton(chatId) {
   if (!config.telegram.token || !chatId) return { skipped: true };
-  return telegramJson('setChatMenuButton', {
+  const key = String(chatId);
+  if (telegramChatMenuButtonCache.has(key)) return { ok: true, cached: true };
+  if (telegramChatMenuButtonInflight.has(key)) return telegramChatMenuButtonInflight.get(key);
+
+  const request = telegramJson('setChatMenuButton', {
     chat_id: chatId,
     menu_button: { type: 'commands' }
+  }).then((result) => {
+    telegramChatMenuButtonCache.add(key);
+    return result;
+  }).finally(() => {
+    telegramChatMenuButtonInflight.delete(key);
   });
+  telegramChatMenuButtonInflight.set(key, request);
+  return request;
 }
 
 async function sendSalesSticker(chatId, stage) {
@@ -939,10 +1026,17 @@ async function sendBrandSalesSticker(chatId, brand) {
 
 async function sendSloganCaption(chatId, stage, caption, options = {}) {
   const imagePath = stage === 'welcome' ? startImageFilePath() : sloganImageFilePath(stage);
+  const hasImage = stage === 'welcome'
+    ? Boolean(cachedStartImageFileId || startImagePublicUrl(imagePath) || imagePath)
+    : Boolean(imagePath);
   const candidates = options._customEmojiCandidates;
-  if (imagePath && candidates?.length) {
+  if (hasImage && candidates?.length) {
     try {
-      await sendTelegramPhotoFile(chatId, imagePath);
+      if (stage === 'welcome') {
+        await sendStartImage(chatId, imagePath);
+      } else {
+        await sendTelegramPhotoFile(chatId, imagePath);
+      }
     } catch (error) {
       console.warn(`[telegram] slogan image skipped: ${error.message}`);
     }
@@ -955,7 +1049,7 @@ async function sendSloganCaption(chatId, stage, caption, options = {}) {
     delete messageOptions._fallback_parse_mode;
     return sendCustomTelegramMessage(chatId, caption, candidates, messageOptions);
   }
-  if (!imagePath && candidates?.length) {
+  if (!hasImage && candidates?.length) {
     const messageOptions = { ...options };
     if (options._fallback_caption && !messageOptions._fallback_text) {
       messageOptions._fallback_text = options._fallback_caption;
@@ -970,13 +1064,19 @@ async function sendSloganCaption(chatId, stage, caption, options = {}) {
     ? customCaptionOptions(caption, options._customEmojiCandidates, options)
     : { caption, options };
   delete customOptions.options._customEmojiCandidates;
-  if (!imagePath) return sendAnimatedTelegramMessage(chatId, customOptions.caption, customOptions.options);
+  if (!hasImage) return sendAnimatedTelegramMessage(chatId, customOptions.caption, customOptions.options);
   try {
-    return await sendTelegramPhotoFile(chatId, imagePath, {
+    const photoOptions = {
       parse_mode: 'HTML',
       ...customOptions.options,
       caption: customOptions.caption
-    });
+    };
+    if (stage === 'welcome') {
+      const source = cachedStartImageFileId || startImagePublicUrl(imagePath);
+      if (source) return rememberStartImageFileId(await sendTelegramPhotoUrl(chatId, source, photoOptions));
+      return rememberStartImageFileId(await sendTelegramPhotoFile(chatId, imagePath, photoOptions));
+    }
+    return sendTelegramPhotoFile(chatId, imagePath, photoOptions);
   } catch (error) {
     console.warn(`[telegram] slogan image skipped: ${error.message}`);
     return sendAnimatedTelegramMessage(chatId, customOptions.caption, customOptions.options);
@@ -1875,7 +1975,8 @@ function customerFacingOrderError(error) {
 async function handleTextMessage(message) {
   const chatId = message.chat.id;
   const text = String(message.text || '').trim();
-  await ensureTelegramChatMenuButton(chatId).catch((error) => console.warn(`[telegram] chat menu setup failed: ${error.message}`));
+  void ensureTelegramChatMenuButton(chatId)
+    .catch((error) => console.warn(`[telegram] chat menu setup failed: ${error.message}`));
   const user = await upsertTelegramUser(message.from);
   const baseLimit = await consumeRateLimit(`tg:user:${user.telegramId}`, config.traffic.telegramUserPerMinute);
   if (!baseLimit.allowed) {

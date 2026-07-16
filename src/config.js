@@ -71,6 +71,8 @@ export const config = {
     webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || '',
     botUsername: process.env.TELEGRAM_BOT_USERNAME || '',
     welcomeAnimationUrl: process.env.TELEGRAM_WELCOME_ANIMATION_URL || '',
+    startImageFileId: process.env.TELEGRAM_START_IMAGE_FILE_ID || '',
+    startImageUrl: process.env.TELEGRAM_START_IMAGE_URL || '',
     startImageFile: process.env.TELEGRAM_START_IMAGE_FILE || resolve(process.cwd(), 'public', 'brand', 'start', 'welcome.png'),
     supportHandle: process.env.TELEGRAM_SUPPORT_HANDLE || '',
     customTextEmoji: String(process.env.TELEGRAM_CUSTOM_TEXT_EMOJI || 'true').toLowerCase() !== 'false',

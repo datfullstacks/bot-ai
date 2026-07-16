@@ -346,10 +346,16 @@ The PNG images are written to `public/brand/slogan-image`. The bot sends the wel
 For a fixed `/start` hero image, set or replace:
 
 ```text
+TELEGRAM_START_IMAGE_FILE_ID=
+TELEGRAM_START_IMAGE_URL=
 TELEGRAM_START_IMAGE_FILE=public/brand/start/welcome.png
 ```
 
-This image is sent above the `/start` caption. If it is missing, the bot falls back to `public/brand/slogan-image/welcome.png`.
+The bot uses the fastest available source in this order: Telegram `file_id`, public
+HTTPS URL, then local file upload. When the URL is blank and the local file is under
+`public/`, its URL is derived automatically from `BASE_URL`. A successful send is
+cached as a Telegram `file_id` for later `/start` requests. If the local image is
+missing, the bot falls back to `public/brand/slogan-image/welcome.png`.
 
 Then upload those videos as a separate custom emoji pack and write the ids to the slogan map:
 
@@ -363,6 +369,7 @@ Custom emoji can also be sent in normal message text and photo captions with Tel
 
 ```text
 TELEGRAM_CUSTOM_TEXT_EMOJI=true
+TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS=60000
 TELEGRAM_CUSTOM_EMOJI_MAP_FILE=data/telegram-custom-emoji-map.json
 TELEGRAM_UI_EMOJI_MAP_FILE=data/telegram-ui-emoji-map.json
 TELEGRAM_SLOGAN_EMOJI_MAP_FILE=data/telegram-slogan-emoji-map.json
@@ -392,7 +399,7 @@ The required runtime packs are:
 
 `TELEGRAM_EMOJI_REQUIRED_PACKS` is merged with this runtime baseline, so an old production value such as `banner,ui,slogan` cannot make readiness report a partial setup as ready. Pack names are normalized without losing the camel-case `sloganTile` registry key.
 
-When Telegram rejects a custom emoji entity or inline-button icon, the transport retries without the rejected custom-emoji field so customers still receive the ordinary fallback emoji and a usable keyboard. Set `TELEGRAM_CUSTOM_TEXT_EMOJI=false` to strip text/caption entities and button custom-emoji icons up front.
+When Telegram rejects a custom emoji entity or inline-button icon, the transport retries once without all custom-emoji fields so customers still receive the ordinary fallback emoji and a usable keyboard. A generic capability rejection starts a short cooldown controlled by `TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS`, preventing every `/start` request from repeating the same slow failed attempt; the bot automatically probes custom emoji again after the cooldown. Set `TELEGRAM_CUSTOM_TEXT_EMOJI=false` to strip text/caption entities and button custom-emoji icons up front.
 
 For the neon menu icon sheet, place the source image at `public/brand/menu-neon/source.png` or pass it directly, then generate tightly cropped PNG sources and Telegram-ready WEBM animations:
 

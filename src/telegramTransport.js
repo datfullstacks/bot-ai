@@ -3,6 +3,15 @@ import { basename } from 'node:path';
 import { config } from './config.js';
 
 const rejectedCustomEmojiIds = new Set();
+const customEmojiCapabilityCooldownMs = normalizeCustomEmojiCapabilityCooldownMs(
+  process.env.TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS
+);
+let customEmojiCapabilityRejectedUntil = 0;
+
+function normalizeCustomEmojiCapabilityCooldownMs(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 60_000;
+}
 
 function apiUrl(method) {
   return `https://api.telegram.org/bot${config.telegram.token}/${method}`;
@@ -315,6 +324,39 @@ function isButtonCustomEmojiError(error) {
   return /BUTTON[^\r\n]*CUSTOM[\s_-]*EMOJI|CUSTOM[\s_-]*EMOJI[^\r\n]*BUTTON|ICON_CUSTOM_EMOJI_ID|BUTTON_TYPE_INVALID/i.test(details);
 }
 
+function hasCustomEmojiEntities(entities = []) {
+  return Array.isArray(entities)
+    && entities.some((entity) => entity?.type === 'custom_emoji');
+}
+
+function isCustomEmojiCapabilityCooldownActive() {
+  if (Date.now() >= customEmojiCapabilityRejectedUntil) {
+    customEmojiCapabilityRejectedUntil = 0;
+    return false;
+  }
+  return true;
+}
+
+function startCustomEmojiCapabilityCooldown() {
+  customEmojiCapabilityRejectedUntil = Date.now() + customEmojiCapabilityCooldownMs;
+}
+
+function isGenericCustomEmojiCapabilityError(error, payload, entityField) {
+  const details = `${error?.message || ''} ${error?.body || ''}`;
+  if (!/CUSTOM[\s_-]*EMOJI[\s_-]*INVALID|DOCUMENT_INVALID/i.test(details)) return false;
+
+  const entities = Array.isArray(payload?.[entityField]) ? payload[entityField] : [];
+  const candidateIds = [
+    ...entities
+      .filter((entity) => entity?.type === 'custom_emoji')
+      .map((entity) => String(entity.custom_emoji_id || '')),
+    ...collectButtonCustomEmojiIds(payload?.reply_markup)
+  ].filter(Boolean);
+
+  return candidateIds.length > 0
+    && !candidateIds.some((customEmojiId) => errorMentionsCustomEmojiId(details, customEmojiId));
+}
+
 function hasRejectedCustomEmojiEntity(entities = [], scope = '') {
   return Array.isArray(entities)
     && entities.some((entity) => entity?.type === 'custom_emoji' && rejectedCustomEmojiIds.has(rejectedCustomEmojiKey(entity.custom_emoji_id, scope)));
@@ -400,8 +442,22 @@ function fallbackButtonPayload(payload) {
   };
 }
 
+function fallbackAllCustomEmojiPayload(payload, entityField, fallbackEntityPayload) {
+  let fallback = payload;
+  if (hasCustomEmojiEntities(fallback?.[entityField])) {
+    fallback = fallbackEntityPayload(fallback);
+  }
+  if (hasButtonCustomEmojiIcons(fallback?.reply_markup)) {
+    fallback = fallbackButtonPayload(fallback);
+  }
+  return fallback;
+}
+
 function applyKnownCustomEmojiFallbacks(payload, entityField, fallbackEntityPayload) {
   let fallback = payload;
+  if (isCustomEmojiCapabilityCooldownActive()) {
+    return fallbackAllCustomEmojiPayload(fallback, entityField, fallbackEntityPayload);
+  }
   if (hasRejectedCustomEmojiEntity(fallback?.[entityField], entityField)) {
     fallback = fallbackEntityPayload(fallback);
   }
@@ -412,6 +468,16 @@ function applyKnownCustomEmojiFallbacks(payload, entityField, fallbackEntityPayl
 }
 
 function nextCustomEmojiFallback(error, payload, entityField, fallbackEntityPayload) {
+  if (
+    (
+      hasCustomEmojiEntities(payload?.[entityField])
+      || hasButtonCustomEmojiIcons(payload?.reply_markup)
+    )
+    && isGenericCustomEmojiCapabilityError(error, payload, entityField)
+  ) {
+    startCustomEmojiCapabilityCooldown();
+    return fallbackAllCustomEmojiPayload(payload, entityField, fallbackEntityPayload);
+  }
   if (isButtonCustomEmojiError(error) && shouldRetryWithoutButtonCustomEmoji(error, payload)) {
     rememberRejectedButtonCustomEmojiIds(error, payload.reply_markup);
     return fallbackButtonPayload(payload);

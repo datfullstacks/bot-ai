@@ -39,6 +39,7 @@ const menuEmojiKeys = [
 ];
 process.env.STORE_DRIVER = 'json';
 process.env.DATA_FILE = dataFile;
+process.env.BASE_URL = 'http://localhost:3000';
 process.env.TELEGRAM_CUSTOM_EMOJI_MAP_FILE = customEmojiMapFile;
 process.env.TELEGRAM_UI_EMOJI_MAP_FILE = uiEmojiMapFile;
 process.env.TELEGRAM_SLOGAN_EMOJI_MAP_FILE = sloganEmojiMapFile;
@@ -51,6 +52,7 @@ process.env.TELEGRAM_ROBO_EMOJI_MAP_FILE = roboEmojiMapFile;
 process.env.TELEGRAM_RETRO_FONT_EMOJI_MAP_FILE = retroFontEmojiMapFile;
 process.env.TELEGRAM_STICKER_MAP_FILE = regularStickerMapFile;
 process.env.TELEGRAM_START_IMAGE_FILE = startImageFile;
+process.env.TELEGRAM_START_IMAGE_URL = 'https://cdn.example.local/kaito-start.png';
 process.env.DATABASE_URL = '';
 process.env.REDIS_URL = '';
 process.env.PAYMENT_PROVIDER = 'mock';
@@ -978,7 +980,11 @@ try {
   assert.equal(calls.some((call) => call.url.includes('/sendSticker') || call.url.includes('/sendAnimation')), false);
   const welcomePhoto = calls.find((call) => call.url.includes('/sendPhoto') && String(call.body.chat_id) === '9001');
   assert.ok(welcomePhoto, '/start should send the welcome image.');
-  assert.equal(welcomePhoto.body.photo.name, startImageFile.split(/[\\/]/).at(-1));
+  assert.equal(
+    welcomePhoto.body.photo,
+    'https://cdn.example.local/kaito-start.png',
+    '/start should prefer the configured public HTTPS image URL over a local upload.'
+  );
   assert.equal(
     welcomePhoto.body.caption_entities?.some((entity) => entity.type === 'custom_emoji') || false,
     false,
