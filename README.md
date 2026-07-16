@@ -397,6 +397,25 @@ The required runtime packs are:
 
 `banner` and `slogan` are retired from readiness and may be absent. `TELEGRAM_EMOJI_REQUIRED_PACKS` is merged with the runtime baseline after removing those retired names, so old production values such as `banner,ui,slogan` or the previous full pack list normalize to the eight packs above instead of requiring deleted packs. Pack names are normalized without losing the camel-case `sloganTile` registry key.
 
+The `news` map is synchronized from the public Telegram custom-emoji set
+[`NewsEmoji`](https://t.me/addemoji/NewsEmoji); it is not built from local binary
+assets. The command loads `TELEGRAM_BOT_TOKEN` from `.env` through the normal app
+configuration:
+
+```powershell
+npm.cmd run telegram:sync-news-emojis -- --dry-run
+npm.cmd run telegram:sync-news-emojis
+```
+
+The live command calls `getStickerSet` and rewrites
+`data/telegram-news-emoji-map.json` with all 100 remote IDs, file IDs, exact
+fallback emoji, and deterministic aliases. It refuses to write when fewer than
+100 unique IDs are returned or when the pack order/fallback emoji differs from
+the reviewed definition table. Runtime readiness requires both the 100 unique
+News IDs and these compatibility aliases: `fast`, `newsflash`, `auto247`,
+`tracking`, `adminchat`, `adminshield`, `adminboom`, `adminfire`, and
+`adminhundred`.
+
 When Telegram rejects custom emoji in text or captions, the transport retries without those entities while preserving animated inline-button icons. A generic text capability rejection starts a short cooldown controlled by `TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS`, preventing every `/start` request from repeating the same slow failed text attempt; the bot automatically probes text emoji again after the cooldown. Button-icon failures are degraded only for the affected request, while an explicitly rejected button ID is cached by ID. Set `TELEGRAM_CUSTOM_TEXT_EMOJI=false` to strip text/caption entities and button custom-emoji icons up front.
 
 For the neon menu icon sheet, place the source image at `public/brand/menu-neon/source.png` or pass it directly, then generate tightly cropped PNG sources and Telegram-ready WEBM animations:

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import {
   DEFAULT_REQUIRED_EMOJI_PACKS,
+  NEWS_EMOJI_REQUIRED_KEYS,
   buildTelegramEmojiRegistry,
   parseRequiredEmojiPacks
 } from '../src/telegramEmojiRegistry.js';
@@ -23,6 +24,14 @@ const bannerAltById = {
   ce_banner_welcome: '👋',
   ce_banner_products: '🛒'
 };
+const newsMap = JSON.parse(await readFile(
+  new URL('../data/telegram-news-emoji-map.json', import.meta.url),
+  'utf8'
+));
+const newsAltById = Object.fromEntries(
+  newsMap.stickers.map((sticker) => [sticker.customEmojiId, sticker.emoji])
+);
+const newsflashId = newsMap.customEmojiIdsByBrand.newsflash[0];
 
 assert.equal(DEFAULT_REQUIRED_EMOJI_PACKS.includes('banner'), false);
 assert.equal(DEFAULT_REQUIRED_EMOJI_PACKS.includes('slogan'), false);
@@ -68,6 +77,81 @@ try {
   assert.equal(report.identity.customEmojiIdCount, 3);
   assert.equal(report.identity.customEmojiAltCount, 3);
   assert.equal(JSON.stringify(report).includes(token), false);
+
+  const newsCalls = [];
+  const newsRegistry = buildTelegramEmojiRegistry({
+    maps: {
+      news: newsMap
+    }
+  });
+  const newsReport = await buildTelegramEmojiHealthReport({
+    registry: newsRegistry,
+    token,
+    requiredPacks: ['news'],
+    requiredKeysByPack: {
+      news: NEWS_EMOJI_REQUIRED_KEYS
+    },
+    fetchImpl: telegramSuccessFetch({ calls: newsCalls, altById: newsAltById })
+  });
+  assert.equal(newsReport.ok, true);
+  assert.equal(newsReport.registry.packs.news.availableRequiredKeys, 9);
+  assert.deepEqual(newsReport.registry.packs.news.missingRequiredKeys, []);
+  assert.equal(newsReport.registry.packs.news.requiredMinimumCustomEmojiIds, 100);
+  assert.equal(newsReport.registry.packs.news.missingRequiredCustomEmojiIds, 0);
+  assert.equal(newsReport.telegramValidation.requested, 100);
+  assert.equal(newsReport.telegramValidation.returned, 100);
+  assert.equal(newsReport.identity.customEmojiIdCount, 100);
+  assert.equal(newsReport.identity.customEmojiAltCount, 100);
+  assert.deepEqual(
+    [...newsCalls[0].custom_emoji_ids].sort(),
+    newsMap.stickers.map((sticker) => sticker.customEmojiId).sort()
+  );
+
+  const wrongNewsflashAltReport = await buildTelegramEmojiHealthReport({
+    registry: newsRegistry,
+    token,
+    requiredPacks: ['news'],
+    requiredKeysByPack: {
+      news: NEWS_EMOJI_REQUIRED_KEYS
+    },
+    fetchImpl: telegramSuccessFetch({
+      altById: {
+        ...newsAltById,
+        [newsflashId]: '🔥'
+      }
+    })
+  });
+  assert.equal(wrongNewsflashAltReport.telegramValidation.ok, false);
+  assert.deepEqual(wrongNewsflashAltReport.telegramValidation.altMismatches, [{
+    id: newsflashId,
+    expected: ['\u26A1\uFE0F'],
+    returned: '🔥'
+  }]);
+
+  const incompleteNewsMap = withoutLastNewsSticker(newsMap);
+  const incompleteNewsReport = await buildTelegramEmojiHealthReport({
+    registry: buildTelegramEmojiRegistry({
+      maps: {
+        news: incompleteNewsMap
+      }
+    }),
+    token,
+    requiredPacks: ['news'],
+    requiredKeysByPack: {
+      news: NEWS_EMOJI_REQUIRED_KEYS
+    },
+    fetchImpl: telegramSuccessFetch({
+      altById: Object.fromEntries(
+        incompleteNewsMap.stickers.map((sticker) => [sticker.customEmojiId, sticker.emoji])
+      )
+    })
+  });
+  assert.equal(incompleteNewsReport.registry.packs.news.availableRequiredKeys, 9);
+  assert.equal(incompleteNewsReport.registry.packs.news.customEmojiIdCount, 99);
+  assert.equal(incompleteNewsReport.registry.packs.news.missingRequiredCustomEmojiIds, 1);
+  assert.equal(incompleteNewsReport.telegramValidation.ok, true);
+  assert.equal(incompleteNewsReport.telegramValidation.requested, 99);
+  assert.equal(incompleteNewsReport.ok, false);
 
   await writeTelegramEmojiHealthReport(reportPath, report);
   const saved = JSON.parse(await readFile(reportPath, 'utf8'));
@@ -313,6 +397,27 @@ function bannerMap(overrides = {}) {
       emoji: emojiByKey[key]
     }))
   };
+}
+
+function withoutLastNewsSticker(map) {
+  const clone = structuredClone(map);
+  const removed = clone.stickers.pop();
+  for (const field of [
+    'customEmojiIdsByAlias',
+    'customEmojiIdsByBrand',
+    'fileIdsByAlias',
+    'fileIdsByBrand'
+  ]) {
+    for (const [key, values] of Object.entries(clone[field] || {})) {
+      if (values.includes(field.startsWith('file') ? removed.fileId : removed.customEmojiId)) {
+        delete clone[field][key];
+      }
+    }
+  }
+  if (clone.customEmojiIdsByEmoji?.[removed.emoji] === removed.customEmojiId) {
+    delete clone.customEmojiIdsByEmoji[removed.emoji];
+  }
+  return clone;
 }
 
 function telegramSuccessFetch({ calls = [], altById = {} } = {}) {

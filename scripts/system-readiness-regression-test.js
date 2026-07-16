@@ -75,7 +75,14 @@ try {
         }
       }
     }), 'utf8'),
-    writeFile(newsEmojiMapFile, JSON.stringify(fileMap(requiredKeys.news, 'news', 'tgs')), 'utf8'),
+    writeFile(
+      newsEmojiMapFile,
+      JSON.stringify(newsFileMap(
+        requiredKeys.news,
+        emojiRegistry.DEFAULT_REQUIRED_MIN_COUNTS_BY_PACK.news
+      )),
+      'utf8'
+    ),
     writeFile(flameEmojiMapFile, JSON.stringify(fileMap(requiredKeys.flame, 'flame', 'tgs')), 'utf8'),
     writeFile(gameEmojiMapFile, JSON.stringify(fileMap(requiredKeys.game, 'game', 'tgs')), 'utf8'),
     writeFile(roboEmojiMapFile, JSON.stringify({
@@ -151,6 +158,8 @@ try {
   assert.equal(readiness.telegramEmoji.packs.slogan, undefined);
   assert.equal(readiness.telegramEmoji.packs.sloganTile.availableRequiredKeys, 1);
   assert.equal(readiness.telegramEmoji.packs.news.loaded, true);
+  assert.equal(readiness.telegramEmoji.packs.news.customEmojiIdCount, 100);
+  assert.equal(readiness.telegramEmoji.packs.news.missingRequiredCustomEmojiIds, 0);
   assert.equal(readiness.telegramEmoji.packs.flame.loaded, true);
   assert.equal(readiness.telegramEmoji.packs.game.loaded, true);
   assert.equal(
@@ -210,4 +219,12 @@ function fileMap(keys, prefix, extension = 'webm') {
       keys.map((key) => [`${key}.${extension}`, `ce_${prefix}_${key}`])
     )
   };
+}
+
+function newsFileMap(requiredKeys, minimumCount) {
+  const fillerCount = Math.max(0, minimumCount - requiredKeys.length);
+  return fileMap([
+    ...requiredKeys,
+    ...Array.from({ length: fillerCount }, (_, index) => `item-${String(index).padStart(3, '0')}`)
+  ], 'news', 'tgs');
 }

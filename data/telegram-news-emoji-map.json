@@ -1,147 +1,2539 @@
 {
-  "packName": "kaito_ai_shop_news_emoji_by_kaitokidaibot",
-  "title": "KAITO AI SHOP News Emoji",
+  "packName": "NewsEmoji",
+  "title": "News Emoji",
   "stickerType": "custom_emoji",
   "stickerFormat": "animated",
-  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\news-emoji",
-  "dryRun": false,
-  "generatedAt": "2026-06-15T07:33:00.986Z",
-  "customEmojiIdsByFile": {
-    "fast.tgs": "6161314427892146890",
-    "auto247.tgs": "6161144007884807540",
-    "tracking.tgs": "6161274437451652724",
-    "adminchat.tgs": "6160962223394006037",
-    "adminshield.tgs": "6160972338041988765",
-    "adminboom.tgs": "6158887462132262323",
-    "adminfire.tgs": "6161056480746283154",
-    "adminhundred.tgs": "6161437427165568431"
+  "source": "https://t.me/addemoji/NewsEmoji",
+  "generatedAt": "2026-07-16T20:11:15.080Z",
+  "minimumRequiredCustomEmojiIds": 100,
+  "customEmojiIdsByEmoji": {
+    "👀": "5210956306952758910",
+    "🙂": "5461117441612462242",
+    "⚡️": "5456140674028019486",
+    "☄️": "5224607267797606837",
+    "🛍": "5229064374403998351",
+    "⛔️": "5260293700088511294",
+    "🚫": "5240241223632954241",
+    "❗️": "5274099962655816924",
+    "‼️": "5440660757194744323",
+    "⁉️": "5314504236132747481",
+    "❓": "5436113877181941026",
+    "⚠️": "5447644880824181073",
+    "🌐": "5447410659077661506",
+    "💬": "5443038326535759644",
+    "💭": "5467538555158943525",
+    "📊": "5231200819986047254",
+    "🔼": "5449683594425410231",
+    "🔽": "5447183459602669338",
+    "🕯": "5451882707875276247",
+    "📈": "5244837092042750681",
+    "📉": "5246762912428603768",
+    "✔️": "5206607081334906820",
+    "❌": "5210952531676504517",
+    "🆒": "5222079954421818267",
+    "🔔": "5458603043203327669",
+    "🥸": "5391112412445288650",
+    "🤡": "5269531045165816230",
+    "🫦": "5395444514028529554",
+    "📌": "5397782960512444700",
+    "💵": "5409048419211682843",
+    "💸": "5233326571099534068",
+    "💱": "5402186569006210455",
+    "▶️": "5264919878082509254",
+    "🔴": "5411225014148014586",
+    "🟢": "5416081784641168838",
+    "➡️": "5416117059207572332",
+    "🔥": "5424972470023104089",
+    "💥": "5276032951342088188",
+    "🎙": "5294339927318739359",
+    "🎤": "5224736245665511429",
+    "📣": "5424818078833715060",
+    "🤫": "5431609822288033666",
+    "👎": "5449875686837726134",
+    "🗣️": "5460795800101594035",
+    "🔍": "5231012545799666522",
+    "🛡": "5251203410396458957",
+    "🔗": "5271604874419647061",
+    "🖥": "5282843764451195532",
+    "©": "5323442290708985472",
+    "ℹ️": "5334544901428229844",
+    "👍": "5337080053119336309",
+    "⏸": "5359543311897998264",
+    "💯": "5341498088408234504",
+    "🔄": "5375338737028841420",
+    "🔝": "5415655814079723871",
+    "🆕": "5382357040008021292",
+    "🔜": "5440621591387980068",
+    "📍": "5391032818111363540",
+    "➕": "5397916757333654639",
+    "💎": "5427168083074628963",
+    "⭐️": "5438496463044752972",
+    "✨": "5325547803936572038",
+    "👑": "5217822164362739968",
+    "🗑": "5445267414562389170",
+    "🔖": "5222444124698853913",
+    "✉️": "5253742260054409879",
+    "🔒": "5296369303661067030",
+    "😮": "5303479226882603449",
+    "📎": "5305265301917549162",
+    "⚙️": "5341715473882955310",
+    "🎮": "5361741454685256344",
+    "🔈": "5388632425314140043",
+    "⌛": "5386367538735104399",
+    "⬇️": "5406745015365943482",
+    "☀️": "5402477260982731644",
+    "🌧": "5399913388845322366",
+    "🌛": "5449569374065152798",
+    "❄️": "5449449325434266744",
+    "🌈": "5409109841538994759",
+    "💧": "5393512611968995988",
+    "🗓": "5413879192267805083",
+    "💡": "5422439311196834318",
+    "🥇": "5440539497383087970",
+    "🥈": "5447203607294265305",
+    "🥉": "5453902265922376865",
+    "🎵": "5463107823946717464",
+    "🆓": "5406756500108501710",
+    "✏️": "5395444784611480792",
+    "🚨": "5395695537687123235",
+    "🏠": "5416041192905265756",
+    "🚩": "5460755126761312667",
+    "🎉": "5461151367559141950"
   },
-  "customEmojiIdsByBrand": {
+  "customEmojiIdsByAlias": {
+    "eyes": [
+      "5210956306952758910"
+    ],
+    "smile": [
+      "5461117441612462242"
+    ],
+    "lightning": [
+      "5456140674028019486"
+    ],
+    "newsflash": [
+      "5456140674028019486"
+    ],
+    "comet": [
+      "5224607267797606837"
+    ],
     "fast": [
-      "6161314427892146890"
+      "5224607267797606837"
     ],
-    "auto247": [
-      "6161144007884807540"
+    "shopping-bag": [
+      "5229064374403998351"
     ],
-    "tracking": [
-      "6161274437451652724"
+    "no-entry": [
+      "5260293700088511294"
+    ],
+    "prohibited": [
+      "5240241223632954241"
+    ],
+    "exclamation": [
+      "5274099962655816924"
+    ],
+    "double-exclamation": [
+      "5440660757194744323"
+    ],
+    "question-exclamation": [
+      "5314504236132747481"
+    ],
+    "question": [
+      "5436113877181941026"
+    ],
+    "warning": [
+      "5447644880824181073"
+    ],
+    "warning-alt": [
+      "5420323339723881652"
+    ],
+    "globe": [
+      "5447410659077661506"
+    ],
+    "chat": [
+      "5443038326535759644"
     ],
     "adminchat": [
-      "6160962223394006037"
+      "5443038326535759644"
     ],
-    "adminshield": [
-      "6160972338041988765"
+    "thought": [
+      "5467538555158943525"
     ],
-    "adminboom": [
-      "6158887462132262323"
+    "question-alt": [
+      "5452069934089641166"
+    ],
+    "chart": [
+      "5231200819986047254"
+    ],
+    "up": [
+      "5449683594425410231"
+    ],
+    "down": [
+      "5447183459602669338"
+    ],
+    "candle": [
+      "5451882707875276247"
+    ],
+    "chart-up": [
+      "5244837092042750681"
+    ],
+    "chart-down": [
+      "5246762912428603768"
+    ],
+    "check": [
+      "5206607081334906820"
+    ],
+    "cross": [
+      "5210952531676504517"
+    ],
+    "cool": [
+      "5222079954421818267"
+    ],
+    "bell": [
+      "5458603043203327669"
+    ],
+    "disguise": [
+      "5391112412445288650"
+    ],
+    "clown": [
+      "5269531045165816230"
+    ],
+    "lips": [
+      "5395444514028529554"
+    ],
+    "pin": [
+      "5397782960512444700"
+    ],
+    "dollar": [
+      "5409048419211682843"
+    ],
+    "money-fly-1": [
+      "5233326571099534068"
+    ],
+    "money-fly-2": [
+      "5231449120635370684"
+    ],
+    "money-fly-3": [
+      "5278751923338490157"
+    ],
+    "money-fly-4": [
+      "5290017777174722330"
+    ],
+    "money-fly-5": [
+      "5231005931550030290"
+    ],
+    "exchange": [
+      "5402186569006210455"
+    ],
+    "play": [
+      "5264919878082509254"
+    ],
+    "red": [
+      "5411225014148014586"
+    ],
+    "green": [
+      "5416081784641168838"
+    ],
+    "arrow-right": [
+      "5416117059207572332"
+    ],
+    "fire": [
+      "5424972470023104089"
     ],
     "adminfire": [
-      "6161056480746283154"
+      "5424972470023104089"
+    ],
+    "boom": [
+      "5276032951342088188"
+    ],
+    "adminboom": [
+      "5276032951342088188"
+    ],
+    "studio-microphone": [
+      "5294339927318739359"
+    ],
+    "microphone": [
+      "5224736245665511429"
+    ],
+    "megaphone": [
+      "5424818078833715060"
+    ],
+    "quiet": [
+      "5431609822288033666"
+    ],
+    "thumbs-down": [
+      "5449875686837726134"
+    ],
+    "speaking": [
+      "5460795800101594035"
+    ],
+    "search": [
+      "5231012545799666522"
+    ],
+    "tracking": [
+      "5231012545799666522"
+    ],
+    "shield": [
+      "5251203410396458957"
+    ],
+    "adminshield": [
+      "5251203410396458957"
+    ],
+    "link": [
+      "5271604874419647061"
+    ],
+    "desktop": [
+      "5282843764451195532"
+    ],
+    "copyright": [
+      "5323442290708985472"
+    ],
+    "info": [
+      "5334544901428229844"
+    ],
+    "thumbs-up": [
+      "5337080053119336309"
+    ],
+    "play-alt": [
+      "5348125953090403204"
+    ],
+    "pause": [
+      "5359543311897998264"
+    ],
+    "hundred": [
+      "5341498088408234504"
     ],
     "adminhundred": [
-      "6161437427165568431"
+      "5341498088408234504"
+    ],
+    "refresh": [
+      "5375338737028841420"
+    ],
+    "auto247": [
+      "5375338737028841420"
+    ],
+    "top": [
+      "5415655814079723871"
+    ],
+    "new": [
+      "5382357040008021292"
+    ],
+    "soon": [
+      "5440621591387980068"
+    ],
+    "location": [
+      "5391032818111363540"
+    ],
+    "plus": [
+      "5397916757333654639"
+    ],
+    "diamond": [
+      "5427168083074628963"
+    ],
+    "star": [
+      "5438496463044752972"
+    ],
+    "sparkle": [
+      "5325547803936572038"
+    ],
+    "crown": [
+      "5217822164362739968"
+    ],
+    "trash": [
+      "5445267414562389170"
+    ],
+    "bookmark": [
+      "5222444124698853913"
+    ],
+    "mail": [
+      "5253742260054409879"
+    ],
+    "lock": [
+      "5296369303661067030"
+    ],
+    "surprised": [
+      "5303479226882603449"
+    ],
+    "paperclip": [
+      "5305265301917549162"
+    ],
+    "settings": [
+      "5341715473882955310"
+    ],
+    "game": [
+      "5361741454685256344"
+    ],
+    "speaker": [
+      "5388632425314140043"
+    ],
+    "hourglass": [
+      "5386367538735104399"
+    ],
+    "download": [
+      "5406745015365943482"
+    ],
+    "sun": [
+      "5402477260982731644"
+    ],
+    "rain": [
+      "5399913388845322366"
+    ],
+    "moon": [
+      "5449569374065152798"
+    ],
+    "snow": [
+      "5449449325434266744"
+    ],
+    "rainbow": [
+      "5409109841538994759"
+    ],
+    "water": [
+      "5393512611968995988"
+    ],
+    "calendar": [
+      "5413879192267805083"
+    ],
+    "idea": [
+      "5422439311196834318"
+    ],
+    "gold": [
+      "5440539497383087970"
+    ],
+    "silver": [
+      "5447203607294265305"
+    ],
+    "bronze": [
+      "5453902265922376865"
+    ],
+    "music": [
+      "5463107823946717464"
+    ],
+    "free": [
+      "5406756500108501710"
+    ],
+    "edit": [
+      "5395444784611480792"
+    ],
+    "alarm": [
+      "5395695537687123235"
+    ],
+    "shopping-bag-alt": [
+      "5406683434124859552"
+    ],
+    "home": [
+      "5416041192905265756"
+    ],
+    "flag": [
+      "5460755126761312667"
+    ],
+    "party": [
+      "5461151367559141950"
     ]
   },
-  "fileIdsByFile": {
-    "fast.tgs": "CAACAgUAAxUAAWovqg_pJY_eTGFj3bz2j6uuc7nBAALKIgAC1GKBVbhODKZhk8lMPAQ",
-    "auto247.tgs": "CAACAgUAAxUAAWovp9dczWi4D78ZOJ5Xq9pj54uiAAJ0HQAC1ceAVT7-kIyCSNGOPAQ",
-    "tracking.tgs": "CAACAgUAAxUAAWovp9cRtk0DC4x7TdsHlZY4fWOtAAJ0HgACdT6BVUkLcBxutuCkPAQ",
-    "adminchat.tgs": "CAACAgUAAxUAAWovp9cQqsod9esC-ALlrod75vuZAAIVJAACgCKAVRTzz6F8d9mtPAQ",
-    "adminshield.tgs": "CAACAgUAAxUAAWovqhGlIGCa1yUUsnhlhptKLAvZAAKdJgACsyuAVZn45N7eiLpsPAQ",
-    "adminboom.tgs": "CAACAgUAAxUAAWovqqSnEin7JRAZEoa4wNdrvckaAAKzJQAChMN4VTD4ro3gPROiPAQ",
-    "adminfire.tgs": "CAACAgUAAxUAAWovqqYAASbcAAGnIN0pqzte_mB5x18AApIgAAI6eIBVqocebaKBb_g8BA",
-    "adminhundred.tgs": "CAACAgUAAxUAAWovqqnIXHjtVKYz6WHutuuMskpUAAKvHQACstKBVSzW_xEp4V9JPAQ"
-  },
-  "fileIdsByBrand": {
+  "customEmojiIdsByBrand": {
+    "eyes": [
+      "5210956306952758910"
+    ],
+    "smile": [
+      "5461117441612462242"
+    ],
+    "lightning": [
+      "5456140674028019486"
+    ],
+    "newsflash": [
+      "5456140674028019486"
+    ],
+    "comet": [
+      "5224607267797606837"
+    ],
     "fast": [
-      "CAACAgUAAxUAAWovqg_pJY_eTGFj3bz2j6uuc7nBAALKIgAC1GKBVbhODKZhk8lMPAQ"
+      "5224607267797606837"
     ],
-    "auto247": [
-      "CAACAgUAAxUAAWovp9dczWi4D78ZOJ5Xq9pj54uiAAJ0HQAC1ceAVT7-kIyCSNGOPAQ"
+    "shoppingbag": [
+      "5229064374403998351"
     ],
-    "tracking": [
-      "CAACAgUAAxUAAWovp9cRtk0DC4x7TdsHlZY4fWOtAAJ0HgACdT6BVUkLcBxutuCkPAQ"
+    "noentry": [
+      "5260293700088511294"
+    ],
+    "prohibited": [
+      "5240241223632954241"
+    ],
+    "exclamation": [
+      "5274099962655816924"
+    ],
+    "doubleexclamation": [
+      "5440660757194744323"
+    ],
+    "questionexclamation": [
+      "5314504236132747481"
+    ],
+    "question": [
+      "5436113877181941026"
+    ],
+    "warning": [
+      "5447644880824181073"
+    ],
+    "warningalt": [
+      "5420323339723881652"
+    ],
+    "globe": [
+      "5447410659077661506"
+    ],
+    "chat": [
+      "5443038326535759644"
     ],
     "adminchat": [
-      "CAACAgUAAxUAAWovp9cQqsod9esC-ALlrod75vuZAAIVJAACgCKAVRTzz6F8d9mtPAQ"
+      "5443038326535759644"
     ],
-    "adminshield": [
-      "CAACAgUAAxUAAWovqhGlIGCa1yUUsnhlhptKLAvZAAKdJgACsyuAVZn45N7eiLpsPAQ"
+    "thought": [
+      "5467538555158943525"
     ],
-    "adminboom": [
-      "CAACAgUAAxUAAWovqqSnEin7JRAZEoa4wNdrvckaAAKzJQAChMN4VTD4ro3gPROiPAQ"
+    "questionalt": [
+      "5452069934089641166"
+    ],
+    "chart": [
+      "5231200819986047254"
+    ],
+    "up": [
+      "5449683594425410231"
+    ],
+    "down": [
+      "5447183459602669338"
+    ],
+    "candle": [
+      "5451882707875276247"
+    ],
+    "chartup": [
+      "5244837092042750681"
+    ],
+    "chartdown": [
+      "5246762912428603768"
+    ],
+    "check": [
+      "5206607081334906820"
+    ],
+    "cross": [
+      "5210952531676504517"
+    ],
+    "cool": [
+      "5222079954421818267"
+    ],
+    "bell": [
+      "5458603043203327669"
+    ],
+    "disguise": [
+      "5391112412445288650"
+    ],
+    "clown": [
+      "5269531045165816230"
+    ],
+    "lips": [
+      "5395444514028529554"
+    ],
+    "pin": [
+      "5397782960512444700"
+    ],
+    "dollar": [
+      "5409048419211682843"
+    ],
+    "moneyfly1": [
+      "5233326571099534068"
+    ],
+    "moneyfly2": [
+      "5231449120635370684"
+    ],
+    "moneyfly3": [
+      "5278751923338490157"
+    ],
+    "moneyfly4": [
+      "5290017777174722330"
+    ],
+    "moneyfly5": [
+      "5231005931550030290"
+    ],
+    "exchange": [
+      "5402186569006210455"
+    ],
+    "play": [
+      "5264919878082509254"
+    ],
+    "red": [
+      "5411225014148014586"
+    ],
+    "green": [
+      "5416081784641168838"
+    ],
+    "arrowright": [
+      "5416117059207572332"
+    ],
+    "fire": [
+      "5424972470023104089"
     ],
     "adminfire": [
-      "CAACAgUAAxUAAWovqqYAASbcAAGnIN0pqzte_mB5x18AApIgAAI6eIBVqocebaKBb_g8BA"
+      "5424972470023104089"
+    ],
+    "boom": [
+      "5276032951342088188"
+    ],
+    "adminboom": [
+      "5276032951342088188"
+    ],
+    "studiomicrophone": [
+      "5294339927318739359"
+    ],
+    "microphone": [
+      "5224736245665511429"
+    ],
+    "megaphone": [
+      "5424818078833715060"
+    ],
+    "quiet": [
+      "5431609822288033666"
+    ],
+    "thumbsdown": [
+      "5449875686837726134"
+    ],
+    "speaking": [
+      "5460795800101594035"
+    ],
+    "search": [
+      "5231012545799666522"
+    ],
+    "tracking": [
+      "5231012545799666522"
+    ],
+    "shield": [
+      "5251203410396458957"
+    ],
+    "adminshield": [
+      "5251203410396458957"
+    ],
+    "link": [
+      "5271604874419647061"
+    ],
+    "desktop": [
+      "5282843764451195532"
+    ],
+    "copyright": [
+      "5323442290708985472"
+    ],
+    "info": [
+      "5334544901428229844"
+    ],
+    "thumbsup": [
+      "5337080053119336309"
+    ],
+    "playalt": [
+      "5348125953090403204"
+    ],
+    "pause": [
+      "5359543311897998264"
+    ],
+    "hundred": [
+      "5341498088408234504"
     ],
     "adminhundred": [
-      "CAACAgUAAxUAAWovqqnIXHjtVKYz6WHutuuMskpUAAKvHQACstKBVSzW_xEp4V9JPAQ"
+      "5341498088408234504"
+    ],
+    "refresh": [
+      "5375338737028841420"
+    ],
+    "auto247": [
+      "5375338737028841420"
+    ],
+    "top": [
+      "5415655814079723871"
+    ],
+    "new": [
+      "5382357040008021292"
+    ],
+    "soon": [
+      "5440621591387980068"
+    ],
+    "location": [
+      "5391032818111363540"
+    ],
+    "plus": [
+      "5397916757333654639"
+    ],
+    "diamond": [
+      "5427168083074628963"
+    ],
+    "star": [
+      "5438496463044752972"
+    ],
+    "sparkle": [
+      "5325547803936572038"
+    ],
+    "crown": [
+      "5217822164362739968"
+    ],
+    "trash": [
+      "5445267414562389170"
+    ],
+    "bookmark": [
+      "5222444124698853913"
+    ],
+    "mail": [
+      "5253742260054409879"
+    ],
+    "lock": [
+      "5296369303661067030"
+    ],
+    "surprised": [
+      "5303479226882603449"
+    ],
+    "paperclip": [
+      "5305265301917549162"
+    ],
+    "settings": [
+      "5341715473882955310"
+    ],
+    "game": [
+      "5361741454685256344"
+    ],
+    "speaker": [
+      "5388632425314140043"
+    ],
+    "hourglass": [
+      "5386367538735104399"
+    ],
+    "download": [
+      "5406745015365943482"
+    ],
+    "sun": [
+      "5402477260982731644"
+    ],
+    "rain": [
+      "5399913388845322366"
+    ],
+    "moon": [
+      "5449569374065152798"
+    ],
+    "snow": [
+      "5449449325434266744"
+    ],
+    "rainbow": [
+      "5409109841538994759"
+    ],
+    "water": [
+      "5393512611968995988"
+    ],
+    "calendar": [
+      "5413879192267805083"
+    ],
+    "idea": [
+      "5422439311196834318"
+    ],
+    "gold": [
+      "5440539497383087970"
+    ],
+    "silver": [
+      "5447203607294265305"
+    ],
+    "bronze": [
+      "5453902265922376865"
+    ],
+    "music": [
+      "5463107823946717464"
+    ],
+    "free": [
+      "5406756500108501710"
+    ],
+    "edit": [
+      "5395444784611480792"
+    ],
+    "alarm": [
+      "5395695537687123235"
+    ],
+    "shoppingbagalt": [
+      "5406683434124859552"
+    ],
+    "home": [
+      "5416041192905265756"
+    ],
+    "flag": [
+      "5460755126761312667"
+    ],
+    "party": [
+      "5461151367559141950"
+    ]
+  },
+  "fileIdsByAlias": {
+    "eyes": [
+      "CAACAgIAAxUAAWpZOLhA4jnhK_Ga2--knMB5TXuoAAJ-JgACJwlRSCn8jOsqtdnVPQQ"
+    ],
+    "smile": [
+      "CAACAgIAAxUAAWpZOLgb8lLJ1APpYfcS4yl5WkFCAAKiOAACYcnJS499jqI9chT3PQQ"
+    ],
+    "lightning": [
+      "CAACAgIAAxUAAWpZOLhKhEbZlCYmljV2v3YeCMydAAIeHwACCRu4S6HoRXkVD5TAPQQ"
+    ],
+    "newsflash": [
+      "CAACAgIAAxUAAWpZOLhKhEbZlCYmljV2v3YeCMydAAIeHwACCRu4S6HoRXkVD5TAPQQ"
+    ],
+    "comet": [
+      "CAACAgIAAxUAAWpZOLgJCJ-UhjIEmkJEC3QxDBytAAK1IQACoYiBSKedex8uzPWGPQQ"
+    ],
+    "fast": [
+      "CAACAgIAAxUAAWpZOLgJCJ-UhjIEmkJEC3QxDBytAAK1IQACoYiBSKedex8uzPWGPQQ"
+    ],
+    "shopping-bag": [
+      "CAACAgIAAxUAAWpZOLiOUxgh6bwiTIsFMgNiz9veAAKPIgACWF6RSE7riK_Zwmw6PQQ"
+    ],
+    "no-entry": [
+      "CAACAgIAAxUAAWpZOLht8apVtGEVPCqFHOW--Rq_AAI-OwACQFEAAUkQdejBPel_3j0E"
+    ],
+    "prohibited": [
+      "CAACAgIAAxUAAWpZOLhTGio04p8xGXa0E1Ri_LZ8AAKBIwACoRO5SJZUsmqdIVClPQQ"
+    ],
+    "exclamation": [
+      "CAACAgIAAxUAAWpZOLjpSzeZbMmYUVHy-uWKAffFAALcPAAC-V0xSa114M41AAG1wj0E"
+    ],
+    "double-exclamation": [
+      "CAACAgIAAxUAAWpZOLiOJ737GbjeiQz_Ic_lqP2qAAIDIgACIhyBS3ABBzDVeSrAPQQ"
+    ],
+    "question-exclamation": [
+      "CAACAgIAAxUAAWpZOLhc6Y-CsKp1Z4DQlbVBEPgRAALZSAACcunASaiareFw4359PQQ"
+    ],
+    "question": [
+      "CAACAgIAAxUAAWpZOLjTddpw4WBme_wkosE5J86hAAIiRQACxfRwSzFsZvmnSgABMj0E"
+    ],
+    "warning": [
+      "CAACAgIAAxUAAWpZOLgmjs-4r9b1Gqyov6N-FYWlAAJRIQACKOyZS_HPKxqNaxOPPQQ"
+    ],
+    "warning-alt": [
+      "CAACAgIAAxUAAWpZOLgakJKLfcz06CTUqgYii7axAAK0PAACXNs4S5_8wVMFfeSCPQQ"
+    ],
+    "globe": [
+      "CAACAgIAAxUAAWpZOLgUWd8heQhvsyhBp4J1zCguAAJCIwACIheZS2TzIrPUQoX4PQQ"
+    ],
+    "chat": [
+      "CAACAgIAAxUAAWpZOLjlrLL_9AwUHcFMKJlFedOSAAIcJwAChY6JS2saUuUIm3YLPQQ"
+    ],
+    "adminchat": [
+      "CAACAgIAAxUAAWpZOLjlrLL_9AwUHcFMKJlFedOSAAIcJwAChY6JS2saUuUIm3YLPQQ"
+    ],
+    "thought": [
+      "CAACAgIAAxUAAWpZOLiWhiCo72NkwB0Eq3hBLjvzAAIlVwACWZngS8DZLzXVXiVfPQQ"
+    ],
+    "question-alt": [
+      "CAACAgIAAxUAAWpZOLh7Sb4h_fp2-Lta9diVm1uvAALOHAACuKSpSzjuVTZQPB-WPQQ"
+    ],
+    "chart": [
+      "CAACAgIAAxUAAWpZOLhGCqQjk9Yj-KBpiJur0zxpAAIWIQACbvWYSObx8SIEuexcPQQ"
+    ],
+    "up": [
+      "CAACAgIAAxUAAWpZOLjrfwoI8K5RPQFm-apFGvc0AAK3IgACWyqhS3tOCKJL8-zOPQQ"
+    ],
+    "down": [
+      "CAACAgIAAxUAAWpZOLgFXVWY87hinZNKQC50_vCuAAIaHwACf0iYS0fxfXKkcVLLPQQ"
+    ],
+    "candle": [
+      "CAACAgIAAxUAAWpZOLhomPTIyPNO2SfWB9VnBWkNAALXJQACcPqoS1yxccN6lWbvPQQ"
+    ],
+    "chart-up": [
+      "CAACAgIAAxUAAWpZOLjLrVsywMaFAg9cFUE5MFkcAALZOgACjGfJSNlWWA12A5IsPQQ"
+    ],
+    "chart-down": [
+      "CAACAgIAAxUAAWpZOLiUGAFhu05PNUcrpJOklmVCAAJ4OQACEj_QSIMP2ouZFnjtPQQ"
+    ],
+    "check": [
+      "CAACAgIAAxUAAWpZOLjYGbOIJ7ua6GMFVnomq85MAALEHwACjpVBSPcvC3O6zTVOPQQ"
+    ],
+    "cross": [
+      "CAACAgIAAxUAAWpZOLh2pUD8kr69PuDmL-yAHWNnAALFIQACuAVRSMlAC3k1IeJVPQQ"
+    ],
+    "cool": [
+      "CAACAgIAAxUAAWpZOLiOlxorQrNVqgf4Kyqs1zezAAKbIwACDY54SJwCCZPIGd7BPQQ"
+    ],
+    "bell": [
+      "CAACAgIAAxUAAWpZOLikofh2Qtvdj7nCKkdhXc54AAK1JgACjNrAS6sb4kzuJIAsPQQ"
+    ],
+    "disguise": [
+      "CAACAgIAAxUAAWpZOLhpR_3kVnDM3mUdY9-DnfNIAALKKAACLRTRSkNb8sAzBki8PQQ"
+    ],
+    "clown": [
+      "CAACAgIAAxUAAWpZOLgl_zyQJM0MpGOPjyfKCGOLAAKmWQACkSIhSWZtRJSI3OYNPQQ"
+    ],
+    "lips": [
+      "CAACAgIAAxUAAWpZOLiED4Km0KcpW5Wy6C7G1jaYAAKSJwACM3jgSrGTnWln4adrPQQ"
+    ],
+    "pin": [
+      "CAACAgIAAxUAAWpZOLjbrt3dqApSrHOyWlS7z40zAAIcKQACAcfoSlJqbvBz3d58PQQ"
+    ],
+    "dollar": [
+      "CAACAgIAAxUAAWpZOLiLge8toCpUHnohytW4_AhxAAIbJAAC4cwQS1nudk3BOJgXPQQ"
+    ],
+    "money-fly-1": [
+      "CAACAgIAAxUAAWpZOLjGytogOxFpSjHGj27OdKFOAAL0MgACyoKgSNXu3EcuraFjPQQ"
+    ],
+    "money-fly-2": [
+      "CAACAgIAAxUAAWpZOLhDAS33_2H_OWK2fI5wO9SWAAK8PAACQteZSKnZS7PZyKwoPQQ"
+    ],
+    "money-fly-3": [
+      "CAACAgIAAxUAAWpZOLiz-2caaO2G69JPVp2Sx2CcAAItMQAC6ORBSbBL1M5vAjrUPQQ"
+    ],
+    "money-fly-4": [
+      "CAACAgIAAxUAAWpZOLhjrePnzt8UGEdr37wAASEMJAACGjcAAiTraUkmy-T7XebZfj0E"
+    ],
+    "money-fly-5": [
+      "CAACAgIAAxUAAWpZOLhopMVC4XiEAVrVcZ47LwefAALSOQACLkSYSI6Nqd928YC9PQQ"
+    ],
+    "exchange": [
+      "CAACAgIAAxUAAWpZOLixPYBFtSJDJZYgSjktQA-HAAKXXQACEGz4SkPaHs3yIBsfPQQ"
+    ],
+    "play": [
+      "CAACAgIAAxUAAWpZOLgqUBpkqyYAAewXa_WlLfPbuQACxjkAArzAEElMU2_rTd0PvT0E"
+    ],
+    "red": [
+      "CAACAgIAAxUAAWpZOLgr2xs1Hq7RhoTkZ4nf1fX0AAL6IQACe4gYS2n3kOnQAuwMPQQ"
+    ],
+    "green": [
+      "CAACAgIAAxUAAWpZOLjG5pgx3kQuq8DB0kXLMmzKAALGJQACsMkpS3OdOcSJZyLsPQQ"
+    ],
+    "arrow-right": [
+      "CAACAgIAAxUAAWpZOLiqyOV2sDugRzM3w-6Adx8TAAJsKwACxekpS5ms24tHrSw_PQQ"
+    ],
+    "fire": [
+      "CAACAgIAAxUAAWpZOLiWtZnuGgmu4dcpBNWTvkB-AAJZJgACuF9JSySLZUZkRhwRPQQ"
+    ],
+    "adminfire": [
+      "CAACAgIAAxUAAWpZOLiWtZnuGgmu4dcpBNWTvkB-AAJZJgACuF9JSySLZUZkRhwRPQQ"
+    ],
+    "boom": [
+      "CAACAgIAAxUAAWpZOLjrf7bwZqTmSondFz3k9SLoAAL8PwACBDw4STL39tNAGQ30PQQ"
+    ],
+    "adminboom": [
+      "CAACAgIAAxUAAWpZOLjrf7bwZqTmSondFz3k9SLoAAL8PwACBDw4STL39tNAGQ30PQQ"
+    ],
+    "studio-microphone": [
+      "CAACAgIAAxUAAWpZOLgs_jNtLFMPcXzSy49T5Q8VAAKfOQACHUZ5SeqyF9gJ-7n_PQQ"
+    ],
+    "microphone": [
+      "CAACAgIAAxUAAWpZOLiEAgTOJSzYMKDKmKS_UaX3AAIFOAAC7_2BSIKlVeKPVXG6PQQ"
+    ],
+    "megaphone": [
+      "CAACAgIAAxUAAWpZOLide1Dbb5PaUPP5Jf5zAmQhAAJ0JwACTdNIS5Dzi1ghhx6kPQQ"
+    ],
+    "quiet": [
+      "CAACAgIAAxUAAWpZOLjO_YG8q6a9gvO2OejH1z-lAAKCNwACW_RgS7pMpXYyR0C2PQQ"
+    ],
+    "thumbs-down": [
+      "CAACAgIAAxUAAWpZOLjOOUYcypX7arSMQLKQYgWCAAK2KwACENmhS0VjHIyGnKklPQQ"
+    ],
+    "speaking": [
+      "CAACAgIAAxUAAWpZOLiNZoeMyE4AAdDicx9KXjJAtgACsyMAAtmkyEt0T4JgMQWfAj0E"
+    ],
+    "search": [
+      "CAACAgIAAxUAAWpZOLinXIeO5ReQ5NjSEeLtIcVXAAJaOwACMkqYSFKP2Xx1Xoa3PQQ"
+    ],
+    "tracking": [
+      "CAACAgIAAxUAAWpZOLinXIeO5ReQ5NjSEeLtIcVXAAJaOwACMkqYSFKP2Xx1Xoa3PQQ"
+    ],
+    "shield": [
+      "CAACAgIAAxUAAWpZOLhm-mF_XdpYDbGcZQuqKU7SAALNLwACrgXgSCS2egrQbhNMPQQ"
+    ],
+    "adminshield": [
+      "CAACAgIAAxUAAWpZOLhm-mF_XdpYDbGcZQuqKU7SAALNLwACrgXgSCS2egrQbhNMPQQ"
+    ],
+    "link": [
+      "CAACAgIAAxUAAWpZOLhduLuCsC_vteP2348AAXrhUgACVTIAArSAKElyMQ3EMdOkLj0E"
+    ],
+    "desktop": [
+      "CAACAgIAAxUAAWpZOLgfCdxKmsS0LTG9cCFvPHOmAAKMOgACam5QST44I4dTaeY7PQQ"
+    ],
+    "copyright": [
+      "CAACAgIAAxUAAWpZOLgAAW8rAbwsNH7Vu7Mdp8Q0DgACgDYAAo-q4En8tJchXEFC4z0E"
+    ],
+    "info": [
+      "CAACAgIAAxUAAWpZOLgUTjyazu67V3RAciBIRbiVAALUNgACUxwISgKyMEV4DBITPQQ"
+    ],
+    "thumbs-up": [
+      "CAACAgIAAxUAAWpZOLgMNdDhd7MwQWT7Z5gmmC_vAAJ1PwACCB4RSiT96YhdyumWPQQ"
+    ],
+    "play-alt": [
+      "CAACAgIAAxUAAWpZOLiyjY9epj_sOjlAK49Otx_eAAKEOwACOFw4Sm64VfNrwKTZPQQ"
+    ],
+    "pause": [
+      "CAACAgIAAxUAAWpZOLjBMi7z9iyHGzwiZoz2bWbUAAK4MwACP-xgStCCXcswQkRPPQQ"
+    ],
+    "hundred": [
+      "CAACAgIAAxUAAWpZOLjFQxZUz3NMxe7hF5PwIqSUAAIIOgACNtAgSufaWM_0TUYUPQQ"
+    ],
+    "adminhundred": [
+      "CAACAgIAAxUAAWpZOLjFQxZUz3NMxe7hF5PwIqSUAAIIOgACNtAgSufaWM_0TUYUPQQ"
+    ],
+    "refresh": [
+      "CAACAgIAAxUAAWpZOLjmoKc_xRSBZntw21iZgjctAALMPwACGgqZSroVW3k_DF_gPQQ"
+    ],
+    "auto247": [
+      "CAACAgIAAxUAAWpZOLjmoKc_xRSBZntw21iZgjctAALMPwACGgqZSroVW3k_DF_gPQQ"
+    ],
+    "top": [
+      "CAACAgIAAxUAAWpZOLii7oUvWigVlK2aV4o9gq0zAAJfOQACRUYoS9MKeWg5yePFPQQ"
+    ],
+    "new": [
+      "CAACAgIAAxUAAWpZOLijOu0S37GtEo0whgKg-iBYAAIsRQACNvmxSthoap_LEeIxPQQ"
+    ],
+    "soon": [
+      "CAACAgIAAxUAAWpZOLgu-VZJbUZM67K0MYs54MjvAAIkQQACg_iAS_T2Y8LE3UaMPQQ"
+    ],
+    "location": [
+      "CAACAgIAAxUAAWpZOLga_zvuHpTxY7b_xORPkDR4AALUOQACycvQSqRujJnnqkiEPQQ"
+    ],
+    "plus": [
+      "CAACAgIAAxUAAWpZOLi0AAHDlIzupFPu413udBpzLQACbzwAArFA6Up3LWrLHUHgcj0E"
+    ],
+    "diamond": [
+      "CAACAgIAAxUAAWpZOLhTiQL2wU3erRAgwl_2KoodAAJjPQACnixRS8-lAAHB8IDWJz0E"
+    ],
+    "star": [
+      "CAACAgIAAxUAAWpZOLgvK5DP0Iv8u6co9japCeJcAAJMNgACuGt5S-7O8UKxH8fRPQQ"
+    ],
+    "sparkle": [
+      "CAACAgIAAxUAAWpZOLgDkBoZ6_0sZg8PEFEavJe7AAKGQgACgyXoSX429vDyQAtyPQQ"
+    ],
+    "crown": [
+      "CAACAgIAAxUAAWpZOLgRd15aFqDncswFrU1ieW6wAANBAAKdbWlI5DuRmlZ7vwQ9BA"
+    ],
+    "trash": [
+      "CAACAgIAAxUAAWpZOLhhMQ6ZRBAE514d5HhkV3d0AAKyPAAC3XmRS9gAAT3l6xWIVT0E"
+    ],
+    "bookmark": [
+      "CAACAgIAAxUAAWpZOLjEXoMuIhMaFv1QWolUjBgtAAIZQgACQ9l5SHNjWCZPXcR-PQQ"
+    ],
+    "mail": [
+      "CAACAgIAAxUAAWpZOLhWvgc1P0Zl9Dd5SpN2TFYBAAKXQgACwArpSG98TMTN41EzPQQ"
+    ],
+    "lock": [
+      "CAACAgIAAxUAAWpZOLhz8BQxjFRc84rRO3zx_1cOAAIWOwAC0nuASZfMahEsCRY7PQQ"
+    ],
+    "surprised": [
+      "CAACAgIAAxUAAWpZOLjdJzjI6ijuw6pWdIEZ01dnAAK5OQACQr6ZSWYCxDUZ00aiPQQ"
+    ],
+    "paperclip": [
+      "CAACAgIAAxUAAWpZOLhVLgVqRrGA9K76TYuCH6qCAAJqQgACrxagSf66kJQI45aSPQQ"
+    ],
+    "settings": [
+      "CAACAgIAAxUAAWpZOLgCUD9YSzCJEsUmVdaWdjBfAAIuPgAC7JUhSsWp13kPXhC9PQQ"
+    ],
+    "game": [
+      "CAACAgIAAxUAAWpZOLiLRV6TDxL1IQLxGx5PLNOAAAKYOgACcrtoSjzceQJjf1pCPQQ"
+    ],
+    "speaker": [
+      "CAACAgIAAxUAAWpZOLhpK-c9VYln6jr4475sgkq_AAKLPwACpETISkiKEKH1_GaFPQQ"
+    ],
+    "hourglass": [
+      "CAACAgIAAxUAAWpZOLgkc7lUuT8U-MQovxKGTK_2AAKPQQACvTjASs3m4PEfXWfAPQQ"
+    ],
+    "download": [
+      "CAACAgIAAxUAAWpZOLjEXrv3OCsSXxYhnRvXPJ-GAAK6QAAC8p0IS-bJPG4-3ZkgPQQ"
+    ],
+    "sun": [
+      "CAACAgIAAxUAAWpZOLi1-Ql6f9VO3CoM0723P3q5AAJ8QwACcnT5SpKf8pWwTxlyPQQ"
+    ],
+    "rain": [
+      "CAACAgIAAxUAAWpZOLjbIkN1AWwaqrlisTrBGGi1AAJ-UAACnljwSorFBOUIG0tfPQQ"
+    ],
+    "moon": [
+      "CAACAgIAAxUAAWpZOLh4xWDfyqecs2vU7KoQpVuZAAIeUwACecKgS0pc-la86z9KPQQ"
+    ],
+    "snow": [
+      "CAACAgIAAxUAAWpZOLhsfOUmwhBqKGFCtRK_fdnWAAJ4ZAACSlWgS4hLbli3X84HPQQ"
+    ],
+    "rainbow": [
+      "CAACAgIAAxUAAWpZOLghPSW43VsvoYzIyU62Xr3KAAJHUgACvgQRS2YyvAABkNvlOT0E"
+    ],
+    "water": [
+      "CAACAgIAAxUAAWpZOLhP64sRAWRxRwF5cpD408UKAAKUUgACJZvZSmZDz1XmwXsFPQQ"
+    ],
+    "calendar": [
+      "CAACAgIAAxUAAWpZOLjLf9zGNFqxgCn03I-tLQQJAAKbUQACcfYhS0PPpme7cT3lPQQ"
+    ],
+    "idea": [
+      "CAACAgIAAxUAAWpZOLidaTvLj6F6lPTUBs9y_7elAAIOSgAC019AS12ep8yeSy1OPQQ"
+    ],
+    "gold": [
+      "CAACAgIAAxUAAWpZOLgOoiY1ipNH0SnhS2wITcyCAAJiTwAC2a2AS1tzgjsINZSEPQQ"
+    ],
+    "silver": [
+      "CAACAgIAAxUAAWpZOLiHU603thh7v4GBgyS-q3JLAALZRwAC0lqYSwGDRJICAcXxPQQ"
+    ],
+    "bronze": [
+      "CAACAgIAAxUAAWpZOLgoaBBQ04nK_QT7xMsgZjOEAAKhVAACNyewS0vOrkgGsdXHPQQ"
+    ],
+    "music": [
+      "CAACAgIAAxUAAWpZOLhhX8IlJ9IyC163J5mkSgpeAAIYWQACn9vQSwGK3_wAAcPkdz0E"
+    ],
+    "free": [
+      "CAACAgIAAxUAAWpZOLhmyNy2zB5zIqmINUSs6tsMAALOYgACZKgIS_yzhkI3LFrSPQQ"
+    ],
+    "edit": [
+      "CAACAgIAAxUAAWpZOLinvNWfkhrHfQevXKo6pRaWAALYVAACcnjgSo4YxNYdZkJxPQQ"
+    ],
+    "alarm": [
+      "CAACAgIAAxUAAWpZOLgAAXB65pKcyMcF8Y3BU9W7YAACI1UAAoFc4UpXdWvtiDH1uD0E"
+    ],
+    "shopping-bag-alt": [
+      "CAACAgIAAxUAAWpZOLj9_Cv9hdzatDnkp_7FyIkqAAKgWAAC8GUIS1huIgu2CU2VPQQ"
+    ],
+    "home": [
+      "CAACAgIAAxUAAWpZOLhdMs7VINquDJ7tyl4-4S2iAAJcUgACxaQpS1OP2qTvqMSVPQQ"
+    ],
+    "flag": [
+      "CAACAgIAAxUAAWpZOLg0TKERgD_lFft6kUTjq7zaAAKbUQAC23_IS6f-v0-GJU7fPQQ"
+    ],
+    "party": [
+      "CAACAgIAAxUAAWpZOLiak7fV_wP1OqGrMnUOJWtVAAI-WgACPOjJS3vT9YQDrW5RPQQ"
+    ]
+  },
+  "fileIdsByBrand": {
+    "eyes": [
+      "CAACAgIAAxUAAWpZOLhA4jnhK_Ga2--knMB5TXuoAAJ-JgACJwlRSCn8jOsqtdnVPQQ"
+    ],
+    "smile": [
+      "CAACAgIAAxUAAWpZOLgb8lLJ1APpYfcS4yl5WkFCAAKiOAACYcnJS499jqI9chT3PQQ"
+    ],
+    "lightning": [
+      "CAACAgIAAxUAAWpZOLhKhEbZlCYmljV2v3YeCMydAAIeHwACCRu4S6HoRXkVD5TAPQQ"
+    ],
+    "newsflash": [
+      "CAACAgIAAxUAAWpZOLhKhEbZlCYmljV2v3YeCMydAAIeHwACCRu4S6HoRXkVD5TAPQQ"
+    ],
+    "comet": [
+      "CAACAgIAAxUAAWpZOLgJCJ-UhjIEmkJEC3QxDBytAAK1IQACoYiBSKedex8uzPWGPQQ"
+    ],
+    "fast": [
+      "CAACAgIAAxUAAWpZOLgJCJ-UhjIEmkJEC3QxDBytAAK1IQACoYiBSKedex8uzPWGPQQ"
+    ],
+    "shoppingbag": [
+      "CAACAgIAAxUAAWpZOLiOUxgh6bwiTIsFMgNiz9veAAKPIgACWF6RSE7riK_Zwmw6PQQ"
+    ],
+    "noentry": [
+      "CAACAgIAAxUAAWpZOLht8apVtGEVPCqFHOW--Rq_AAI-OwACQFEAAUkQdejBPel_3j0E"
+    ],
+    "prohibited": [
+      "CAACAgIAAxUAAWpZOLhTGio04p8xGXa0E1Ri_LZ8AAKBIwACoRO5SJZUsmqdIVClPQQ"
+    ],
+    "exclamation": [
+      "CAACAgIAAxUAAWpZOLjpSzeZbMmYUVHy-uWKAffFAALcPAAC-V0xSa114M41AAG1wj0E"
+    ],
+    "doubleexclamation": [
+      "CAACAgIAAxUAAWpZOLiOJ737GbjeiQz_Ic_lqP2qAAIDIgACIhyBS3ABBzDVeSrAPQQ"
+    ],
+    "questionexclamation": [
+      "CAACAgIAAxUAAWpZOLhc6Y-CsKp1Z4DQlbVBEPgRAALZSAACcunASaiareFw4359PQQ"
+    ],
+    "question": [
+      "CAACAgIAAxUAAWpZOLjTddpw4WBme_wkosE5J86hAAIiRQACxfRwSzFsZvmnSgABMj0E"
+    ],
+    "warning": [
+      "CAACAgIAAxUAAWpZOLgmjs-4r9b1Gqyov6N-FYWlAAJRIQACKOyZS_HPKxqNaxOPPQQ"
+    ],
+    "warningalt": [
+      "CAACAgIAAxUAAWpZOLgakJKLfcz06CTUqgYii7axAAK0PAACXNs4S5_8wVMFfeSCPQQ"
+    ],
+    "globe": [
+      "CAACAgIAAxUAAWpZOLgUWd8heQhvsyhBp4J1zCguAAJCIwACIheZS2TzIrPUQoX4PQQ"
+    ],
+    "chat": [
+      "CAACAgIAAxUAAWpZOLjlrLL_9AwUHcFMKJlFedOSAAIcJwAChY6JS2saUuUIm3YLPQQ"
+    ],
+    "adminchat": [
+      "CAACAgIAAxUAAWpZOLjlrLL_9AwUHcFMKJlFedOSAAIcJwAChY6JS2saUuUIm3YLPQQ"
+    ],
+    "thought": [
+      "CAACAgIAAxUAAWpZOLiWhiCo72NkwB0Eq3hBLjvzAAIlVwACWZngS8DZLzXVXiVfPQQ"
+    ],
+    "questionalt": [
+      "CAACAgIAAxUAAWpZOLh7Sb4h_fp2-Lta9diVm1uvAALOHAACuKSpSzjuVTZQPB-WPQQ"
+    ],
+    "chart": [
+      "CAACAgIAAxUAAWpZOLhGCqQjk9Yj-KBpiJur0zxpAAIWIQACbvWYSObx8SIEuexcPQQ"
+    ],
+    "up": [
+      "CAACAgIAAxUAAWpZOLjrfwoI8K5RPQFm-apFGvc0AAK3IgACWyqhS3tOCKJL8-zOPQQ"
+    ],
+    "down": [
+      "CAACAgIAAxUAAWpZOLgFXVWY87hinZNKQC50_vCuAAIaHwACf0iYS0fxfXKkcVLLPQQ"
+    ],
+    "candle": [
+      "CAACAgIAAxUAAWpZOLhomPTIyPNO2SfWB9VnBWkNAALXJQACcPqoS1yxccN6lWbvPQQ"
+    ],
+    "chartup": [
+      "CAACAgIAAxUAAWpZOLjLrVsywMaFAg9cFUE5MFkcAALZOgACjGfJSNlWWA12A5IsPQQ"
+    ],
+    "chartdown": [
+      "CAACAgIAAxUAAWpZOLiUGAFhu05PNUcrpJOklmVCAAJ4OQACEj_QSIMP2ouZFnjtPQQ"
+    ],
+    "check": [
+      "CAACAgIAAxUAAWpZOLjYGbOIJ7ua6GMFVnomq85MAALEHwACjpVBSPcvC3O6zTVOPQQ"
+    ],
+    "cross": [
+      "CAACAgIAAxUAAWpZOLh2pUD8kr69PuDmL-yAHWNnAALFIQACuAVRSMlAC3k1IeJVPQQ"
+    ],
+    "cool": [
+      "CAACAgIAAxUAAWpZOLiOlxorQrNVqgf4Kyqs1zezAAKbIwACDY54SJwCCZPIGd7BPQQ"
+    ],
+    "bell": [
+      "CAACAgIAAxUAAWpZOLikofh2Qtvdj7nCKkdhXc54AAK1JgACjNrAS6sb4kzuJIAsPQQ"
+    ],
+    "disguise": [
+      "CAACAgIAAxUAAWpZOLhpR_3kVnDM3mUdY9-DnfNIAALKKAACLRTRSkNb8sAzBki8PQQ"
+    ],
+    "clown": [
+      "CAACAgIAAxUAAWpZOLgl_zyQJM0MpGOPjyfKCGOLAAKmWQACkSIhSWZtRJSI3OYNPQQ"
+    ],
+    "lips": [
+      "CAACAgIAAxUAAWpZOLiED4Km0KcpW5Wy6C7G1jaYAAKSJwACM3jgSrGTnWln4adrPQQ"
+    ],
+    "pin": [
+      "CAACAgIAAxUAAWpZOLjbrt3dqApSrHOyWlS7z40zAAIcKQACAcfoSlJqbvBz3d58PQQ"
+    ],
+    "dollar": [
+      "CAACAgIAAxUAAWpZOLiLge8toCpUHnohytW4_AhxAAIbJAAC4cwQS1nudk3BOJgXPQQ"
+    ],
+    "moneyfly1": [
+      "CAACAgIAAxUAAWpZOLjGytogOxFpSjHGj27OdKFOAAL0MgACyoKgSNXu3EcuraFjPQQ"
+    ],
+    "moneyfly2": [
+      "CAACAgIAAxUAAWpZOLhDAS33_2H_OWK2fI5wO9SWAAK8PAACQteZSKnZS7PZyKwoPQQ"
+    ],
+    "moneyfly3": [
+      "CAACAgIAAxUAAWpZOLiz-2caaO2G69JPVp2Sx2CcAAItMQAC6ORBSbBL1M5vAjrUPQQ"
+    ],
+    "moneyfly4": [
+      "CAACAgIAAxUAAWpZOLhjrePnzt8UGEdr37wAASEMJAACGjcAAiTraUkmy-T7XebZfj0E"
+    ],
+    "moneyfly5": [
+      "CAACAgIAAxUAAWpZOLhopMVC4XiEAVrVcZ47LwefAALSOQACLkSYSI6Nqd928YC9PQQ"
+    ],
+    "exchange": [
+      "CAACAgIAAxUAAWpZOLixPYBFtSJDJZYgSjktQA-HAAKXXQACEGz4SkPaHs3yIBsfPQQ"
+    ],
+    "play": [
+      "CAACAgIAAxUAAWpZOLgqUBpkqyYAAewXa_WlLfPbuQACxjkAArzAEElMU2_rTd0PvT0E"
+    ],
+    "red": [
+      "CAACAgIAAxUAAWpZOLgr2xs1Hq7RhoTkZ4nf1fX0AAL6IQACe4gYS2n3kOnQAuwMPQQ"
+    ],
+    "green": [
+      "CAACAgIAAxUAAWpZOLjG5pgx3kQuq8DB0kXLMmzKAALGJQACsMkpS3OdOcSJZyLsPQQ"
+    ],
+    "arrowright": [
+      "CAACAgIAAxUAAWpZOLiqyOV2sDugRzM3w-6Adx8TAAJsKwACxekpS5ms24tHrSw_PQQ"
+    ],
+    "fire": [
+      "CAACAgIAAxUAAWpZOLiWtZnuGgmu4dcpBNWTvkB-AAJZJgACuF9JSySLZUZkRhwRPQQ"
+    ],
+    "adminfire": [
+      "CAACAgIAAxUAAWpZOLiWtZnuGgmu4dcpBNWTvkB-AAJZJgACuF9JSySLZUZkRhwRPQQ"
+    ],
+    "boom": [
+      "CAACAgIAAxUAAWpZOLjrf7bwZqTmSondFz3k9SLoAAL8PwACBDw4STL39tNAGQ30PQQ"
+    ],
+    "adminboom": [
+      "CAACAgIAAxUAAWpZOLjrf7bwZqTmSondFz3k9SLoAAL8PwACBDw4STL39tNAGQ30PQQ"
+    ],
+    "studiomicrophone": [
+      "CAACAgIAAxUAAWpZOLgs_jNtLFMPcXzSy49T5Q8VAAKfOQACHUZ5SeqyF9gJ-7n_PQQ"
+    ],
+    "microphone": [
+      "CAACAgIAAxUAAWpZOLiEAgTOJSzYMKDKmKS_UaX3AAIFOAAC7_2BSIKlVeKPVXG6PQQ"
+    ],
+    "megaphone": [
+      "CAACAgIAAxUAAWpZOLide1Dbb5PaUPP5Jf5zAmQhAAJ0JwACTdNIS5Dzi1ghhx6kPQQ"
+    ],
+    "quiet": [
+      "CAACAgIAAxUAAWpZOLjO_YG8q6a9gvO2OejH1z-lAAKCNwACW_RgS7pMpXYyR0C2PQQ"
+    ],
+    "thumbsdown": [
+      "CAACAgIAAxUAAWpZOLjOOUYcypX7arSMQLKQYgWCAAK2KwACENmhS0VjHIyGnKklPQQ"
+    ],
+    "speaking": [
+      "CAACAgIAAxUAAWpZOLiNZoeMyE4AAdDicx9KXjJAtgACsyMAAtmkyEt0T4JgMQWfAj0E"
+    ],
+    "search": [
+      "CAACAgIAAxUAAWpZOLinXIeO5ReQ5NjSEeLtIcVXAAJaOwACMkqYSFKP2Xx1Xoa3PQQ"
+    ],
+    "tracking": [
+      "CAACAgIAAxUAAWpZOLinXIeO5ReQ5NjSEeLtIcVXAAJaOwACMkqYSFKP2Xx1Xoa3PQQ"
+    ],
+    "shield": [
+      "CAACAgIAAxUAAWpZOLhm-mF_XdpYDbGcZQuqKU7SAALNLwACrgXgSCS2egrQbhNMPQQ"
+    ],
+    "adminshield": [
+      "CAACAgIAAxUAAWpZOLhm-mF_XdpYDbGcZQuqKU7SAALNLwACrgXgSCS2egrQbhNMPQQ"
+    ],
+    "link": [
+      "CAACAgIAAxUAAWpZOLhduLuCsC_vteP2348AAXrhUgACVTIAArSAKElyMQ3EMdOkLj0E"
+    ],
+    "desktop": [
+      "CAACAgIAAxUAAWpZOLgfCdxKmsS0LTG9cCFvPHOmAAKMOgACam5QST44I4dTaeY7PQQ"
+    ],
+    "copyright": [
+      "CAACAgIAAxUAAWpZOLgAAW8rAbwsNH7Vu7Mdp8Q0DgACgDYAAo-q4En8tJchXEFC4z0E"
+    ],
+    "info": [
+      "CAACAgIAAxUAAWpZOLgUTjyazu67V3RAciBIRbiVAALUNgACUxwISgKyMEV4DBITPQQ"
+    ],
+    "thumbsup": [
+      "CAACAgIAAxUAAWpZOLgMNdDhd7MwQWT7Z5gmmC_vAAJ1PwACCB4RSiT96YhdyumWPQQ"
+    ],
+    "playalt": [
+      "CAACAgIAAxUAAWpZOLiyjY9epj_sOjlAK49Otx_eAAKEOwACOFw4Sm64VfNrwKTZPQQ"
+    ],
+    "pause": [
+      "CAACAgIAAxUAAWpZOLjBMi7z9iyHGzwiZoz2bWbUAAK4MwACP-xgStCCXcswQkRPPQQ"
+    ],
+    "hundred": [
+      "CAACAgIAAxUAAWpZOLjFQxZUz3NMxe7hF5PwIqSUAAIIOgACNtAgSufaWM_0TUYUPQQ"
+    ],
+    "adminhundred": [
+      "CAACAgIAAxUAAWpZOLjFQxZUz3NMxe7hF5PwIqSUAAIIOgACNtAgSufaWM_0TUYUPQQ"
+    ],
+    "refresh": [
+      "CAACAgIAAxUAAWpZOLjmoKc_xRSBZntw21iZgjctAALMPwACGgqZSroVW3k_DF_gPQQ"
+    ],
+    "auto247": [
+      "CAACAgIAAxUAAWpZOLjmoKc_xRSBZntw21iZgjctAALMPwACGgqZSroVW3k_DF_gPQQ"
+    ],
+    "top": [
+      "CAACAgIAAxUAAWpZOLii7oUvWigVlK2aV4o9gq0zAAJfOQACRUYoS9MKeWg5yePFPQQ"
+    ],
+    "new": [
+      "CAACAgIAAxUAAWpZOLijOu0S37GtEo0whgKg-iBYAAIsRQACNvmxSthoap_LEeIxPQQ"
+    ],
+    "soon": [
+      "CAACAgIAAxUAAWpZOLgu-VZJbUZM67K0MYs54MjvAAIkQQACg_iAS_T2Y8LE3UaMPQQ"
+    ],
+    "location": [
+      "CAACAgIAAxUAAWpZOLga_zvuHpTxY7b_xORPkDR4AALUOQACycvQSqRujJnnqkiEPQQ"
+    ],
+    "plus": [
+      "CAACAgIAAxUAAWpZOLi0AAHDlIzupFPu413udBpzLQACbzwAArFA6Up3LWrLHUHgcj0E"
+    ],
+    "diamond": [
+      "CAACAgIAAxUAAWpZOLhTiQL2wU3erRAgwl_2KoodAAJjPQACnixRS8-lAAHB8IDWJz0E"
+    ],
+    "star": [
+      "CAACAgIAAxUAAWpZOLgvK5DP0Iv8u6co9japCeJcAAJMNgACuGt5S-7O8UKxH8fRPQQ"
+    ],
+    "sparkle": [
+      "CAACAgIAAxUAAWpZOLgDkBoZ6_0sZg8PEFEavJe7AAKGQgACgyXoSX429vDyQAtyPQQ"
+    ],
+    "crown": [
+      "CAACAgIAAxUAAWpZOLgRd15aFqDncswFrU1ieW6wAANBAAKdbWlI5DuRmlZ7vwQ9BA"
+    ],
+    "trash": [
+      "CAACAgIAAxUAAWpZOLhhMQ6ZRBAE514d5HhkV3d0AAKyPAAC3XmRS9gAAT3l6xWIVT0E"
+    ],
+    "bookmark": [
+      "CAACAgIAAxUAAWpZOLjEXoMuIhMaFv1QWolUjBgtAAIZQgACQ9l5SHNjWCZPXcR-PQQ"
+    ],
+    "mail": [
+      "CAACAgIAAxUAAWpZOLhWvgc1P0Zl9Dd5SpN2TFYBAAKXQgACwArpSG98TMTN41EzPQQ"
+    ],
+    "lock": [
+      "CAACAgIAAxUAAWpZOLhz8BQxjFRc84rRO3zx_1cOAAIWOwAC0nuASZfMahEsCRY7PQQ"
+    ],
+    "surprised": [
+      "CAACAgIAAxUAAWpZOLjdJzjI6ijuw6pWdIEZ01dnAAK5OQACQr6ZSWYCxDUZ00aiPQQ"
+    ],
+    "paperclip": [
+      "CAACAgIAAxUAAWpZOLhVLgVqRrGA9K76TYuCH6qCAAJqQgACrxagSf66kJQI45aSPQQ"
+    ],
+    "settings": [
+      "CAACAgIAAxUAAWpZOLgCUD9YSzCJEsUmVdaWdjBfAAIuPgAC7JUhSsWp13kPXhC9PQQ"
+    ],
+    "game": [
+      "CAACAgIAAxUAAWpZOLiLRV6TDxL1IQLxGx5PLNOAAAKYOgACcrtoSjzceQJjf1pCPQQ"
+    ],
+    "speaker": [
+      "CAACAgIAAxUAAWpZOLhpK-c9VYln6jr4475sgkq_AAKLPwACpETISkiKEKH1_GaFPQQ"
+    ],
+    "hourglass": [
+      "CAACAgIAAxUAAWpZOLgkc7lUuT8U-MQovxKGTK_2AAKPQQACvTjASs3m4PEfXWfAPQQ"
+    ],
+    "download": [
+      "CAACAgIAAxUAAWpZOLjEXrv3OCsSXxYhnRvXPJ-GAAK6QAAC8p0IS-bJPG4-3ZkgPQQ"
+    ],
+    "sun": [
+      "CAACAgIAAxUAAWpZOLi1-Ql6f9VO3CoM0723P3q5AAJ8QwACcnT5SpKf8pWwTxlyPQQ"
+    ],
+    "rain": [
+      "CAACAgIAAxUAAWpZOLjbIkN1AWwaqrlisTrBGGi1AAJ-UAACnljwSorFBOUIG0tfPQQ"
+    ],
+    "moon": [
+      "CAACAgIAAxUAAWpZOLh4xWDfyqecs2vU7KoQpVuZAAIeUwACecKgS0pc-la86z9KPQQ"
+    ],
+    "snow": [
+      "CAACAgIAAxUAAWpZOLhsfOUmwhBqKGFCtRK_fdnWAAJ4ZAACSlWgS4hLbli3X84HPQQ"
+    ],
+    "rainbow": [
+      "CAACAgIAAxUAAWpZOLghPSW43VsvoYzIyU62Xr3KAAJHUgACvgQRS2YyvAABkNvlOT0E"
+    ],
+    "water": [
+      "CAACAgIAAxUAAWpZOLhP64sRAWRxRwF5cpD408UKAAKUUgACJZvZSmZDz1XmwXsFPQQ"
+    ],
+    "calendar": [
+      "CAACAgIAAxUAAWpZOLjLf9zGNFqxgCn03I-tLQQJAAKbUQACcfYhS0PPpme7cT3lPQQ"
+    ],
+    "idea": [
+      "CAACAgIAAxUAAWpZOLidaTvLj6F6lPTUBs9y_7elAAIOSgAC019AS12ep8yeSy1OPQQ"
+    ],
+    "gold": [
+      "CAACAgIAAxUAAWpZOLgOoiY1ipNH0SnhS2wITcyCAAJiTwAC2a2AS1tzgjsINZSEPQQ"
+    ],
+    "silver": [
+      "CAACAgIAAxUAAWpZOLiHU603thh7v4GBgyS-q3JLAALZRwAC0lqYSwGDRJICAcXxPQQ"
+    ],
+    "bronze": [
+      "CAACAgIAAxUAAWpZOLgoaBBQ04nK_QT7xMsgZjOEAAKhVAACNyewS0vOrkgGsdXHPQQ"
+    ],
+    "music": [
+      "CAACAgIAAxUAAWpZOLhhX8IlJ9IyC163J5mkSgpeAAIYWQACn9vQSwGK3_wAAcPkdz0E"
+    ],
+    "free": [
+      "CAACAgIAAxUAAWpZOLhmyNy2zB5zIqmINUSs6tsMAALOYgACZKgIS_yzhkI3LFrSPQQ"
+    ],
+    "edit": [
+      "CAACAgIAAxUAAWpZOLinvNWfkhrHfQevXKo6pRaWAALYVAACcnjgSo4YxNYdZkJxPQQ"
+    ],
+    "alarm": [
+      "CAACAgIAAxUAAWpZOLgAAXB65pKcyMcF8Y3BU9W7YAACI1UAAoFc4UpXdWvtiDH1uD0E"
+    ],
+    "shoppingbagalt": [
+      "CAACAgIAAxUAAWpZOLj9_Cv9hdzatDnkp_7FyIkqAAKgWAAC8GUIS1huIgu2CU2VPQQ"
+    ],
+    "home": [
+      "CAACAgIAAxUAAWpZOLhdMs7VINquDJ7tyl4-4S2iAAJcUgACxaQpS1OP2qTvqMSVPQQ"
+    ],
+    "flag": [
+      "CAACAgIAAxUAAWpZOLg0TKERgD_lFft6kUTjq7zaAAKbUQAC23_IS6f-v0-GJU7fPQQ"
+    ],
+    "party": [
+      "CAACAgIAAxUAAWpZOLiak7fV_wP1OqGrMnUOJWtVAAI-WgACPOjJS3vT9YQDrW5RPQQ"
     ]
   },
   "stickers": [
     {
-      "brand": "fast",
-      "brandKey": "fast",
-      "fileName": "fast.tgs",
+      "index": 0,
+      "alias": "eyes",
+      "aliases": [],
+      "emoji": "👀",
+      "customEmojiId": "5210956306952758910",
+      "fileId": "CAACAgIAAxUAAWpZOLhA4jnhK_Ga2--knMB5TXuoAAJ-JgACJwlRSCn8jOsqtdnVPQQ",
+      "fileUniqueId": "AgADfiYAAicJUUg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 1,
+      "alias": "smile",
+      "aliases": [],
+      "emoji": "🙂",
+      "customEmojiId": "5461117441612462242",
+      "fileId": "CAACAgIAAxUAAWpZOLgb8lLJ1APpYfcS4yl5WkFCAAKiOAACYcnJS499jqI9chT3PQQ",
+      "fileUniqueId": "AgADojgAAmHJyUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 2,
+      "alias": "lightning",
+      "aliases": [
+        "newsflash"
+      ],
+      "emoji": "⚡️",
+      "customEmojiId": "5456140674028019486",
+      "fileId": "CAACAgIAAxUAAWpZOLhKhEbZlCYmljV2v3YeCMydAAIeHwACCRu4S6HoRXkVD5TAPQQ",
+      "fileUniqueId": "AgADHh8AAgkbuEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 3,
+      "alias": "comet",
+      "aliases": [
+        "fast"
+      ],
       "emoji": "☄️",
-      "fileId": "CAACAgUAAxUAAWovqg_pJY_eTGFj3bz2j6uuc7nBAALKIgAC1GKBVbhODKZhk8lMPAQ",
-      "customEmojiId": "6161314427892146890"
+      "customEmojiId": "5224607267797606837",
+      "fileId": "CAACAgIAAxUAAWpZOLgJCJ-UhjIEmkJEC3QxDBytAAK1IQACoYiBSKedex8uzPWGPQQ",
+      "fileUniqueId": "AgADtSEAAqGIgUg",
+      "isAnimated": true,
+      "isVideo": false
     },
     {
-      "brand": "auto247",
-      "brandKey": "auto247",
-      "fileName": "auto247.tgs",
-      "emoji": "🔄",
-      "fileId": "CAACAgUAAxUAAWovp9dczWi4D78ZOJ5Xq9pj54uiAAJ0HQAC1ceAVT7-kIyCSNGOPAQ",
-      "customEmojiId": "6161144007884807540"
+      "index": 4,
+      "alias": "shopping-bag",
+      "aliases": [],
+      "emoji": "🛍",
+      "customEmojiId": "5229064374403998351",
+      "fileId": "CAACAgIAAxUAAWpZOLiOUxgh6bwiTIsFMgNiz9veAAKPIgACWF6RSE7riK_Zwmw6PQQ",
+      "fileUniqueId": "AgADjyIAAlhekUg",
+      "isAnimated": true,
+      "isVideo": false
     },
     {
-      "brand": "tracking",
-      "brandKey": "tracking",
-      "fileName": "tracking.tgs",
-      "emoji": "🔍",
-      "fileId": "CAACAgUAAxUAAWovp9cRtk0DC4x7TdsHlZY4fWOtAAJ0HgACdT6BVUkLcBxutuCkPAQ",
-      "customEmojiId": "6161274437451652724"
+      "index": 5,
+      "alias": "no-entry",
+      "aliases": [],
+      "emoji": "⛔️",
+      "customEmojiId": "5260293700088511294",
+      "fileId": "CAACAgIAAxUAAWpZOLht8apVtGEVPCqFHOW--Rq_AAI-OwACQFEAAUkQdejBPel_3j0E",
+      "fileUniqueId": "AgADPjsAAkBRAAFJ",
+      "isAnimated": true,
+      "isVideo": false
     },
     {
-      "brand": "adminchat",
-      "brandKey": "adminchat",
-      "fileName": "adminchat.tgs",
+      "index": 6,
+      "alias": "prohibited",
+      "aliases": [],
+      "emoji": "🚫",
+      "customEmojiId": "5240241223632954241",
+      "fileId": "CAACAgIAAxUAAWpZOLhTGio04p8xGXa0E1Ri_LZ8AAKBIwACoRO5SJZUsmqdIVClPQQ",
+      "fileUniqueId": "AgADgSMAAqETuUg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 7,
+      "alias": "exclamation",
+      "aliases": [],
+      "emoji": "❗️",
+      "customEmojiId": "5274099962655816924",
+      "fileId": "CAACAgIAAxUAAWpZOLjpSzeZbMmYUVHy-uWKAffFAALcPAAC-V0xSa114M41AAG1wj0E",
+      "fileUniqueId": "AgAD3DwAAvldMUk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 8,
+      "alias": "double-exclamation",
+      "aliases": [],
+      "emoji": "‼️",
+      "customEmojiId": "5440660757194744323",
+      "fileId": "CAACAgIAAxUAAWpZOLiOJ737GbjeiQz_Ic_lqP2qAAIDIgACIhyBS3ABBzDVeSrAPQQ",
+      "fileUniqueId": "AgADAyIAAiIcgUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 9,
+      "alias": "question-exclamation",
+      "aliases": [],
+      "emoji": "⁉️",
+      "customEmojiId": "5314504236132747481",
+      "fileId": "CAACAgIAAxUAAWpZOLhc6Y-CsKp1Z4DQlbVBEPgRAALZSAACcunASaiareFw4359PQQ",
+      "fileUniqueId": "AgAD2UgAAnLpwEk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 10,
+      "alias": "question",
+      "aliases": [],
+      "emoji": "❓",
+      "customEmojiId": "5436113877181941026",
+      "fileId": "CAACAgIAAxUAAWpZOLjTddpw4WBme_wkosE5J86hAAIiRQACxfRwSzFsZvmnSgABMj0E",
+      "fileUniqueId": "AgADIkUAAsX0cEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 11,
+      "alias": "warning",
+      "aliases": [],
+      "emoji": "⚠️",
+      "customEmojiId": "5447644880824181073",
+      "fileId": "CAACAgIAAxUAAWpZOLgmjs-4r9b1Gqyov6N-FYWlAAJRIQACKOyZS_HPKxqNaxOPPQQ",
+      "fileUniqueId": "AgADUSEAAijsmUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 12,
+      "alias": "warning-alt",
+      "aliases": [],
+      "emoji": "⚠️",
+      "customEmojiId": "5420323339723881652",
+      "fileId": "CAACAgIAAxUAAWpZOLgakJKLfcz06CTUqgYii7axAAK0PAACXNs4S5_8wVMFfeSCPQQ",
+      "fileUniqueId": "AgADtDwAAlzbOEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 13,
+      "alias": "globe",
+      "aliases": [],
+      "emoji": "🌐",
+      "customEmojiId": "5447410659077661506",
+      "fileId": "CAACAgIAAxUAAWpZOLgUWd8heQhvsyhBp4J1zCguAAJCIwACIheZS2TzIrPUQoX4PQQ",
+      "fileUniqueId": "AgADQiMAAiIXmUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 14,
+      "alias": "chat",
+      "aliases": [
+        "adminchat"
+      ],
       "emoji": "💬",
-      "fileId": "CAACAgUAAxUAAWovp9cQqsod9esC-ALlrod75vuZAAIVJAACgCKAVRTzz6F8d9mtPAQ",
-      "customEmojiId": "6160962223394006037"
+      "customEmojiId": "5443038326535759644",
+      "fileId": "CAACAgIAAxUAAWpZOLjlrLL_9AwUHcFMKJlFedOSAAIcJwAChY6JS2saUuUIm3YLPQQ",
+      "fileUniqueId": "AgADHCcAAoWOiUs",
+      "isAnimated": true,
+      "isVideo": false
     },
     {
-      "brand": "adminshield",
-      "brandKey": "adminshield",
-      "fileName": "adminshield.tgs",
-      "emoji": "🛡",
-      "fileId": "CAACAgUAAxUAAWovqhGlIGCa1yUUsnhlhptKLAvZAAKdJgACsyuAVZn45N7eiLpsPAQ",
-      "customEmojiId": "6160972338041988765"
+      "index": 15,
+      "alias": "thought",
+      "aliases": [],
+      "emoji": "💭",
+      "customEmojiId": "5467538555158943525",
+      "fileId": "CAACAgIAAxUAAWpZOLiWhiCo72NkwB0Eq3hBLjvzAAIlVwACWZngS8DZLzXVXiVfPQQ",
+      "fileUniqueId": "AgADJVcAAlmZ4Es",
+      "isAnimated": true,
+      "isVideo": false
     },
     {
-      "brand": "adminboom",
-      "brandKey": "adminboom",
-      "fileName": "adminboom.tgs",
-      "emoji": "💥",
-      "fileId": "CAACAgUAAxUAAWovqqSnEin7JRAZEoa4wNdrvckaAAKzJQAChMN4VTD4ro3gPROiPAQ",
-      "customEmojiId": "6158887462132262323"
+      "index": 16,
+      "alias": "question-alt",
+      "aliases": [],
+      "emoji": "❓",
+      "customEmojiId": "5452069934089641166",
+      "fileId": "CAACAgIAAxUAAWpZOLh7Sb4h_fp2-Lta9diVm1uvAALOHAACuKSpSzjuVTZQPB-WPQQ",
+      "fileUniqueId": "AgADzhwAArikqUs",
+      "isAnimated": true,
+      "isVideo": false
     },
     {
-      "brand": "adminfire",
-      "brandKey": "adminfire",
-      "fileName": "adminfire.tgs",
+      "index": 17,
+      "alias": "chart",
+      "aliases": [],
+      "emoji": "📊",
+      "customEmojiId": "5231200819986047254",
+      "fileId": "CAACAgIAAxUAAWpZOLhGCqQjk9Yj-KBpiJur0zxpAAIWIQACbvWYSObx8SIEuexcPQQ",
+      "fileUniqueId": "AgADFiEAAm71mEg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 18,
+      "alias": "up",
+      "aliases": [],
+      "emoji": "🔼",
+      "customEmojiId": "5449683594425410231",
+      "fileId": "CAACAgIAAxUAAWpZOLjrfwoI8K5RPQFm-apFGvc0AAK3IgACWyqhS3tOCKJL8-zOPQQ",
+      "fileUniqueId": "AgADtyIAAlsqoUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 19,
+      "alias": "down",
+      "aliases": [],
+      "emoji": "🔽",
+      "customEmojiId": "5447183459602669338",
+      "fileId": "CAACAgIAAxUAAWpZOLgFXVWY87hinZNKQC50_vCuAAIaHwACf0iYS0fxfXKkcVLLPQQ",
+      "fileUniqueId": "AgADGh8AAn9ImEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 20,
+      "alias": "candle",
+      "aliases": [],
+      "emoji": "🕯",
+      "customEmojiId": "5451882707875276247",
+      "fileId": "CAACAgIAAxUAAWpZOLhomPTIyPNO2SfWB9VnBWkNAALXJQACcPqoS1yxccN6lWbvPQQ",
+      "fileUniqueId": "AgAD1yUAAnD6qEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 21,
+      "alias": "chart-up",
+      "aliases": [],
+      "emoji": "📈",
+      "customEmojiId": "5244837092042750681",
+      "fileId": "CAACAgIAAxUAAWpZOLjLrVsywMaFAg9cFUE5MFkcAALZOgACjGfJSNlWWA12A5IsPQQ",
+      "fileUniqueId": "AgAD2ToAAoxnyUg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 22,
+      "alias": "chart-down",
+      "aliases": [],
+      "emoji": "📉",
+      "customEmojiId": "5246762912428603768",
+      "fileId": "CAACAgIAAxUAAWpZOLiUGAFhu05PNUcrpJOklmVCAAJ4OQACEj_QSIMP2ouZFnjtPQQ",
+      "fileUniqueId": "AgADeDkAAhI_0Eg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 23,
+      "alias": "check",
+      "aliases": [],
+      "emoji": "✔️",
+      "customEmojiId": "5206607081334906820",
+      "fileId": "CAACAgIAAxUAAWpZOLjYGbOIJ7ua6GMFVnomq85MAALEHwACjpVBSPcvC3O6zTVOPQQ",
+      "fileUniqueId": "AgADxB8AAo6VQUg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 24,
+      "alias": "cross",
+      "aliases": [],
+      "emoji": "❌",
+      "customEmojiId": "5210952531676504517",
+      "fileId": "CAACAgIAAxUAAWpZOLh2pUD8kr69PuDmL-yAHWNnAALFIQACuAVRSMlAC3k1IeJVPQQ",
+      "fileUniqueId": "AgADxSEAArgFUUg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 25,
+      "alias": "cool",
+      "aliases": [],
+      "emoji": "🆒",
+      "customEmojiId": "5222079954421818267",
+      "fileId": "CAACAgIAAxUAAWpZOLiOlxorQrNVqgf4Kyqs1zezAAKbIwACDY54SJwCCZPIGd7BPQQ",
+      "fileUniqueId": "AgADmyMAAg2OeEg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 26,
+      "alias": "bell",
+      "aliases": [],
+      "emoji": "🔔",
+      "customEmojiId": "5458603043203327669",
+      "fileId": "CAACAgIAAxUAAWpZOLikofh2Qtvdj7nCKkdhXc54AAK1JgACjNrAS6sb4kzuJIAsPQQ",
+      "fileUniqueId": "AgADtSYAAozawEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 27,
+      "alias": "disguise",
+      "aliases": [],
+      "emoji": "🥸",
+      "customEmojiId": "5391112412445288650",
+      "fileId": "CAACAgIAAxUAAWpZOLhpR_3kVnDM3mUdY9-DnfNIAALKKAACLRTRSkNb8sAzBki8PQQ",
+      "fileUniqueId": "AgADyigAAi0U0Uo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 28,
+      "alias": "clown",
+      "aliases": [],
+      "emoji": "🤡",
+      "customEmojiId": "5269531045165816230",
+      "fileId": "CAACAgIAAxUAAWpZOLgl_zyQJM0MpGOPjyfKCGOLAAKmWQACkSIhSWZtRJSI3OYNPQQ",
+      "fileUniqueId": "AgADplkAApEiIUk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 29,
+      "alias": "lips",
+      "aliases": [],
+      "emoji": "🫦",
+      "customEmojiId": "5395444514028529554",
+      "fileId": "CAACAgIAAxUAAWpZOLiED4Km0KcpW5Wy6C7G1jaYAAKSJwACM3jgSrGTnWln4adrPQQ",
+      "fileUniqueId": "AgADkicAAjN44Eo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 30,
+      "alias": "pin",
+      "aliases": [],
+      "emoji": "📌",
+      "customEmojiId": "5397782960512444700",
+      "fileId": "CAACAgIAAxUAAWpZOLjbrt3dqApSrHOyWlS7z40zAAIcKQACAcfoSlJqbvBz3d58PQQ",
+      "fileUniqueId": "AgADHCkAAgHH6Eo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 31,
+      "alias": "dollar",
+      "aliases": [],
+      "emoji": "💵",
+      "customEmojiId": "5409048419211682843",
+      "fileId": "CAACAgIAAxUAAWpZOLiLge8toCpUHnohytW4_AhxAAIbJAAC4cwQS1nudk3BOJgXPQQ",
+      "fileUniqueId": "AgADGyQAAuHMEEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 32,
+      "alias": "money-fly-1",
+      "aliases": [],
+      "emoji": "💸",
+      "customEmojiId": "5233326571099534068",
+      "fileId": "CAACAgIAAxUAAWpZOLjGytogOxFpSjHGj27OdKFOAAL0MgACyoKgSNXu3EcuraFjPQQ",
+      "fileUniqueId": "AgAD9DIAAsqCoEg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 33,
+      "alias": "money-fly-2",
+      "aliases": [],
+      "emoji": "💸",
+      "customEmojiId": "5231449120635370684",
+      "fileId": "CAACAgIAAxUAAWpZOLhDAS33_2H_OWK2fI5wO9SWAAK8PAACQteZSKnZS7PZyKwoPQQ",
+      "fileUniqueId": "AgADvDwAAkLXmUg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 34,
+      "alias": "money-fly-3",
+      "aliases": [],
+      "emoji": "💸",
+      "customEmojiId": "5278751923338490157",
+      "fileId": "CAACAgIAAxUAAWpZOLiz-2caaO2G69JPVp2Sx2CcAAItMQAC6ORBSbBL1M5vAjrUPQQ",
+      "fileUniqueId": "AgADLTEAAujkQUk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 35,
+      "alias": "money-fly-4",
+      "aliases": [],
+      "emoji": "💸",
+      "customEmojiId": "5290017777174722330",
+      "fileId": "CAACAgIAAxUAAWpZOLhjrePnzt8UGEdr37wAASEMJAACGjcAAiTraUkmy-T7XebZfj0E",
+      "fileUniqueId": "AgADGjcAAiTraUk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 36,
+      "alias": "money-fly-5",
+      "aliases": [],
+      "emoji": "💸",
+      "customEmojiId": "5231005931550030290",
+      "fileId": "CAACAgIAAxUAAWpZOLhopMVC4XiEAVrVcZ47LwefAALSOQACLkSYSI6Nqd928YC9PQQ",
+      "fileUniqueId": "AgAD0jkAAi5EmEg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 37,
+      "alias": "exchange",
+      "aliases": [],
+      "emoji": "💱",
+      "customEmojiId": "5402186569006210455",
+      "fileId": "CAACAgIAAxUAAWpZOLixPYBFtSJDJZYgSjktQA-HAAKXXQACEGz4SkPaHs3yIBsfPQQ",
+      "fileUniqueId": "AgADl10AAhBs-Eo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 38,
+      "alias": "play",
+      "aliases": [],
+      "emoji": "▶️",
+      "customEmojiId": "5264919878082509254",
+      "fileId": "CAACAgIAAxUAAWpZOLgqUBpkqyYAAewXa_WlLfPbuQACxjkAArzAEElMU2_rTd0PvT0E",
+      "fileUniqueId": "AgADxjkAArzAEEk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 39,
+      "alias": "red",
+      "aliases": [],
+      "emoji": "🔴",
+      "customEmojiId": "5411225014148014586",
+      "fileId": "CAACAgIAAxUAAWpZOLgr2xs1Hq7RhoTkZ4nf1fX0AAL6IQACe4gYS2n3kOnQAuwMPQQ",
+      "fileUniqueId": "AgAD-iEAAnuIGEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 40,
+      "alias": "green",
+      "aliases": [],
+      "emoji": "🟢",
+      "customEmojiId": "5416081784641168838",
+      "fileId": "CAACAgIAAxUAAWpZOLjG5pgx3kQuq8DB0kXLMmzKAALGJQACsMkpS3OdOcSJZyLsPQQ",
+      "fileUniqueId": "AgADxiUAArDJKUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 41,
+      "alias": "arrow-right",
+      "aliases": [],
+      "emoji": "➡️",
+      "customEmojiId": "5416117059207572332",
+      "fileId": "CAACAgIAAxUAAWpZOLiqyOV2sDugRzM3w-6Adx8TAAJsKwACxekpS5ms24tHrSw_PQQ",
+      "fileUniqueId": "AgADbCsAAsXpKUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 42,
+      "alias": "fire",
+      "aliases": [
+        "adminfire"
+      ],
       "emoji": "🔥",
-      "fileId": "CAACAgUAAxUAAWovqqYAASbcAAGnIN0pqzte_mB5x18AApIgAAI6eIBVqocebaKBb_g8BA",
-      "customEmojiId": "6161056480746283154"
+      "customEmojiId": "5424972470023104089",
+      "fileId": "CAACAgIAAxUAAWpZOLiWtZnuGgmu4dcpBNWTvkB-AAJZJgACuF9JSySLZUZkRhwRPQQ",
+      "fileUniqueId": "AgADWSYAArhfSUs",
+      "isAnimated": true,
+      "isVideo": false
     },
     {
-      "brand": "adminhundred",
-      "brandKey": "adminhundred",
-      "fileName": "adminhundred.tgs",
+      "index": 43,
+      "alias": "boom",
+      "aliases": [
+        "adminboom"
+      ],
+      "emoji": "💥",
+      "customEmojiId": "5276032951342088188",
+      "fileId": "CAACAgIAAxUAAWpZOLjrf7bwZqTmSondFz3k9SLoAAL8PwACBDw4STL39tNAGQ30PQQ",
+      "fileUniqueId": "AgAD_D8AAgQ8OEk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 44,
+      "alias": "studio-microphone",
+      "aliases": [],
+      "emoji": "🎙",
+      "customEmojiId": "5294339927318739359",
+      "fileId": "CAACAgIAAxUAAWpZOLgs_jNtLFMPcXzSy49T5Q8VAAKfOQACHUZ5SeqyF9gJ-7n_PQQ",
+      "fileUniqueId": "AgADnzkAAh1GeUk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 45,
+      "alias": "microphone",
+      "aliases": [],
+      "emoji": "🎤",
+      "customEmojiId": "5224736245665511429",
+      "fileId": "CAACAgIAAxUAAWpZOLiEAgTOJSzYMKDKmKS_UaX3AAIFOAAC7_2BSIKlVeKPVXG6PQQ",
+      "fileUniqueId": "AgADBTgAAu_9gUg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 46,
+      "alias": "megaphone",
+      "aliases": [],
+      "emoji": "📣",
+      "customEmojiId": "5424818078833715060",
+      "fileId": "CAACAgIAAxUAAWpZOLide1Dbb5PaUPP5Jf5zAmQhAAJ0JwACTdNIS5Dzi1ghhx6kPQQ",
+      "fileUniqueId": "AgADdCcAAk3TSEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 47,
+      "alias": "quiet",
+      "aliases": [],
+      "emoji": "🤫",
+      "customEmojiId": "5431609822288033666",
+      "fileId": "CAACAgIAAxUAAWpZOLjO_YG8q6a9gvO2OejH1z-lAAKCNwACW_RgS7pMpXYyR0C2PQQ",
+      "fileUniqueId": "AgADgjcAAlv0YEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 48,
+      "alias": "thumbs-down",
+      "aliases": [],
+      "emoji": "👎",
+      "customEmojiId": "5449875686837726134",
+      "fileId": "CAACAgIAAxUAAWpZOLjOOUYcypX7arSMQLKQYgWCAAK2KwACENmhS0VjHIyGnKklPQQ",
+      "fileUniqueId": "AgADtisAAhDZoUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 49,
+      "alias": "speaking",
+      "aliases": [],
+      "emoji": "🗣️",
+      "customEmojiId": "5460795800101594035",
+      "fileId": "CAACAgIAAxUAAWpZOLiNZoeMyE4AAdDicx9KXjJAtgACsyMAAtmkyEt0T4JgMQWfAj0E",
+      "fileUniqueId": "AgADsyMAAtmkyEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 50,
+      "alias": "search",
+      "aliases": [
+        "tracking"
+      ],
+      "emoji": "🔍",
+      "customEmojiId": "5231012545799666522",
+      "fileId": "CAACAgIAAxUAAWpZOLinXIeO5ReQ5NjSEeLtIcVXAAJaOwACMkqYSFKP2Xx1Xoa3PQQ",
+      "fileUniqueId": "AgADWjsAAjJKmEg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 51,
+      "alias": "shield",
+      "aliases": [
+        "adminshield"
+      ],
+      "emoji": "🛡",
+      "customEmojiId": "5251203410396458957",
+      "fileId": "CAACAgIAAxUAAWpZOLhm-mF_XdpYDbGcZQuqKU7SAALNLwACrgXgSCS2egrQbhNMPQQ",
+      "fileUniqueId": "AgADzS8AAq4F4Eg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 52,
+      "alias": "link",
+      "aliases": [],
+      "emoji": "🔗",
+      "customEmojiId": "5271604874419647061",
+      "fileId": "CAACAgIAAxUAAWpZOLhduLuCsC_vteP2348AAXrhUgACVTIAArSAKElyMQ3EMdOkLj0E",
+      "fileUniqueId": "AgADVTIAArSAKEk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 53,
+      "alias": "desktop",
+      "aliases": [],
+      "emoji": "🖥",
+      "customEmojiId": "5282843764451195532",
+      "fileId": "CAACAgIAAxUAAWpZOLgfCdxKmsS0LTG9cCFvPHOmAAKMOgACam5QST44I4dTaeY7PQQ",
+      "fileUniqueId": "AgADjDoAAmpuUEk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 54,
+      "alias": "copyright",
+      "aliases": [],
+      "emoji": "©",
+      "customEmojiId": "5323442290708985472",
+      "fileId": "CAACAgIAAxUAAWpZOLgAAW8rAbwsNH7Vu7Mdp8Q0DgACgDYAAo-q4En8tJchXEFC4z0E",
+      "fileUniqueId": "AgADgDYAAo-q4Ek",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 55,
+      "alias": "info",
+      "aliases": [],
+      "emoji": "ℹ️",
+      "customEmojiId": "5334544901428229844",
+      "fileId": "CAACAgIAAxUAAWpZOLgUTjyazu67V3RAciBIRbiVAALUNgACUxwISgKyMEV4DBITPQQ",
+      "fileUniqueId": "AgAD1DYAAlMcCEo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 56,
+      "alias": "thumbs-up",
+      "aliases": [],
+      "emoji": "👍",
+      "customEmojiId": "5337080053119336309",
+      "fileId": "CAACAgIAAxUAAWpZOLgMNdDhd7MwQWT7Z5gmmC_vAAJ1PwACCB4RSiT96YhdyumWPQQ",
+      "fileUniqueId": "AgADdT8AAggeEUo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 57,
+      "alias": "play-alt",
+      "aliases": [],
+      "emoji": "▶️",
+      "customEmojiId": "5348125953090403204",
+      "fileId": "CAACAgIAAxUAAWpZOLiyjY9epj_sOjlAK49Otx_eAAKEOwACOFw4Sm64VfNrwKTZPQQ",
+      "fileUniqueId": "AgADhDsAAjhcOEo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 58,
+      "alias": "pause",
+      "aliases": [],
+      "emoji": "⏸",
+      "customEmojiId": "5359543311897998264",
+      "fileId": "CAACAgIAAxUAAWpZOLjBMi7z9iyHGzwiZoz2bWbUAAK4MwACP-xgStCCXcswQkRPPQQ",
+      "fileUniqueId": "AgADuDMAAj_sYEo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 59,
+      "alias": "hundred",
+      "aliases": [
+        "adminhundred"
+      ],
       "emoji": "💯",
-      "fileId": "CAACAgUAAxUAAWovqqnIXHjtVKYz6WHutuuMskpUAAKvHQACstKBVSzW_xEp4V9JPAQ",
-      "customEmojiId": "6161437427165568431"
+      "customEmojiId": "5341498088408234504",
+      "fileId": "CAACAgIAAxUAAWpZOLjFQxZUz3NMxe7hF5PwIqSUAAIIOgACNtAgSufaWM_0TUYUPQQ",
+      "fileUniqueId": "AgADCDoAAjbQIEo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 60,
+      "alias": "refresh",
+      "aliases": [
+        "auto247"
+      ],
+      "emoji": "🔄",
+      "customEmojiId": "5375338737028841420",
+      "fileId": "CAACAgIAAxUAAWpZOLjmoKc_xRSBZntw21iZgjctAALMPwACGgqZSroVW3k_DF_gPQQ",
+      "fileUniqueId": "AgADzD8AAhoKmUo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 61,
+      "alias": "top",
+      "aliases": [],
+      "emoji": "🔝",
+      "customEmojiId": "5415655814079723871",
+      "fileId": "CAACAgIAAxUAAWpZOLii7oUvWigVlK2aV4o9gq0zAAJfOQACRUYoS9MKeWg5yePFPQQ",
+      "fileUniqueId": "AgADXzkAAkVGKEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 62,
+      "alias": "new",
+      "aliases": [],
+      "emoji": "🆕",
+      "customEmojiId": "5382357040008021292",
+      "fileId": "CAACAgIAAxUAAWpZOLijOu0S37GtEo0whgKg-iBYAAIsRQACNvmxSthoap_LEeIxPQQ",
+      "fileUniqueId": "AgADLEUAAjb5sUo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 63,
+      "alias": "soon",
+      "aliases": [],
+      "emoji": "🔜",
+      "customEmojiId": "5440621591387980068",
+      "fileId": "CAACAgIAAxUAAWpZOLgu-VZJbUZM67K0MYs54MjvAAIkQQACg_iAS_T2Y8LE3UaMPQQ",
+      "fileUniqueId": "AgADJEEAAoP4gEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 64,
+      "alias": "location",
+      "aliases": [],
+      "emoji": "📍",
+      "customEmojiId": "5391032818111363540",
+      "fileId": "CAACAgIAAxUAAWpZOLga_zvuHpTxY7b_xORPkDR4AALUOQACycvQSqRujJnnqkiEPQQ",
+      "fileUniqueId": "AgAD1DkAAsnL0Eo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 65,
+      "alias": "plus",
+      "aliases": [],
+      "emoji": "➕",
+      "customEmojiId": "5397916757333654639",
+      "fileId": "CAACAgIAAxUAAWpZOLi0AAHDlIzupFPu413udBpzLQACbzwAArFA6Up3LWrLHUHgcj0E",
+      "fileUniqueId": "AgADbzwAArFA6Uo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 66,
+      "alias": "diamond",
+      "aliases": [],
+      "emoji": "💎",
+      "customEmojiId": "5427168083074628963",
+      "fileId": "CAACAgIAAxUAAWpZOLhTiQL2wU3erRAgwl_2KoodAAJjPQACnixRS8-lAAHB8IDWJz0E",
+      "fileUniqueId": "AgADYz0AAp4sUUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 67,
+      "alias": "star",
+      "aliases": [],
+      "emoji": "⭐️",
+      "customEmojiId": "5438496463044752972",
+      "fileId": "CAACAgIAAxUAAWpZOLgvK5DP0Iv8u6co9japCeJcAAJMNgACuGt5S-7O8UKxH8fRPQQ",
+      "fileUniqueId": "AgADTDYAArhreUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 68,
+      "alias": "sparkle",
+      "aliases": [],
+      "emoji": "✨",
+      "customEmojiId": "5325547803936572038",
+      "fileId": "CAACAgIAAxUAAWpZOLgDkBoZ6_0sZg8PEFEavJe7AAKGQgACgyXoSX429vDyQAtyPQQ",
+      "fileUniqueId": "AgADhkIAAoMl6Ek",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 69,
+      "alias": "crown",
+      "aliases": [],
+      "emoji": "👑",
+      "customEmojiId": "5217822164362739968",
+      "fileId": "CAACAgIAAxUAAWpZOLgRd15aFqDncswFrU1ieW6wAANBAAKdbWlI5DuRmlZ7vwQ9BA",
+      "fileUniqueId": "AgAEQQACnW1pSA",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 70,
+      "alias": "trash",
+      "aliases": [],
+      "emoji": "🗑",
+      "customEmojiId": "5445267414562389170",
+      "fileId": "CAACAgIAAxUAAWpZOLhhMQ6ZRBAE514d5HhkV3d0AAKyPAAC3XmRS9gAAT3l6xWIVT0E",
+      "fileUniqueId": "AgADsjwAAt15kUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 71,
+      "alias": "bookmark",
+      "aliases": [],
+      "emoji": "🔖",
+      "customEmojiId": "5222444124698853913",
+      "fileId": "CAACAgIAAxUAAWpZOLjEXoMuIhMaFv1QWolUjBgtAAIZQgACQ9l5SHNjWCZPXcR-PQQ",
+      "fileUniqueId": "AgADGUIAAkPZeUg",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 72,
+      "alias": "mail",
+      "aliases": [],
+      "emoji": "✉️",
+      "customEmojiId": "5253742260054409879",
+      "fileId": "CAACAgIAAxUAAWpZOLhWvgc1P0Zl9Dd5SpN2TFYBAAKXQgACwArpSG98TMTN41EzPQQ",
+      "fileUniqueId": "AgADl0IAAsAK6Ug",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 73,
+      "alias": "lock",
+      "aliases": [],
+      "emoji": "🔒",
+      "customEmojiId": "5296369303661067030",
+      "fileId": "CAACAgIAAxUAAWpZOLhz8BQxjFRc84rRO3zx_1cOAAIWOwAC0nuASZfMahEsCRY7PQQ",
+      "fileUniqueId": "AgADFjsAAtJ7gEk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 74,
+      "alias": "surprised",
+      "aliases": [],
+      "emoji": "😮",
+      "customEmojiId": "5303479226882603449",
+      "fileId": "CAACAgIAAxUAAWpZOLjdJzjI6ijuw6pWdIEZ01dnAAK5OQACQr6ZSWYCxDUZ00aiPQQ",
+      "fileUniqueId": "AgADuTkAAkK-mUk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 75,
+      "alias": "paperclip",
+      "aliases": [],
+      "emoji": "📎",
+      "customEmojiId": "5305265301917549162",
+      "fileId": "CAACAgIAAxUAAWpZOLhVLgVqRrGA9K76TYuCH6qCAAJqQgACrxagSf66kJQI45aSPQQ",
+      "fileUniqueId": "AgADakIAAq8WoEk",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 76,
+      "alias": "settings",
+      "aliases": [],
+      "emoji": "⚙️",
+      "customEmojiId": "5341715473882955310",
+      "fileId": "CAACAgIAAxUAAWpZOLgCUD9YSzCJEsUmVdaWdjBfAAIuPgAC7JUhSsWp13kPXhC9PQQ",
+      "fileUniqueId": "AgADLj4AAuyVIUo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 77,
+      "alias": "game",
+      "aliases": [],
+      "emoji": "🎮",
+      "customEmojiId": "5361741454685256344",
+      "fileId": "CAACAgIAAxUAAWpZOLiLRV6TDxL1IQLxGx5PLNOAAAKYOgACcrtoSjzceQJjf1pCPQQ",
+      "fileUniqueId": "AgADmDoAAnK7aEo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 78,
+      "alias": "speaker",
+      "aliases": [],
+      "emoji": "🔈",
+      "customEmojiId": "5388632425314140043",
+      "fileId": "CAACAgIAAxUAAWpZOLhpK-c9VYln6jr4475sgkq_AAKLPwACpETISkiKEKH1_GaFPQQ",
+      "fileUniqueId": "AgADiz8AAqREyEo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 79,
+      "alias": "hourglass",
+      "aliases": [],
+      "emoji": "⌛",
+      "customEmojiId": "5386367538735104399",
+      "fileId": "CAACAgIAAxUAAWpZOLgkc7lUuT8U-MQovxKGTK_2AAKPQQACvTjASs3m4PEfXWfAPQQ",
+      "fileUniqueId": "AgADj0EAAr04wEo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 80,
+      "alias": "download",
+      "aliases": [],
+      "emoji": "⬇️",
+      "customEmojiId": "5406745015365943482",
+      "fileId": "CAACAgIAAxUAAWpZOLjEXrv3OCsSXxYhnRvXPJ-GAAK6QAAC8p0IS-bJPG4-3ZkgPQQ",
+      "fileUniqueId": "AgADukAAAvKdCEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 81,
+      "alias": "sun",
+      "aliases": [],
+      "emoji": "☀️",
+      "customEmojiId": "5402477260982731644",
+      "fileId": "CAACAgIAAxUAAWpZOLi1-Ql6f9VO3CoM0723P3q5AAJ8QwACcnT5SpKf8pWwTxlyPQQ",
+      "fileUniqueId": "AgADfEMAAnJ0-Uo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 82,
+      "alias": "rain",
+      "aliases": [],
+      "emoji": "🌧",
+      "customEmojiId": "5399913388845322366",
+      "fileId": "CAACAgIAAxUAAWpZOLjbIkN1AWwaqrlisTrBGGi1AAJ-UAACnljwSorFBOUIG0tfPQQ",
+      "fileUniqueId": "AgADflAAAp5Y8Eo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 83,
+      "alias": "moon",
+      "aliases": [],
+      "emoji": "🌛",
+      "customEmojiId": "5449569374065152798",
+      "fileId": "CAACAgIAAxUAAWpZOLh4xWDfyqecs2vU7KoQpVuZAAIeUwACecKgS0pc-la86z9KPQQ",
+      "fileUniqueId": "AgADHlMAAnnCoEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 84,
+      "alias": "snow",
+      "aliases": [],
+      "emoji": "❄️",
+      "customEmojiId": "5449449325434266744",
+      "fileId": "CAACAgIAAxUAAWpZOLhsfOUmwhBqKGFCtRK_fdnWAAJ4ZAACSlWgS4hLbli3X84HPQQ",
+      "fileUniqueId": "AgADeGQAAkpVoEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 85,
+      "alias": "rainbow",
+      "aliases": [],
+      "emoji": "🌈",
+      "customEmojiId": "5409109841538994759",
+      "fileId": "CAACAgIAAxUAAWpZOLghPSW43VsvoYzIyU62Xr3KAAJHUgACvgQRS2YyvAABkNvlOT0E",
+      "fileUniqueId": "AgADR1IAAr4EEUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 86,
+      "alias": "water",
+      "aliases": [],
+      "emoji": "💧",
+      "customEmojiId": "5393512611968995988",
+      "fileId": "CAACAgIAAxUAAWpZOLhP64sRAWRxRwF5cpD408UKAAKUUgACJZvZSmZDz1XmwXsFPQQ",
+      "fileUniqueId": "AgADlFIAAiWb2Uo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 87,
+      "alias": "calendar",
+      "aliases": [],
+      "emoji": "🗓",
+      "customEmojiId": "5413879192267805083",
+      "fileId": "CAACAgIAAxUAAWpZOLjLf9zGNFqxgCn03I-tLQQJAAKbUQACcfYhS0PPpme7cT3lPQQ",
+      "fileUniqueId": "AgADm1EAAnH2IUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 88,
+      "alias": "idea",
+      "aliases": [],
+      "emoji": "💡",
+      "customEmojiId": "5422439311196834318",
+      "fileId": "CAACAgIAAxUAAWpZOLidaTvLj6F6lPTUBs9y_7elAAIOSgAC019AS12ep8yeSy1OPQQ",
+      "fileUniqueId": "AgADDkoAAtNfQEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 89,
+      "alias": "gold",
+      "aliases": [],
+      "emoji": "🥇",
+      "customEmojiId": "5440539497383087970",
+      "fileId": "CAACAgIAAxUAAWpZOLgOoiY1ipNH0SnhS2wITcyCAAJiTwAC2a2AS1tzgjsINZSEPQQ",
+      "fileUniqueId": "AgADYk8AAtmtgEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 90,
+      "alias": "silver",
+      "aliases": [],
+      "emoji": "🥈",
+      "customEmojiId": "5447203607294265305",
+      "fileId": "CAACAgIAAxUAAWpZOLiHU603thh7v4GBgyS-q3JLAALZRwAC0lqYSwGDRJICAcXxPQQ",
+      "fileUniqueId": "AgAD2UcAAtJamEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 91,
+      "alias": "bronze",
+      "aliases": [],
+      "emoji": "🥉",
+      "customEmojiId": "5453902265922376865",
+      "fileId": "CAACAgIAAxUAAWpZOLgoaBBQ04nK_QT7xMsgZjOEAAKhVAACNyewS0vOrkgGsdXHPQQ",
+      "fileUniqueId": "AgADoVQAAjcnsEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 92,
+      "alias": "music",
+      "aliases": [],
+      "emoji": "🎵",
+      "customEmojiId": "5463107823946717464",
+      "fileId": "CAACAgIAAxUAAWpZOLhhX8IlJ9IyC163J5mkSgpeAAIYWQACn9vQSwGK3_wAAcPkdz0E",
+      "fileUniqueId": "AgADGFkAAp_b0Es",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 93,
+      "alias": "free",
+      "aliases": [],
+      "emoji": "🆓",
+      "customEmojiId": "5406756500108501710",
+      "fileId": "CAACAgIAAxUAAWpZOLhmyNy2zB5zIqmINUSs6tsMAALOYgACZKgIS_yzhkI3LFrSPQQ",
+      "fileUniqueId": "AgADzmIAAmSoCEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 94,
+      "alias": "edit",
+      "aliases": [],
+      "emoji": "✏️",
+      "customEmojiId": "5395444784611480792",
+      "fileId": "CAACAgIAAxUAAWpZOLinvNWfkhrHfQevXKo6pRaWAALYVAACcnjgSo4YxNYdZkJxPQQ",
+      "fileUniqueId": "AgAD2FQAAnJ44Eo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 95,
+      "alias": "alarm",
+      "aliases": [],
+      "emoji": "🚨",
+      "customEmojiId": "5395695537687123235",
+      "fileId": "CAACAgIAAxUAAWpZOLgAAXB65pKcyMcF8Y3BU9W7YAACI1UAAoFc4UpXdWvtiDH1uD0E",
+      "fileUniqueId": "AgADI1UAAoFc4Uo",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 96,
+      "alias": "shopping-bag-alt",
+      "aliases": [],
+      "emoji": "🛍",
+      "customEmojiId": "5406683434124859552",
+      "fileId": "CAACAgIAAxUAAWpZOLj9_Cv9hdzatDnkp_7FyIkqAAKgWAAC8GUIS1huIgu2CU2VPQQ",
+      "fileUniqueId": "AgADoFgAAvBlCEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 97,
+      "alias": "home",
+      "aliases": [],
+      "emoji": "🏠",
+      "customEmojiId": "5416041192905265756",
+      "fileId": "CAACAgIAAxUAAWpZOLhdMs7VINquDJ7tyl4-4S2iAAJcUgACxaQpS1OP2qTvqMSVPQQ",
+      "fileUniqueId": "AgADXFIAAsWkKUs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 98,
+      "alias": "flag",
+      "aliases": [],
+      "emoji": "🚩",
+      "customEmojiId": "5460755126761312667",
+      "fileId": "CAACAgIAAxUAAWpZOLg0TKERgD_lFft6kUTjq7zaAAKbUQAC23_IS6f-v0-GJU7fPQQ",
+      "fileUniqueId": "AgADm1EAAtt_yEs",
+      "isAnimated": true,
+      "isVideo": false
+    },
+    {
+      "index": 99,
+      "alias": "party",
+      "aliases": [],
+      "emoji": "🎉",
+      "customEmojiId": "5461151367559141950",
+      "fileId": "CAACAgIAAxUAAWpZOLiak7fV_wP1OqGrMnUOJWtVAAI-WgACPOjJS3vT9YQDrW5RPQQ",
+      "fileUniqueId": "AgADPloAAjzoyUs",
+      "isAnimated": true,
+      "isVideo": false
     }
   ]
 }

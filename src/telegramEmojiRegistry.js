@@ -69,12 +69,14 @@ export const UI_EMOJI_REQUIRED_KEYS = [
 
 export const NEWS_EMOJI_REQUIRED_KEYS = [
   'fast',
+  'newsflash',
   'auto247',
   'tracking',
   'adminchat',
   'adminshield',
   'adminboom',
-  'adminfire'
+  'adminfire',
+  'adminhundred'
 ];
 
 export const ROBO_EMOJI_REQUIRED_KEYS = [
@@ -102,6 +104,10 @@ export const DEFAULT_REQUIRED_KEYS_BY_PACK = {
   retro: RETRO_EMOJI_REQUIRED_KEYS,
   slogan: ['welcome', 'catalog', 'checkout', 'payment', 'delivery', 'support', 'soldout']
 };
+
+export const DEFAULT_REQUIRED_MIN_COUNTS_BY_PACK = Object.freeze({
+  news: 100
+});
 
 export const SLOGAN_TILE_REQUIRED_COUNTS = Object.freeze({
   daily_update: 6
@@ -191,16 +197,24 @@ export function summarizeTelegramEmojiRegistry(registry, options = {}) {
     .map(canonicalEmojiPackName)
     .filter(Boolean))];
   const requiredKeysByPack = options.requiredKeysByPack || DEFAULT_REQUIRED_KEYS_BY_PACK;
+  const requiredMinCountsByPack = options.requiredMinCountsByPack || DEFAULT_REQUIRED_MIN_COUNTS_BY_PACK;
   const packs = {};
 
   for (const pack of requiredPacks) {
     const state = registry?.packs?.[pack] || { map: {}, loaded: false, customEmojiIdCount: 0, file: '' };
     const requiredKeys = requiredKeysByPack[pack] || [];
     const missingRequiredKeys = requiredKeys.filter((key) => !hasRequiredEmojiKey(registry, pack, key));
+    const requiredMinimumCustomEmojiIds = requiredMinimumCount(requiredMinCountsByPack[pack]);
+    const missingRequiredCustomEmojiIds = Math.max(
+      0,
+      requiredMinimumCustomEmojiIds - (state.customEmojiIdCount || 0)
+    );
     packs[pack] = {
       file: state.file || '',
       loaded: Boolean(state.loaded),
       customEmojiIdCount: state.customEmojiIdCount || 0,
+      requiredMinimumCustomEmojiIds,
+      missingRequiredCustomEmojiIds,
       requiredKeys,
       availableRequiredKeys: requiredKeys.length - missingRequiredKeys.length,
       missingRequiredKeys
@@ -208,10 +222,19 @@ export function summarizeTelegramEmojiRegistry(registry, options = {}) {
   }
 
   return {
-    ready: Object.values(packs).every((pack) => pack.loaded && pack.missingRequiredKeys.length === 0),
+    ready: Object.values(packs).every((pack) => (
+      pack.loaded
+      && pack.missingRequiredKeys.length === 0
+      && pack.missingRequiredCustomEmojiIds === 0
+    )),
     requiredPacks,
     packs
   };
+}
+
+function requiredMinimumCount(value) {
+  const number = Number(value || 0);
+  return Number.isInteger(number) && number > 0 ? number : 0;
 }
 
 export function collectCustomEmojiIdsFromRegistry(registry, packs = PACK_NAMES) {
