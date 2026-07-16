@@ -13,6 +13,7 @@
     "test:telegram": "node scripts/telegram-message-regression-test.js",
     "test:telegram-callback": "node scripts/telegram-callback-smoke-test.js",
     "test:sepay": "node scripts/sepay-auto-regression-test.js",
+    "test:webhook-security": "node scripts/public-webhook-security-regression-test.js",
     "test:system": "node scripts/system-readiness-regression-test.js",
     "test:telegram-custom-emojis": "node scripts/telegram-custom-emoji-pack-test.js",
     "test:telegram-robo-emojis": "node scripts/telegram-robo-emoji-pack-test.js",
@@ -52,7 +53,7 @@
     "telegram:create-shop-stickers": "node scripts/telegram-shop-sticker-pack.js",
     "backup": "node scripts/backup.js",
     "restore": "node scripts/restore.js",
-    "verify": "npm run check && npm test && npm run test:admin-ui && npm run test:admin-dashboard-ui && npm run test:telegram && npm run test:telegram-transport && npm run test:telegram-callback && npm run test:sepay && npm run test:system && npm run test:telegram-custom-emojis && npm run test:telegram-robo-emojis && npm run test:telegram-retro-font-emojis && npm run test:telegram-brand-motion && npm run test:telegram-ui-motion && npm run test:telegram-menu-motion && npm run test:telegram-banner-emojis && npm run test:telegram-slogan-tiles && npm run test:telegram-emoji-health && npm run test:telegram-slogan-motion && npm run test:telegram-shop-stickers && npm run test:catalog && npm run test:brand-icons",
+    "verify": "npm run check && npm test && npm run test:admin-ui && npm run test:admin-dashboard-ui && npm run test:telegram && npm run test:telegram-transport && npm run test:telegram-callback && npm run test:sepay && npm run test:webhook-security && npm run test:system && npm run test:telegram-custom-emojis && npm run test:telegram-robo-emojis && npm run test:telegram-retro-font-emojis && npm run test:telegram-brand-motion && npm run test:telegram-ui-motion && npm run test:telegram-menu-motion && npm run test:telegram-banner-emojis && npm run test:telegram-slogan-tiles && npm run test:telegram-emoji-health && npm run test:telegram-slogan-motion && npm run test:telegram-shop-stickers && npm run test:catalog && npm run test:brand-icons",
     "migrate:postgres": "node src/migrateJsonToPostgres.js"
   },
   "engines": {

@@ -44,6 +44,19 @@ export const config = {
     url: process.env.REDIS_URL || '',
     keyPrefix: process.env.REDIS_KEY_PREFIX || 'kaito-ai-shop'
   },
+  sales: {
+    enabled: String(
+      process.env.SALES_ENABLED
+        ?? (process.env.NODE_ENV === 'production' ? 'false' : 'true')
+    ).toLowerCase() === 'true',
+    testTelegramIds: String(process.env.SALES_TEST_TELEGRAM_IDS || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  },
+  inventory: {
+    encryptionKey: process.env.INVENTORY_ENCRYPTION_KEY || ''
+  },
   auth: {
     secret: process.env.AUTH_SECRET || generatedSecret,
     secureCookie: process.env.NODE_ENV === 'production'
@@ -56,6 +69,7 @@ export const config = {
     token: process.env.TELEGRAM_BOT_TOKEN || '',
     polling: String(process.env.TELEGRAM_POLLING || 'false').toLowerCase() === 'true',
     webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || '',
+    botUsername: process.env.TELEGRAM_BOT_USERNAME || '',
     welcomeAnimationUrl: process.env.TELEGRAM_WELCOME_ANIMATION_URL || '',
     startImageFile: process.env.TELEGRAM_START_IMAGE_FILE || resolve(process.cwd(), 'public', 'brand', 'start', 'welcome.png'),
     supportHandle: process.env.TELEGRAM_SUPPORT_HANDLE || '',
@@ -112,7 +126,15 @@ export const config = {
     memoSuffix: process.env.SEPAY_MEMO_SUFFIX || 'thanh toan don hang',
     webhookAuth: String(process.env.SEPAY_WEBHOOK_AUTH || 'hmac').toLowerCase(),
     webhookSecret: process.env.SEPAY_WEBHOOK_SECRET || '',
-    webhookApiKey: process.env.SEPAY_WEBHOOK_API_KEY || ''
+    webhookApiKey: process.env.SEPAY_WEBHOOK_API_KEY || '',
+    webhookAccountNumbers: String(process.env.SEPAY_WEBHOOK_ACCOUNT_NUMBERS || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+    webhookGateways: String(process.env.SEPAY_WEBHOOK_GATEWAYS || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
   }
 };
 

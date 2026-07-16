@@ -5,8 +5,9 @@ Node.js app for the KAITO AI SHOP Telegram sales bot with a web admin dashboard.
 It includes:
 
 - Telegram bot commands for product browsing and ordering.
+- Four-step Telegram checkout: category, brand, package details, then explicit confirmation.
 - Admin dashboard for products, inventory, orders, payments, and audit logs.
-- Inventory reservation and delivery flow.
+- AES-256-GCM inventory encryption, reservation, buyer cancellation, payment resume, and delivery.
 - Payment provider adapter with mock and SePay providers.
 - Manual payment-review resolution for approving delivery or marking a review order refunded.
 - Signed dashboard sessions and built-in password hashing.
@@ -96,7 +97,11 @@ Restore is intentionally destructive and requires `--yes`:
 npm.cmd run restore -- --file backups\manual-backup.json --yes
 ```
 
-Backups include inventory delivery secrets, so keep the `backups/` directory private. The same commands work against JSON storage or PostgreSQL depending on `STORE_DRIVER`.
+Backups include encrypted inventory payloads and sold-order delivery payloads. Keep the
+`backups/` directory private and preserve `INVENTORY_ENCRYPTION_KEY`; losing or rotating
+the key without migration makes encrypted stock unreadable. Older plaintext data remains
+readable for compatibility and should be replaced with encrypted inventory before launch.
+The same commands work against JSON storage or PostgreSQL depending on `STORE_DRIVER`.
 
 ## Production Storage
 
@@ -136,27 +141,51 @@ Set these variables on the application service:
 
 ```text
 NODE_ENV=production
-BASE_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}
+BASE_URL=https://your-generated-domain.up.railway.app
 STORE_DRIVER=postgres
 POSTGRES_WRITE_MODE=row
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 DATABASE_POOL_MAX=10
 REDIS_URL=${{Redis.REDIS_URL}}
+REDIS_KEY_PREFIX=kaito-ai-shop
 AUTH_SECRET=<long-random-secret>
 ADMIN_USERNAME=<admin-username>
 ADMIN_PASSWORD=<strong-password>
-PAYMENT_PROVIDER=mock
-PAYMENT_WEBHOOK_SECRET=<long-random-secret>
+INVENTORY_ENCRYPTION_KEY=<64-hex-character-key>
+SALES_ENABLED=false
+SALES_TEST_TELEGRAM_IDS=<owner-telegram-user-id>
+
+PAYMENT_PROVIDER=sepay
+SEPAY_ACCOUNT_NUMBER=<bank-account-or-va>
+SEPAY_BANK_CODE=<vietqr-bank-code>
+SEPAY_QR_TEMPLATE=compact
+SEPAY_PAYMENT_PREFIX=KAITO
+SEPAY_MEMO_SUFFIX=thanh toan don hang
+SEPAY_WEBHOOK_AUTH=hmac
+SEPAY_WEBHOOK_SECRET=<same-secret-configured-in-sepay>
+SEPAY_WEBHOOK_ACCOUNT_NUMBERS=<expected-webhook-account-number>
 ```
 
 The `Postgres` and `Redis` names in the reference variables must match the
 actual Railway service names. Do not set `PORT`; Railway injects it.
+
+Generate separate values for `AUTH_SECRET`, `TELEGRAM_WEBHOOK_SECRET`,
+`SEPAY_WEBHOOK_SECRET`, and `INVENTORY_ENCRYPTION_KEY`:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Never reuse or rotate `INVENTORY_ENCRYPTION_KEY` after importing stock unless
+the stored inventory is migrated to the new key.
 
 For the simplest single-replica Telegram deployment:
 
 ```text
 TELEGRAM_BOT_TOKEN=<bot-token>
 TELEGRAM_POLLING=true
+TELEGRAM_WEBHOOK_SECRET=<long-random-secret>
+TELEGRAM_BOT_USERNAME=<bot-username-without-at>
 TELEGRAM_SUPPORT_HANDLE=@your_support
 ```
 
@@ -177,6 +206,18 @@ GET https://<railway-domain>/api/readyz
 
 The local `docker-compose.yml` contains development credentials and should not
 be used as production secrets on Railway.
+
+Keep `SALES_ENABLED=false` during setup. In the admin dashboard:
+
+1. Update every active product with description, account type, warranty and replacement policy.
+2. Import one complete delivery payload per inventory line.
+3. Configure and test the SePay webhook.
+4. Put only the owner/test Telegram user ID in `SALES_TEST_TELEGRAM_IDS`, create
+   a controlled order with `/buy <sku> 1` while public sales remain closed,
+   then run a small real transfer and confirm automatic delivery.
+5. Remove `SALES_TEST_TELEGRAM_IDS`, set `SALES_ENABLED=true`, and redeploy only
+   after every readiness warning except the intentional `sales` closed warning
+   has been cleared.
 
 ## System Status
 
@@ -221,6 +262,16 @@ Bot commands:
 /account
 /buy <sku> [qty]
 ```
+
+The customer flow is:
+
+```text
+Danh mục → Nhãn hàng → Gói → Xác nhận mua → Thanh toán
+```
+
+Selecting a package does not reserve inventory. Only the final confirmation creates
+an order. Pending orders can be reopened from **Đơn hàng**, paid from the existing
+payment link/QR, or cancelled by their owner to release inventory.
 
 On startup, the app publishes these commands to Telegram with `setMyCommands` for the default scope plus common Telegram client languages, then enables the command menu with `setChatMenuButton`. When a customer messages `/start`, the bot also applies the command menu to that chat so desktop/mobile clients can refresh the menu without typing commands by hand.
 
@@ -370,6 +421,7 @@ SEPAY_BANK_CODE=Vietcombank
 SEPAY_PAYMENT_PREFIX=KAITO
 SEPAY_WEBHOOK_AUTH=hmac
 SEPAY_WEBHOOK_SECRET=your_sepay_webhook_secret
+SEPAY_WEBHOOK_ACCOUNT_NUMBERS=account_number_expected_in_webhook
 ```
 
 Configure the SePay webhook URL:
@@ -378,7 +430,25 @@ Configure the SePay webhook URL:
 POST https://your-domain.example/api/public/payments/sepay-webhook
 ```
 
-Configure SePay payment-code extraction so the prefix matches `SEPAY_PAYMENT_PREFIX`. The app puts the generated reference in the transfer memo and also scans webhook `content` as a fallback.
+Configure SePay payment-code extraction with:
+
+- Prefix: `KAITO`
+- Minimum suffix: `15`
+- Maximum suffix: `15`
+- Character type: letters and numbers
+- Event: incoming money
+- Content type: JSON
+- Skip transactions without a payment code: enabled
+- Prefix filter: `KAITO`
+- Authentication: HMAC-SHA256
+
+The app puts the generated reference in the transfer memo and also scans webhook
+`content` as a fallback. Authenticated test/unmatched transactions are recorded and
+acknowledged without settling an order. Repeated transaction ids remain idempotent.
+
+SePay requires a `200` or `201` response with `{"success":true}`. The endpoint
+commits the payment first, responds immediately, then sends the Telegram delivery
+notification asynchronously.
 
 Provider contract:
 
@@ -405,8 +475,13 @@ RATE_LIMIT_TELEGRAM_BUY_PER_MINUTE=6
 Order handling is conservative:
 
 - Only `pending_payment` orders can be auto-delivered.
+- A package/detail click never reserves stock; only explicit confirmation creates an order.
+- Telegram confirmation uses an idempotency key so double taps reuse the same order/payment.
+- Buyers can view or cancel only their own pending orders.
 - Expired, cancelled, mismatched, or otherwise closed orders move to `payment_review` when money arrives.
 - Amount mismatch never delivers inventory automatically.
+- Payment events must match the payment provider; mock events cannot settle SePay orders.
+- The mock webhook is disabled in production and requires a signature when enabled locally.
 - Delivery requires the reserved inventory count to match the order quantity.
 - Admins can resolve `payment_review` orders by approving delivery from reserved/available stock or marking the order refunded.
 - Admin order/payment/audit APIs are paginated by default.

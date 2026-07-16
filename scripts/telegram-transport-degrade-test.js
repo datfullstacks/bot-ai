@@ -9,12 +9,21 @@ process.env.DATA_FILE = dataFile;
 process.env.TELEGRAM_BOT_TOKEN = '123:test';
 process.env.TELEGRAM_CUSTOM_TEXT_EMOJI = 'true';
 
-const { sendTelegramMessage } = await import('../src/telegramTransport.js');
+const { editTelegramMessage, sendTelegramMessage } = await import('../src/telegramTransport.js');
 
 const calls = [];
 globalThis.fetch = async (url, options) => {
   const body = JSON.parse(options.body);
   calls.push({ url: String(url), body });
+  if (body.text === 'same') {
+    return {
+      ok: false,
+      status: 400,
+      async text() {
+        return JSON.stringify({ ok: false, description: 'Bad Request: message is not modified' });
+      }
+    };
+  }
   const hasCustomEmoji = body.entities?.some((entity) => entity.type === 'custom_emoji');
   if (hasCustomEmoji) {
     return {
@@ -60,7 +69,17 @@ try {
   assert.equal(calls[0].body.text, '<b>Fallback</b> X');
   assert.equal(calls[0].body.entities, undefined);
 
-  console.log(JSON.stringify({ ok: true, checked: 'telegram custom emoji degrade tracking' }, null, 2));
+  calls.length = 0;
+  await editTelegramMessage(9001, 77, '<b>Edited</b>');
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].url.includes('/editMessageText'));
+  assert.equal(calls[0].body.message_id, 77);
+
+  calls.length = 0;
+  const notModified = await editTelegramMessage(9001, 77, 'same');
+  assert.equal(notModified.notModified, true);
+
+  console.log(JSON.stringify({ ok: true, checked: 'telegram custom emoji degrade tracking and edit fallback' }, null, 2));
 } finally {
   await rm(dataFile, { force: true });
 }

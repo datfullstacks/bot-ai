@@ -68,10 +68,45 @@ export async function sendTelegramMessage(chatId, text, options = {}) {
   }
 }
 
+export async function editTelegramMessage(chatId, messageId, text, options = {}) {
+  const sanitized = sanitizeTelegramOptions({
+    chat_id: chatId,
+    message_id: messageId,
+    text: stripCustomEmojiTags(text),
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    ...options
+  }, 'text');
+  const payload = hasRejectedCustomEmojiEntity(sanitized.entities, 'entities')
+    ? fallbackMessagePayload(sanitized, options)
+    : sanitized;
+
+  try {
+    return await telegramJson('editMessageText', payload);
+  } catch (error) {
+    if (/message is not modified/i.test(`${error.message || ''} ${error.body || ''}`)) {
+      return { ok: true, notModified: true };
+    }
+    if (!shouldRetryWithoutCustomEmoji(error, payload, 'entities')) throw error;
+    rememberRejectedCustomEmojiIds(payload.entities, 'entities');
+    return telegramJson('editMessageText', fallbackMessagePayload(payload, options));
+  }
+}
+
 export async function sendTelegramAnimation(chatId, animation, options = {}) {
   return telegramJson('sendAnimation', sanitizeTelegramOptions({
     chat_id: chatId,
     animation,
+    parse_mode: 'HTML',
+    ...options
+  }, 'caption'));
+}
+
+export async function sendTelegramPhotoUrl(chatId, photoUrl, options = {}) {
+  if (!config.telegram.token || !photoUrl) return { skipped: true };
+  return telegramJson('sendPhoto', sanitizeTelegramOptions({
+    chat_id: chatId,
+    photo: photoUrl,
     parse_mode: 'HTML',
     ...options
   }, 'caption'));

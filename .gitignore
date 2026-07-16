@@ -14,3 +14,16 @@ __pycache__/
 logs/
 .understand-anything/
 .superpowers/
+.agents/
+artifacts/
+docs/superpowers/
+data/telegram-banner-emoji-assets.json
+data/telegram-chatgpt-image-emoji-map.json
+data/telegram-emoji-release-report.json
+data/telegram-menu-motion-assets.json
+data/telegram-slogan-motion-assets.json
+data/telegram-slogan-tile-assets.json
+public/brand/banner-emoji-preview.png
+public/brand/slogan-tile-preview.png
+public/brand/custom-emoji/chatgpt-image-20260517-045225/
+public/brand/custom-emoji/chatgpt-image-20260517-045225-zoom-pack/

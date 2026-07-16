@@ -1,10 +1,21 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
 import { config } from './config.js';
 import { brandSortKey, normalizePublicProduct } from './catalog.js';
-import { createOrderForUser, getDeliveryForOrder, listProducts, recordAudit, upsertTelegramUser } from './shop.js';
+import {
+  cancelOrderForUser,
+  createOrderForUser,
+  getDeliveryForOrder,
+  getOrderCheckoutForUser,
+  listOrdersForUser,
+  listProducts,
+  recordAudit,
+  upsertTelegramUser
+} from './shop.js';
 import { readStore } from './storage.js';
 import { consumeRateLimit } from './rateLimit.js';
+import { normalizeOrderQuantity } from './salesGuard.js';
 import { readTelegramOffset, writeTelegramOffset } from './telegramOffsetStore.js';
 import { brandIcon as brandAssetIcon } from '../public/brand-assets.js';
 import * as telegramEmoji from './telegramEmoji.js';
@@ -35,9 +46,11 @@ const {
 } = telegramEmoji;
 const {
   answerCallbackQuery,
+  editTelegramMessage,
   sendTelegramAnimation,
   sendTelegramMessage,
   sendTelegramPhotoFile,
+  sendTelegramPhotoUrl,
   sendTelegramSticker,
   stripCustomEmojiTags,
   telegramJson
@@ -47,9 +60,11 @@ export {
   bannerCustomEmojiId,
   brandCustomEmojiId,
   brandStickerFileId,
+  editTelegramMessage,
   sendTelegramAnimation,
   sendTelegramMessage,
   sendTelegramPhotoFile,
+  sendTelegramPhotoUrl,
   sendTelegramSticker,
   sloganCustomEmojiId
 };
@@ -102,7 +117,7 @@ const ORDER_STATUS_LABELS = new Map([
 const TELEGRAM_ALL_MENU_COMMANDS = [
   { command: 'start', description: 'Mở menu chính' },
   { command: 'products', description: 'Xem sản phẩm' },
-  { command: 'topup', description: 'Nạp tiền/đặt gói riêng' },
+  { command: 'topup', description: 'Đặt gói riêng' },
   { command: 'account', description: 'Xem tài khoản' },
   { command: 'orders', description: 'Xem đơn hàng' },
   { command: 'language', description: 'Đổi ngôn ngữ' },
@@ -132,7 +147,7 @@ export const TELEGRAM_MENU_COMMANDS = TELEGRAM_VISIBLE_COMMAND_ORDER
 
 const TELEGRAM_ALL_MAIN_MENU_ITEMS = [
   { key: 'products', label: 'Sản phẩm', callbackData: 'catalog:all', command: 'products' },
-  { key: 'topup', label: 'Nạp tiền', callbackData: 'topup', command: 'topup' },
+  { key: 'topup', label: 'Đặt gói riêng', callbackData: 'topup', command: 'topup' },
   { key: 'account', label: 'Tài khoản', callbackData: 'account', command: 'account' },
   { key: 'orders', label: 'Đơn hàng', callbackData: 'orders:mine', command: 'orders' },
   { key: 'language', label: 'Đổi ngôn ngữ', callbackData: 'language', command: 'language' },
@@ -306,6 +321,29 @@ function customCaptionOptions(caption, candidates, options = {}) {
 
 async function sendCustomTelegramMessage(chatId, htmlText, candidates, options = {}) {
   const payload = customMessageOptions(htmlText, candidates, options);
+  return sendTelegramMessage(chatId, payload.text, payload.options);
+}
+
+async function presentTelegramMessage(chatId, messageId, htmlText, options = {}) {
+  if (messageId) {
+    try {
+      return await editTelegramMessage(chatId, messageId, htmlText, options);
+    } catch (error) {
+      console.warn(`[telegram] edit message failed, sending a new message: ${error.message}`);
+    }
+  }
+  return sendTelegramMessage(chatId, htmlText, options);
+}
+
+async function presentCustomTelegramMessage(chatId, messageId, htmlText, candidates, options = {}) {
+  const payload = customMessageOptions(htmlText, candidates, options);
+  if (messageId) {
+    try {
+      return await editTelegramMessage(chatId, messageId, payload.text, payload.options);
+    } catch (error) {
+      console.warn(`[telegram] edit custom message failed, sending a new message: ${error.message}`);
+    }
+  }
   return sendTelegramMessage(chatId, payload.text, payload.options);
 }
 
@@ -634,12 +672,24 @@ export function unknownCommandMessage() {
   return `Mình chưa hiểu thao tác này. Bấm ${UI_ICONS.products} Sản phẩm hoặc ${UI_ICONS.orders} Đơn hàng bên dưới.`;
 }
 
-function encodePart(value) {
-  return encodeURIComponent(String(value || ''));
-}
-
 function decodePart(value) {
   return decodeURIComponent(String(value || ''));
+}
+
+function catalogToken(value) {
+  return createHash('sha256').update(String(value || '')).digest('base64url').slice(0, 12);
+}
+
+function resolveCatalogPart(token, values) {
+  const raw = String(token || '');
+  const direct = values.find((value) => catalogToken(value) === raw);
+  if (direct) return direct;
+  try {
+    const decoded = decodePart(raw);
+    return values.includes(decoded) ? decoded : '';
+  } catch {
+    return '';
+  }
 }
 
 function uniqueSorted(values) {
@@ -652,12 +702,6 @@ function chunkButtons(buttons, size) {
     rows.push(buttons.slice(index, index + size));
   }
   return rows;
-}
-
-function compactButtonText(text, maxLength = 62) {
-  const value = String(text || '').trim();
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
 function availableStock(product) {
@@ -673,9 +717,7 @@ function brandChoiceButton(product) {
   const label = `${available ? '' : '[Hết] '}${brandButtonLabel(product.brand)}`;
   return brandKeyboardButton(product.brand, {
     text: label,
-    callback_data: available
-      ? `brand:${encodePart(product.category)}:${encodePart(product.brand)}`
-      : `brand_soldout:${encodePart(product.category)}:${encodePart(product.brand)}`
+    callback_data: `brand:${catalogToken(product.category)}:${catalogToken(product.brand)}`
   });
 }
 
@@ -685,6 +727,14 @@ function supportHandle() {
 
 function supportContactLine() {
   return `Admin: ${escapeHtml(supportHandle())}`;
+}
+
+function supportUrl(message = '') {
+  const username = supportHandle().replace(/^@+/, '');
+  if (!username) return '';
+  const url = new URL(`https://t.me/${username}`);
+  if (message) url.searchParams.set('text', message);
+  return url.toString();
 }
 
 function officialPriceNoteLines(products, limit = 4) {
@@ -719,61 +769,37 @@ function catalogBrandEntries(products) {
   return [...entries.values()].sort((left, right) => left.brand.localeCompare(right.brand));
 }
 
-function featuredCatalogProducts(products) {
-  const normalized = products
-    .map((product) => normalizePublicProduct(product))
-    .sort((left, right) => {
-      const hotCompare = Number(right.hot === true) - Number(left.hot === true);
-      if (hotCompare !== 0) return hotCompare;
-      const stockCompare = Number(right.stock?.available || 0) - Number(left.stock?.available || 0);
-      if (stockCompare !== 0) return stockCompare;
-      return brandSortKey(left).localeCompare(brandSortKey(right));
-    });
-  const available = normalized.filter((product) => Number(product.stock?.available || 0) > 0);
-  const pool = available.length ? available : normalized;
-  const hot = pool.filter((product) => product.hot === true);
-  return (hot.length ? hot : pool).slice(0, 4);
-}
-
-function catalogPackageButton(product) {
-  const available = Number(product.stock?.available || 0);
-  const packageName = `${product.hot ? '🔥 ' : ''}${product.name || `${product.brand} ${product.packageType}`.trim()}`;
-  const label = compactButtonText(`${available > 0 ? '' : '[Hết] '}${packageName} - ${money(product.price, product.currency)} [${available}]`);
-  return brandKeyboardButton(product.brand, {
-    text: label,
-    callback_data: available > 0 ? `buy:${product.sku}:1` : `soldout:${product.sku}`
-  });
+export function buildCategoryKeyboard(products) {
+  const normalized = products.map((product) => normalizePublicProduct(product));
+  const categories = uniqueSorted(normalized.map((product) => product.category));
+  const rows = chunkButtons(categories.map((category) => {
+    const available = normalized
+      .filter((product) => product.category === category)
+      .reduce((sum, product) => sum + availableStock(product), 0);
+    return {
+      text: `${categoryLabel(category)}${available > 0 ? ` [${available}]` : ' [Hết]'}`,
+      callback_data: `cat:${catalogToken(category)}`
+    };
+  }), 2);
+  rows.push([{ text: `${UI_ICONS.refresh} Làm mới`, callback_data: 'catalog:all' }]);
+  rows.push([{ text: `${UI_ICONS.back} Menu chính`, callback_data: 'start:menu' }]);
+  return { inline_keyboard: rows };
 }
 
 export function buildCatalogKeyboard(products) {
-  const brandButtons = catalogBrandEntries(products).map((product) => brandChoiceButton(product));
-  const rows = chunkButtons(brandButtons, 3);
-
-  for (const product of featuredCatalogProducts(products)) {
-    rows.push([catalogPackageButton(product)]);
-  }
-
-  rows.push([{ text: `${UI_ICONS.refresh} Làm mới`, callback_data: 'catalog:all' }]);
-  rows.push([{ text: `${UI_ICONS.back} Quay lại`, callback_data: 'start:menu' }]);
-  return { inline_keyboard: rows };
-}
-
-export function buildCategoryKeyboard(products) {
-  return buildCatalogKeyboard(products);
+  return buildCategoryKeyboard(products);
 }
 
 export function buildLegacyCategoryKeyboard(products) {
-  const rows = uniqueSorted(products.map((product) => normalizePublicProduct(product).category))
-    .map((category) => [{ text: categoryLabel(category), callback_data: `cat:${encodePart(category)}` }]);
-  rows.push([{ text: `${UI_ICONS.orders} Đơn hàng`, callback_data: 'orders:mine' }]);
-  return { inline_keyboard: rows };
+  return buildCategoryKeyboard(products);
 }
 
 export function buildBrandKeyboard(products, category) {
-  const rows = catalogBrandEntries(products
+  const buttons = catalogBrandEntries(products
     .map((product) => normalizePublicProduct(product))
     .filter((product) => product.category === category))
-    .map((product) => [brandChoiceButton(product)]);
+    .map((product) => brandChoiceButton(product));
+  const rows = chunkButtons(buttons, 2);
   rows.push([{ text: `${UI_ICONS.back} Tất cả danh mục`, callback_data: 'catalog:all' }]);
   return { inline_keyboard: rows };
 }
@@ -790,14 +816,12 @@ export function buildPackageKeyboard(products) {
     });
   const rows = normalized.map((product) => [brandKeyboardButton(product.brand, {
       text: Number(product.stock?.available || 0) > 0
-        ? `Mua ngay · ${product.packageType || product.name} · ${money(product.price, product.currency)}`
+        ? `Xem gói · ${product.packageType || product.name} · ${money(product.price, product.currency)}`
         : `Hết hàng · ${product.packageType || product.name} · ${money(product.price, product.currency)}`,
-      callback_data: Number(product.stock?.available || 0) > 0
-        ? `buy:${product.sku}:1`
-        : `soldout:${product.sku}`
+      callback_data: `pkg:${product.id || product.sku}`
     })]);
   const category = normalized[0]?.category;
-  if (category) rows.push([{ text: '↩ Nhãn hàng', callback_data: `cat:${encodePart(category)}` }]);
+  if (category) rows.push([{ text: '↩ Nhãn hàng', callback_data: `cat:${catalogToken(category)}` }]);
   rows.push([
     { text: `${UI_ICONS.catalog} Danh mục`, callback_data: 'catalog:all' },
     { text: `${UI_ICONS.orders} Đơn hàng`, callback_data: 'orders:mine' }
@@ -842,23 +866,27 @@ export function productMessage(products) {
 
 export function categoryMenuMessage(products) {
   const normalized = products.map((product) => normalizePublicProduct(product));
+  const categoryCount = uniqueSorted(normalized.map((product) => product.category)).length;
   const brandCount = catalogBrandEntries(normalized).length;
   const availableCount = normalized.filter((product) => Number(product.stock?.available || 0) > 0).length;
   return [
-    `${roboEmoji('ok', '👌')} ${sloganEmoji('catalog', '🛍️')} ${uiEmoji('instant-delivery', UI_ICONS['instant-delivery'])} ${uiEmoji('automation-247', UI_ICONS['automation-247'])} Thanh toán xong giao hàng tự động 24/7.`,
+    `${roboEmoji('ok', '👌')} ${sloganEmoji('catalog', '🛍️')} <b>Danh mục sản phẩm</b>`,
+    config.sales.enabled
+      ? `${uiEmoji('instant-delivery', UI_ICONS['instant-delivery'])} ${uiEmoji('automation-247', UI_ICONS['automation-247'])} Thanh toán khớp sẽ được giao tự động 24/7.`
+      : '🔒 Shop đang chuẩn bị tồn kho và thanh toán, chưa mở nhận đơn.',
     `${sloganEmoji('soldout', '⚠️')} 🧾 Gói hết vui lòng liên hệ admin để đặt thêm 🎁 ${roboEmoji('please', '🙏')}`,
     `👉 ${supportContactLine()} 💬`,
     '',
-    `🔹✨ ${roboEmoji('party', '🥳')} Vui lòng chọn danh mục bên dưới ✨🔹`,
-    `🎯 Có ${brandCount} nhãn hàng, 📦 ${availableCount} gói đang còn hàng.`
+    `🔹✨ ${roboEmoji('party', '🥳')} Chọn một danh mục bên dưới ✨🔹`,
+    `🎯 ${categoryCount} danh mục · ${brandCount} nhãn hàng · 📦 ${availableCount} gói còn hàng.`
   ].join('\n');
 }
 
 function topupMessage() {
   return [
-    `${roboEmoji('money', '🤑')} ${sloganEmoji('payment', '💳')} <b>Nạp tiền</b>`,
-    'Shop đang ưu tiên thanh toán theo từng đơn để giữ hàng chính xác.',
-    `${roboEmoji('ok', '👌')} Cần nạp ví, đặt gói riêng hoặc xử lý giao dịch lớn: ${supportContactLine()}`
+    `${roboEmoji('money', '🤑')} ${sloganEmoji('payment', '💳')} <b>Đặt gói riêng</b>`,
+    'Shop thanh toán theo từng đơn để giữ hàng và đối soát chính xác.',
+    `${roboEmoji('ok', '👌')} Cần gói chưa có trong danh mục, số lượng lớn hoặc báo giá riêng: ${supportContactLine()}`
   ].join('\n');
 }
 
@@ -868,7 +896,7 @@ function accountMessage(user) {
     `${UI_ICONS.account} <b>Tài khoản</b>`,
     `Telegram: ${escapeHtml(display)}`,
     'Trạng thái: BUYER',
-    'Mua hàng nhanh: Sản phẩm → chọn brand → chọn gói → thanh toán.'
+    'Mua hàng: Sản phẩm → Danh mục → Nhãn hàng → Gói → Xác nhận → Thanh toán.'
   ].join('\n');
 }
 
@@ -981,53 +1009,61 @@ function menuCommandAction(text) {
 }
 
 async function sendMenuAction(chatId, user, action, products, options = {}) {
+  const messageId = options.messageId;
   if (action === 'catalog:all') {
     if (options.track) await trackTelegramClick(user, 'catalog');
     const currentProducts = products || await listProducts();
-    await sendCustomTelegramMessage(chatId, categoryMenuMessage(currentProducts), catalogCustomEmojiCandidates(), { reply_markup: buildCatalogKeyboard(currentProducts) });
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      categoryMenuMessage(currentProducts),
+      catalogCustomEmojiCandidates(),
+      { reply_markup: buildCategoryKeyboard(currentProducts) }
+    );
     return true;
   }
 
   if (action === 'orders:mine') {
     if (options.track) await trackTelegramClick(user, 'orders');
-    await sendTelegramMessage(chatId, await userOrdersMessage(user), { reply_markup: buildMainMenuKeyboard() });
+    const view = await userOrdersView(user);
+    await presentTelegramMessage(chatId, messageId, view.text, { reply_markup: view.reply_markup });
     return true;
   }
 
   if (action === 'topup') {
     if (options.track) await trackTelegramClick(user, 'topup');
-    await sendCustomTelegramMessage(chatId, topupMessage(), topupCustomEmojiCandidates(), { reply_markup: buildMainMenuKeyboard() });
+    await presentCustomTelegramMessage(chatId, messageId, topupMessage(), topupCustomEmojiCandidates(), { reply_markup: buildMainMenuKeyboard() });
     return true;
   }
 
   if (action === 'account') {
     if (options.track) await trackTelegramClick(user, 'account');
-    await sendTelegramMessage(chatId, accountMessage(user), { reply_markup: buildMainMenuKeyboard() });
+    await presentTelegramMessage(chatId, messageId, accountMessage(user), { reply_markup: buildMainMenuKeyboard() });
     return true;
   }
 
   if (action === 'language') {
     if (options.track) await trackTelegramClick(user, 'language');
-    await sendTelegramMessage(chatId, languageMessage(), { reply_markup: buildMainMenuKeyboard() });
+    await presentTelegramMessage(chatId, messageId, languageMessage(), { reply_markup: buildMainMenuKeyboard() });
     return true;
   }
 
   if (action === 'support') {
     if (options.track) await trackTelegramClick(user, 'support');
-    await sendCustomTelegramMessage(chatId, supportMessage(), supportCustomEmojiCandidates(), { reply_markup: buildMainMenuKeyboard() });
+    await presentCustomTelegramMessage(chatId, messageId, supportMessage(), supportCustomEmojiCandidates(), { reply_markup: buildMainMenuKeyboard() });
     return true;
   }
 
   if (action === 'logout' || action === 'close') {
     if (options.track) await trackTelegramClick(user, action === 'close' ? 'close' : 'logout');
-    await sendTelegramMessage(chatId, closeMessage());
+    await presentTelegramMessage(chatId, messageId, closeMessage());
     return true;
   }
 
   const infoText = menuInfoMessage(action, user);
   if (infoText) {
     if (options.track) await trackTelegramClick(user, action);
-    await sendTelegramMessage(chatId, infoText, { reply_markup: buildMainMenuKeyboard() });
+    await presentTelegramMessage(chatId, messageId, infoText, { reply_markup: buildMainMenuKeyboard() });
     return true;
   }
 
@@ -1069,6 +1105,127 @@ function brandPackagesMessage(products, category, brand) {
   ].join('\n');
 }
 
+function productKey(product) {
+  return String(product?.id || product?.sku || '');
+}
+
+function findProduct(products, idOrSku) {
+  const key = String(idOrSku || '');
+  return products
+    .map((product) => normalizePublicProduct(product))
+    .find((product) => product.id === key || product.sku === key);
+}
+
+function policyText(value) {
+  return escapeHtml(String(value || '').trim() || 'Chưa cập nhật — vui lòng xác nhận với hỗ trợ trước khi mua.');
+}
+
+export function productDetailMessage(product) {
+  const normalized = normalizePublicProduct(product);
+  const available = availableStock(normalized);
+  return [
+    `${brandHtmlLabel(normalized.brand)} <b>${escapeHtml(normalized.name)}</b>`,
+    normalized.packageType ? `🎁 Gói: ${escapeHtml(normalized.packageType)}` : '',
+    '',
+    `📝 Mô tả: ${policyText(normalized.description)}`,
+    `👤 Loại tài khoản: ${policyText(normalized.accountType)}`,
+    `🛡 Bảo hành: ${policyText(normalized.warrantyPolicy)}`,
+    `🔄 Điều kiện đổi lỗi: ${policyText(normalized.replacementPolicy)}`,
+    '',
+    `💰 Giá: <b>${escapeHtml(money(normalized.price, normalized.currency))}</b>`,
+    available > 0 ? `📦 Tồn kho: Còn ${available}` : '⛔ Tồn kho: Hết hàng',
+    config.sales.enabled
+      ? 'Bấm Mua gói này để kiểm tra lại số lượng và tổng tiền trước khi tạo đơn.'
+      : '🔒 Shop chưa mở nhận đơn. Bạn vẫn có thể xem thông tin hoặc liên hệ hỗ trợ.'
+  ].filter(Boolean).join('\n');
+}
+
+export function buildProductDetailKeyboard(product) {
+  const normalized = normalizePublicProduct(product);
+  const rows = [];
+  if (config.sales.enabled && availableStock(normalized) > 0) {
+    rows.push([{
+      text: '🛒 Mua gói này',
+      callback_data: `buy:${productKey(normalized)}:1`
+    }]);
+  }
+  const support = supportUrl(`Mình cần tư vấn gói ${normalized.name}`);
+  const actions = [{
+    text: '↩ Các gói khác',
+    callback_data: `brand:${catalogToken(normalized.category)}:${catalogToken(normalized.brand)}`
+  }];
+  if (support) actions.push({ text: '💬 Liên hệ hỗ trợ', url: support });
+  rows.push(actions);
+  rows.push([{ text: `${UI_ICONS.catalog} Danh mục`, callback_data: 'catalog:all' }]);
+  return { inline_keyboard: rows };
+}
+
+export function confirmationMessage(product, quantity = 1) {
+  const normalized = normalizePublicProduct(product);
+  const qty = normalizeOrderQuantity(quantity);
+  return [
+    '🧾 <b>Xác nhận mua</b>',
+    '',
+    `📦 Sản phẩm: ${escapeHtml(normalized.name)}`,
+    `🔢 Số lượng: ${qty}`,
+    `💰 Đơn giá: ${escapeHtml(money(normalized.price, normalized.currency))}`,
+    `💳 Tổng tiền: <b>${escapeHtml(money(normalized.price * qty, normalized.currency))}</b>`,
+    '',
+    `⏱ Sau khi xác nhận, hàng được giữ trong ${config.orders.ttlMinutes} phút.`,
+    'Chưa có đơn hàng hoặc tồn kho nào bị giữ ở bước này.'
+  ].join('\n');
+}
+
+export function buildConfirmationKeyboard(product, quantity = 1) {
+  const normalized = normalizePublicProduct(product);
+  const key = productKey(normalized);
+  const qty = normalizeOrderQuantity(quantity);
+  const rows = [];
+  if (config.orders.maxQuantity > 1) {
+    rows.push([
+      { text: '➖', callback_data: `buy:${key}:${Math.max(1, qty - 1)}` },
+      { text: `Số lượng ${qty}`, callback_data: `buy:${key}:${qty}` },
+      { text: '➕', callback_data: `buy:${key}:${Math.min(config.orders.maxQuantity, qty + 1)}` }
+    ]);
+  }
+  rows.push([{ text: '✅ Xác nhận mua', callback_data: `confirm:${key}:${qty}` }]);
+  const support = supportUrl(`Mình cần hỗ trợ trước khi mua ${normalized.name}`);
+  const actions = [{ text: '↩ Xem lại gói', callback_data: `pkg:${key}` }];
+  if (support) actions.push({ text: '💬 Hỗ trợ', url: support });
+  rows.push(actions);
+  return { inline_keyboard: rows };
+}
+
+export function buildPaymentKeyboard(order, payment) {
+  const rows = [];
+  if (order.status === 'pending_payment' && payment?.paymentUrl) {
+    const paymentRow = [{ text: '💳 Thanh toán', url: payment.paymentUrl }];
+    if (payment.qrImageUrl) paymentRow.push({ text: '🖼 Xem QR', url: payment.qrImageUrl });
+    rows.push(paymentRow);
+    rows.push([{ text: '❌ Hủy đơn', callback_data: `cancel:${order.id}` }]);
+  }
+  if (order.status === 'delivered') {
+    rows.push([{ text: '🔐 Xem lại thông tin giao hàng', callback_data: `delivery:${order.id}` }]);
+  }
+  const support = supportUrl(`Mình cần hỗ trợ đơn ${order.id}`);
+  const actions = [{ text: '🧾 Đơn của tôi', callback_data: 'orders:mine' }];
+  if (support) actions.push({ text: '💬 Liên hệ hỗ trợ', url: support });
+  rows.push(actions);
+  rows.push([{ text: `${UI_ICONS.catalog} Tiếp tục mua`, callback_data: 'catalog:all' }]);
+  return { inline_keyboard: rows };
+}
+
+export function buildCancelConfirmationKeyboard(order) {
+  const support = supportUrl(`Mình cần hỗ trợ hủy đơn ${order.id}`);
+  const actions = [
+    { text: '✅ Giữ đơn', callback_data: `order:${order.id}` },
+    { text: '❌ Xác nhận hủy', callback_data: `cancel_yes:${order.id}` }
+  ];
+  const rows = [actions];
+  if (support) rows.push([{ text: '💬 Liên hệ hỗ trợ', url: support }]);
+  return { inline_keyboard: rows };
+}
+
 export function orderMessage(order, payment) {
   return [
     `${roboEmoji('party', '🥳')} ${sloganEmoji('payment', '💳')} ✅ <b>Đơn đã tạo - đã giữ hàng</b>`,
@@ -1078,11 +1235,11 @@ export function orderMessage(order, payment) {
     `${roboEmoji('money', '🤑')} 💰 Tổng: ${escapeHtml(money(order.total, order.currency))}`,
     orderStatusLine(order.status),
     `🏦 Nội dung CK: ${code(payment.reference)}`,
-    `💳 Link thanh toán: ${escapeHtml(payment.paymentUrl)}`,
-    payment.qrImageUrl ? `🖼️ QR: ${escapeHtml(payment.qrImageUrl)}` : '',
+    payment.bankCode ? `🏛 Ngân hàng: ${escapeHtml(payment.bankCode)}` : '',
+    payment.accountNumber ? `💳 Số tài khoản: ${code(payment.accountNumber)}` : '',
     order.expiresAt ? `⏱️ Giữ hàng đến: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}` : '',
     '',
-    `${roboEmoji('ok', '👌')} Thanh toán đúng nội dung để bot giao tự động tại đây. Nếu cần đổi gói, quay lại danh mục trước khi chuyển khoản.`
+    `${roboEmoji('ok', '👌')} Dùng các nút bên dưới và chuyển đúng số tiền, đúng nội dung để bot giao tự động tại đây.`
   ].filter(Boolean).join('\n');
 }
 
@@ -1108,16 +1265,56 @@ async function sendWelcome(chatId) {
   });
 }
 
-async function userOrdersMessage(user) {
-  const db = await readStore();
-  const orders = db.orders.filter((order) => order.userId === user.id).slice(-5).reverse();
-  if (!orders.length) return '🧾 Bạn chưa có đơn hàng nào.';
-  return orders.map((order) => [
-    bold(order.productName),
-    `🧾 Mã đơn: ${code(order.id)}`,
+function orderDetailMessage(order, payment) {
+  return [
+    '🧾 <b>Chi tiết đơn hàng</b>',
+    `Mã đơn: ${code(order.id)}`,
+    `📦 Sản phẩm: ${escapeHtml(order.productName)}`,
+    `🔢 Số lượng: ${escapeHtml(order.quantity)}`,
+    `💰 Tổng: ${escapeHtml(money(order.total, order.currency))}`,
     orderStatusLine(order.status),
-    `💰 Tổng: ${escapeHtml(money(order.total, order.currency))}`
-  ].join('\n')).join('\n\n');
+    payment?.reference ? `🏦 Nội dung CK: ${code(payment.reference)}` : '',
+    order.expiresAt && order.status === 'pending_payment'
+      ? `⏱ Giữ hàng đến: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
+      : ''
+  ].filter(Boolean).join('\n');
+}
+
+async function userOrdersView(user) {
+  const contexts = await listOrdersForUser(user.id, { limit: 5 });
+  if (!contexts.length) {
+    return {
+      text: '🧾 Bạn chưa có đơn hàng nào.',
+      reply_markup: buildMainMenuKeyboard()
+    };
+  }
+
+  const text = [
+    '🧾 <b>Đơn hàng gần đây</b>',
+    'Chọn một đơn bên dưới để thanh toán, xem QR, hủy hoặc xem lại thông tin giao hàng.',
+    '',
+    ...contexts.map(({ order }) => [
+      bold(order.productName),
+      `Mã: ${code(order.id)}`,
+      `${orderStatusLine(order.status)} · ${escapeHtml(money(order.total, order.currency))}`
+    ].join('\n'))
+  ].join('\n\n');
+
+  const rows = contexts.map(({ order }) => [{
+    text: `${formatOrderStatus(order.status)} · ${String(order.productName || '').slice(0, 32)}`,
+    callback_data: `order:${order.id}`
+  }]);
+  rows.push([{ text: `${UI_ICONS.catalog} Xem sản phẩm`, callback_data: 'catalog:all' }]);
+  return { text, reply_markup: { inline_keyboard: rows } };
+}
+
+function customerFacingOrderError(error) {
+  const message = String(error?.message || '');
+  if (/not enough stock/i.test(message)) return 'Gói này vừa hết hàng. Vui lòng chọn gói khác hoặc liên hệ hỗ trợ.';
+  if (/too many pending orders/i.test(message)) return 'Bạn đang có quá nhiều đơn chờ thanh toán. Hãy thanh toán hoặc hủy một đơn cũ trước.';
+  if (/shop chưa mở bán|sales/i.test(message)) return 'Shop chưa mở nhận đơn. Vui lòng quay lại sau hoặc liên hệ hỗ trợ.';
+  if (/product is not available/i.test(message)) return 'Gói này hiện không còn mở bán.';
+  return 'Không thể tạo đơn lúc này. Vui lòng thử lại hoặc liên hệ hỗ trợ.';
 }
 
 async function handleTextMessage(message) {
@@ -1131,7 +1328,19 @@ async function handleTextMessage(message) {
     return;
   }
 
-  if (text === '/start') {
+  const startMatch = text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(.+))?$/i);
+  if (startMatch) {
+    const payload = String(startMatch[1] || '').trim();
+    if (payload.startsWith('p_')) {
+      const products = await listProducts();
+      const product = findProduct(products, payload.slice(2));
+      if (product) {
+        await sendTelegramMessage(chatId, productDetailMessage(product), {
+          reply_markup: buildProductDetailKeyboard(product)
+        });
+        return;
+      }
+    }
     await sendWelcome(chatId);
     return;
   }
@@ -1155,12 +1364,16 @@ async function handleTextMessage(message) {
       return;
     }
 
-    try {
-      const { order, payment } = await createOrderForUser(user, sku, Number(qtyRaw || 1));
-      await sendCustomTelegramMessage(chatId, orderMessage(order, payment), orderCustomEmojiCandidates(), { reply_markup: buildMainMenuKeyboard() });
-    } catch (error) {
-      await sendTelegramMessage(chatId, `⚠️ Không tạo được đơn: ${escapeHtml(error.message)}`, { reply_markup: buildMainMenuKeyboard() });
+    const products = await listProducts();
+    const product = findProduct(products, sku);
+    if (!product) {
+      await sendTelegramMessage(chatId, '⚠️ Không tìm thấy gói sản phẩm này.', { reply_markup: buildMainMenuKeyboard() });
+      return;
     }
+    const quantity = normalizeOrderQuantity(qtyRaw || 1);
+    await sendTelegramMessage(chatId, confirmationMessage(product, quantity), {
+      reply_markup: buildConfirmationKeyboard(product, quantity)
+    });
     return;
   }
 
@@ -1169,11 +1382,13 @@ async function handleTextMessage(message) {
 
 async function handleCallbackQuery(callbackQuery) {
   const chatId = callbackQuery.message?.chat?.id;
+  const messageId = callbackQuery.message?.message_id;
   const data = String(callbackQuery.data || '');
   if (!chatId) return;
 
   const user = await upsertTelegramUser(callbackQuery.from);
   const products = await listProducts();
+  const categories = uniqueSorted(products.map((product) => normalizePublicProduct(product).category));
 
   if (data.startsWith('soldout:')) {
     await trackTelegramClick(user, 'soldout', { sku: data.slice('soldout:'.length) });
@@ -1183,18 +1398,27 @@ async function handleCallbackQuery(callbackQuery) {
 
   if (data.startsWith('brand_soldout:')) {
     const [, rawCategory, rawBrand] = data.split(':');
-    const category = decodePart(rawCategory);
-    const brand = decodePart(rawBrand);
+    const category = resolveCatalogPart(rawCategory, categories);
+    const brands = uniqueSorted(products
+      .filter((product) => product.category === category)
+      .map((product) => product.brand));
+    const brand = resolveCatalogPart(rawBrand, brands);
     await trackTelegramClick(user, 'brand_soldout', { category, brand });
-    await answerCallbackQuery(callbackQuery.id, `Nhãn hàng ${brand} đang hết hàng. Chọn brand còn hàng hoặc liên hệ admin để đặt trước.`);
+    await answerCallbackQuery(
+      callbackQuery.id,
+      `${brand || 'Nhãn hàng này'} đang hết hàng. Chọn gói khác hoặc liên hệ admin để đặt trước.`
+    );
     return;
   }
 
-  await answerCallbackQuery(callbackQuery.id);
+  await answerCallbackQuery(
+    callbackQuery.id,
+    data.startsWith('confirm:') ? 'Đang tạo đơn và giữ hàng...' : ''
+  );
 
   if (data === 'start:menu') {
     await trackTelegramClick(user, 'menu');
-    await sendCustomTelegramMessage(chatId, startPhotoCaptionPayload(), startCustomEmojiCandidates(), {
+    await presentCustomTelegramMessage(chatId, messageId, startPhotoCaptionPayload(), startCustomEmojiCandidates(), {
       reply_markup: buildMainMenuKeyboard(),
       _fallback_text: startPhotoCaptionFallbackPayload(),
       _fallback_parse_mode: 'HTML'
@@ -1202,46 +1426,199 @@ async function handleCallbackQuery(callbackQuery) {
     return;
   }
 
-  if (await sendMenuAction(chatId, user, data, products, { track: true })) {
+  if (await sendMenuAction(chatId, user, data, products, { track: true, messageId })) {
     return;
   }
 
   if (data.startsWith('cat:')) {
-    const category = decodePart(data.slice('cat:'.length));
+    const category = resolveCatalogPart(data.slice('cat:'.length), categories);
+    if (!category) {
+      await presentTelegramMessage(chatId, messageId, 'Danh mục không còn tồn tại.', {
+        reply_markup: buildCategoryKeyboard(products)
+      });
+      return;
+    }
     await trackTelegramClick(user, 'category', { category });
-    await sendTelegramMessage(chatId, brandMenuMessage(products, category), { reply_markup: buildBrandKeyboard(products, category) });
+    await presentTelegramMessage(chatId, messageId, brandMenuMessage(products, category), {
+      reply_markup: buildBrandKeyboard(products, category)
+    });
     return;
   }
 
   if (data.startsWith('brand:')) {
     const [, rawCategory, rawBrand] = data.split(':');
-    const category = decodePart(rawCategory);
-    const brand = decodePart(rawBrand);
+    const category = resolveCatalogPart(rawCategory, categories);
+    const brands = uniqueSorted(products
+      .filter((product) => product.category === category)
+      .map((product) => product.brand));
+    const brand = resolveCatalogPart(rawBrand, brands);
     const selected = products.filter((product) => product.category === category && product.brand === brand);
+    if (!category || !brand || !selected.length) {
+      await presentTelegramMessage(chatId, messageId, 'Nhãn hàng này không còn tồn tại.', {
+        reply_markup: buildCategoryKeyboard(products)
+      });
+      return;
+    }
     await trackTelegramClick(user, 'brand', { category, brand });
-    await sendTelegramMessage(chatId, brandPackagesMessage(products, category, brand), { reply_markup: buildPackageKeyboard(selected) });
+    await presentTelegramMessage(chatId, messageId, brandPackagesMessage(products, category, brand), {
+      reply_markup: buildPackageKeyboard(selected)
+    });
+    return;
+  }
+
+  if (data.startsWith('pkg:')) {
+    const product = findProduct(products, data.slice('pkg:'.length));
+    if (!product) {
+      await presentTelegramMessage(chatId, messageId, 'Gói sản phẩm này không còn tồn tại.', {
+        reply_markup: buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    await trackTelegramClick(user, 'package', { sku: product.sku });
+    await presentTelegramMessage(chatId, messageId, productDetailMessage(product), {
+      reply_markup: buildProductDetailKeyboard(product)
+    });
     return;
   }
 
   if (data.startsWith('buy:')) {
-    const [, sku, qtyRaw] = data.split(':');
-    await trackTelegramClick(user, 'buy', { sku, quantity: Number(qtyRaw || 1) });
+    const [, productId, qtyRaw] = data.split(':');
+    const product = findProduct(products, productId);
+    if (!product) {
+      await presentTelegramMessage(chatId, messageId, 'Gói sản phẩm này không còn tồn tại.', {
+        reply_markup: buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    const quantity = normalizeOrderQuantity(qtyRaw || 1);
+    await trackTelegramClick(user, 'buy_review', { sku: product.sku, quantity });
+    await presentTelegramMessage(chatId, messageId, confirmationMessage(product, quantity), {
+      reply_markup: buildConfirmationKeyboard(product, quantity)
+    });
+    return;
+  }
+
+  if (data.startsWith('confirm:')) {
+    const [, productId, qtyRaw] = data.split(':');
+    const product = findProduct(products, productId);
+    if (!product) {
+      await presentTelegramMessage(chatId, messageId, 'Gói sản phẩm này không còn tồn tại.', {
+        reply_markup: buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    const quantity = normalizeOrderQuantity(qtyRaw || 1);
+    const buyLimit = await consumeRateLimit(`tg:buy:${user.telegramId}`, config.traffic.telegramBuyPerMinute);
+    if (!buyLimit.allowed) {
+      await presentTelegramMessage(
+        chatId,
+        messageId,
+        `⏳ Tạo đơn quá nhanh. Thử lại sau ${buyLimit.retryAfterSeconds}s.`,
+        { reply_markup: buildConfirmationKeyboard(product, quantity) }
+      );
+      return;
+    }
+
+    await trackTelegramClick(user, 'buy_confirm', { sku: product.sku, quantity });
     try {
-      const { order, payment } = await createOrderForUser(user, sku, Number(qtyRaw || 1));
-      await sendCustomTelegramMessage(chatId, orderMessage(order, payment), orderCustomEmojiCandidates(), { reply_markup: buildMainMenuKeyboard() });
+      const checkout = await createOrderForUser(user, product.id || product.sku, quantity, {
+        idempotencyKey: `telegram:${user.id}:${chatId}:${messageId || callbackQuery.id}:${productKey(product)}:${quantity}`
+      });
+      await presentCustomTelegramMessage(
+        chatId,
+        messageId,
+        orderMessage(checkout.order, checkout.payment),
+        orderCustomEmojiCandidates(),
+        { reply_markup: buildPaymentKeyboard(checkout.order, checkout.payment) }
+      );
     } catch (error) {
-      await sendTelegramMessage(chatId, `⚠️ Không tạo được đơn: ${escapeHtml(error.message)}`, { reply_markup: buildMainMenuKeyboard() });
+      await presentTelegramMessage(chatId, messageId, `⚠️ ${escapeHtml(customerFacingOrderError(error))}`, {
+        reply_markup: buildProductDetailKeyboard(product)
+      });
     }
     return;
   }
 
-  if (data === 'orders:mine') {
-    await trackTelegramClick(user, 'orders');
-    await sendTelegramMessage(chatId, await userOrdersMessage(user), { reply_markup: buildMainMenuKeyboard() });
+  if (data.startsWith('order:')) {
+    try {
+      const context = await getOrderCheckoutForUser(user.id, data.slice('order:'.length));
+      await presentTelegramMessage(chatId, messageId, orderDetailMessage(context.order, context.payment), {
+        reply_markup: buildPaymentKeyboard(context.order, context.payment)
+      });
+    } catch {
+      await presentTelegramMessage(chatId, messageId, 'Không tìm thấy đơn hàng này.', {
+        reply_markup: (await userOrdersView(user)).reply_markup
+      });
+    }
     return;
   }
 
-  await sendTelegramMessage(chatId, unknownCommandMessage(), { reply_markup: buildMainMenuKeyboard() });
+  if (data.startsWith('cancel:')) {
+    try {
+      const context = await getOrderCheckoutForUser(user.id, data.slice('cancel:'.length));
+      if (context.order.status !== 'pending_payment') {
+        await presentTelegramMessage(chatId, messageId, orderDetailMessage(context.order, context.payment), {
+          reply_markup: buildPaymentKeyboard(context.order, context.payment)
+        });
+        return;
+      }
+      await presentTelegramMessage(
+        chatId,
+        messageId,
+        `⚠️ <b>Xác nhận hủy đơn</b>\n\n${escapeHtml(context.order.productName)}\nMã đơn: ${code(context.order.id)}\n\nHủy đơn sẽ trả hàng về kho. Khoản chuyển đến sau khi hủy sẽ cần admin kiểm tra thủ công.`,
+        { reply_markup: buildCancelConfirmationKeyboard(context.order) }
+      );
+    } catch {
+      await presentTelegramMessage(chatId, messageId, 'Không tìm thấy đơn hàng này.', {
+        reply_markup: buildMainMenuKeyboard()
+      });
+    }
+    return;
+  }
+
+  if (data.startsWith('cancel_yes:')) {
+    try {
+      const context = await cancelOrderForUser(user.id, data.slice('cancel_yes:'.length));
+      await trackTelegramClick(user, 'order_cancel', { orderId: context.order.id });
+      await presentTelegramMessage(
+        chatId,
+        messageId,
+        `✅ Đơn ${code(context.order.id)} đã được ${context.order.status === 'expired' ? 'đóng do hết hạn' : 'hủy'} và hàng đã trả về kho.`,
+        { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
+      );
+    } catch (error) {
+      await presentTelegramMessage(chatId, messageId, `⚠️ ${escapeHtml(
+        /only pending/i.test(error.message)
+          ? 'Đơn đã được thanh toán hoặc chuyển trạng thái nên không thể hủy tự động. Vui lòng liên hệ hỗ trợ.'
+          : 'Không thể hủy đơn này.'
+      )}`, { reply_markup: buildMainMenuKeyboard() });
+    }
+    return;
+  }
+
+  if (data.startsWith('delivery:')) {
+    const orderId = data.slice('delivery:'.length);
+    try {
+      const context = await getOrderCheckoutForUser(user.id, orderId);
+      if (context.order.status !== 'delivered') throw new Error('Delivery is not ready');
+      const delivery = await getDeliveryForOrder(orderId);
+      await sendCustomTelegramMessage(
+        chatId,
+        deliveryMessage(delivery.order, delivery.deliverySecrets),
+        deliveryCustomEmojiCandidates(),
+        { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
+      );
+    } catch {
+      await presentTelegramMessage(chatId, messageId, 'Thông tin giao hàng chưa sẵn sàng.', {
+        reply_markup: buildMainMenuKeyboard()
+      });
+    }
+    return;
+  }
+
+  await presentTelegramMessage(chatId, messageId, unknownCommandMessage(), {
+    reply_markup: buildMainMenuKeyboard()
+  });
 }
 
 export async function handleTelegramUpdate(update) {
@@ -1257,7 +1634,13 @@ export async function notifyDelivery(orderId) {
   const { order, deliverySecrets } = await getDeliveryForOrder(orderId);
   if (!order.telegramId || !deliverySecrets.length) return;
 
-  await sendCustomTelegramMessage(order.telegramId, deliveryMessage(order, deliverySecrets), deliveryCustomEmojiCandidates());
+  const context = await getOrderCheckoutForUser(order.userId, order.id);
+  await sendCustomTelegramMessage(
+    order.telegramId,
+    deliveryMessage(order, deliverySecrets),
+    deliveryCustomEmojiCandidates(),
+    { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
+  );
 }
 
 export function startTelegramPolling() {

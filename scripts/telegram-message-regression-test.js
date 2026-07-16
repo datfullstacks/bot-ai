@@ -348,10 +348,14 @@ const {
   brandIcon,
   buildBrandKeyboard,
   buildCatalogKeyboard,
+  buildConfirmationKeyboard,
   buildCategoryKeyboard,
   categoryMenuMessage,
   buildMainMenuKeyboard,
   buildPackageKeyboard,
+  buildPaymentKeyboard,
+  buildProductDetailKeyboard,
+  confirmationMessage,
   deliveryMessage,
   formatOrderStatus,
   formatStockStatus,
@@ -361,6 +365,7 @@ const {
   TELEGRAM_MENU_LANGUAGE_CODES,
   bannerCustomEmojiId,
   orderMessage,
+  productDetailMessage,
   productMessage,
   sendTelegramMessage,
   sendTelegramPhotoFile,
@@ -435,7 +440,7 @@ try {
   const expectedMainMenu = [
     [
       ['Sản phẩm', 'catalog:all', 'products'],
-      ['Nạp tiền', 'topup', 'topup']
+      ['Đặt gói riêng', 'topup', 'topup']
     ],
     [
       ['Tài khoản', 'account', 'account'],
@@ -458,7 +463,7 @@ try {
     { category: 'AI Accounts', brand: 'ChatGPT' },
     { category: 'Design Accounts', brand: 'Canva' }
   ]);
-  assert.match(categoryText, /Thanh toán xong giao hàng tự động 24\/7/);
+  assert.match(categoryText, /Danh mục sản phẩm/);
   assert.equal(categoryText.includes('<tg-emoji'), false);
   assert.match(categoryText, /🛍️/);
   assert.match(categoryText, /⚡/);
@@ -468,10 +473,10 @@ try {
   assert.match(categoryText, /🥳/);
   assert.match(categoryText, /🎁/);
   assert.match(categoryText, /✨/);
-  assert.match(categoryText, /🎯 Có 2 nhãn hàng, 📦 0 gói đang còn hàng/);
+  assert.match(categoryText, /2 danh mục · 2 nhãn hàng · 📦 0 gói còn hàng/);
   assert.match(categoryText, /liên hệ admin/i);
   assert.match(categoryText, /@kaitoukit/);
-  assert.match(categoryText, /Vui lòng chọn danh mục bên dưới/);
+  assert.match(categoryText, /Chọn một danh mục bên dưới/);
 
   const categoryKeyboard = buildCategoryKeyboard([
     {
@@ -505,21 +510,15 @@ try {
       stock: { available: 1 }
     }
   ]);
-  assert.deepEqual(
-    categoryKeyboard.inline_keyboard[0].map((button) => button.callback_data),
-    ['brand_soldout:Design%20Accounts:Canva', 'brand:AI%20Accounts:ChatGPT', 'brand:AI%20Accounts:Claude']
-  );
-  assert.equal(categoryKeyboard.inline_keyboard[0][0].text, '[Hết] Canva');
-  assert.equal(categoryKeyboard.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_canva_motion');
-  assert.equal(categoryKeyboard.inline_keyboard[0][1].text, 'ChatGPT');
-  assert.equal(categoryKeyboard.inline_keyboard[0][1].icon_custom_emoji_id, 'ce_chatgpt_file');
-  assert.equal(categoryKeyboard.inline_keyboard[0][2].text, 'Claude');
-  assert.equal(categoryKeyboard.inline_keyboard[0][2].icon_custom_emoji_id, 'ce_claude_file');
-  assert.ok(categoryKeyboard.inline_keyboard.some((row) => row[0].callback_data === 'buy:chatgpt-plus-1m:1'));
-  assert.ok(categoryKeyboard.inline_keyboard.some((row) => row[0].text === 'ChatGPT Plus - 10.000 VND [2]'));
-  assert.equal(categoryKeyboard.inline_keyboard.flat().some((button) => /🤖|⛔/.test(button.text)), false);
+  assert.equal(categoryKeyboard.inline_keyboard[0].length, 2);
+  assert.ok(categoryKeyboard.inline_keyboard[0][0].text.includes('AI Accounts'));
+  assert.ok(categoryKeyboard.inline_keyboard[0][0].text.includes('[3]'));
+  assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('Design Accounts'));
+  assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('[Hết]'));
+  assert.ok(categoryKeyboard.inline_keyboard[0].every((button) => button.callback_data.startsWith('cat:')));
   assert.ok(categoryKeyboard.inline_keyboard.some((row) => row[0].text === '🔄 Làm mới' && row[0].callback_data === 'catalog:all'));
-  assert.ok(categoryKeyboard.inline_keyboard.some((row) => row[0].text === '↩ Quay lại' && row[0].callback_data === 'start:menu'));
+  assert.ok(categoryKeyboard.inline_keyboard.some((row) => row[0].text === '↩ Menu chính' && row[0].callback_data === 'start:menu'));
+  assert.ok(categoryKeyboard.inline_keyboard.flat().every((button) => Buffer.byteLength(button.callback_data || '', 'utf8') <= 64));
 
   const soldOutCatalogKeyboard = buildCategoryKeyboard([{
     category: 'Design Accounts',
@@ -531,23 +530,20 @@ try {
     currency: 'VND',
     stock: { available: 0 }
   }]);
-  assert.ok(soldOutCatalogKeyboard.inline_keyboard.some((row) => row[0].text === '[Hết] Canva Pro - 49.000 VND [0]'));
-  assert.ok(soldOutCatalogKeyboard.inline_keyboard.some((row) => row[0].text === '[Hết] Canva' && row[0].callback_data === 'brand_soldout:Design%20Accounts:Canva'));
-  assert.equal(soldOutCatalogKeyboard.inline_keyboard.flat().some((button) => /⛔/.test(button.text)), false);
+  assert.ok(soldOutCatalogKeyboard.inline_keyboard[0][0].text.includes('Design Accounts'));
+  assert.ok(soldOutCatalogKeyboard.inline_keyboard[0][0].text.includes('[Hết]'));
 
   const brandKeyboard = buildBrandKeyboard([
     { category: 'AI Accounts', brand: 'ChatGPT', stock: { available: 2 } },
     { category: 'AI Accounts', brand: 'Claude', stock: { available: 1 } },
     { category: 'AI Accounts', brand: 'ChatGPT', stock: { available: 0 } }
   ], 'AI Accounts');
-  assert.deepEqual(
-    brandKeyboard.inline_keyboard.map((row) => row[0].callback_data),
-    ['brand:AI%20Accounts:ChatGPT', 'brand:AI%20Accounts:Claude', 'catalog:all']
-  );
+  assert.equal(brandKeyboard.inline_keyboard[0].length, 2);
+  assert.ok(brandKeyboard.inline_keyboard[0].every((button) => button.callback_data.startsWith('brand:')));
   assert.equal(brandKeyboard.inline_keyboard[0][0].text, 'ChatGPT');
   assert.equal(brandKeyboard.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_chatgpt_file');
-  assert.equal(brandKeyboard.inline_keyboard[1][0].text, 'Claude');
-  assert.equal(brandKeyboard.inline_keyboard[1][0].icon_custom_emoji_id, 'ce_claude_file');
+  assert.equal(brandKeyboard.inline_keyboard[0][1].text, 'Claude');
+  assert.equal(brandKeyboard.inline_keyboard[0][1].icon_custom_emoji_id, 'ce_claude_file');
   assert.equal(brandKeyboard.inline_keyboard.at(-1)[0].text, '↩ Tất cả danh mục');
 
   const productsText = productMessage([{
@@ -605,21 +601,49 @@ try {
   }]);
   assert.deepEqual(packageKeyboard.inline_keyboard[0], [
     {
-      text: 'Mua ngay · Plus 1M · 10.000 VND',
-      callback_data: 'buy:chatgpt-plus-1m:1',
+      text: 'Xem gói · Plus 1M · 10.000 VND',
+      callback_data: 'pkg:prd_1',
       icon_custom_emoji_id: 'ce_chatgpt_file'
     }
   ]);
   assert.deepEqual(packageKeyboard.inline_keyboard[1], [
     {
       text: 'Hết hàng · Team Slot 1M · 15.000 VND',
-      callback_data: 'soldout:chatgpt-team-slot-1m',
+      callback_data: 'pkg:prd_2',
       icon_custom_emoji_id: 'ce_chatgpt_file'
     }
   ]);
-  assert.equal(packageKeyboard.inline_keyboard.some((row) => row[0].callback_data === 'buy:chatgpt-team-slot-1m:1'), false);
-  assert.ok(packageKeyboard.inline_keyboard.flat().some((button) => button.callback_data === 'cat:AI%20Accounts'));
+  assert.ok(packageKeyboard.inline_keyboard.flat().some((button) => button.callback_data.startsWith('cat:')));
   assert.ok(packageKeyboard.inline_keyboard.flat().some((button) => button.callback_data === 'orders:mine'));
+
+  const detailProduct = {
+    id: 'prd_detail',
+    sku: 'chatgpt-plus-1m',
+    name: 'ChatGPT Plus',
+    category: 'AI Accounts',
+    brand: 'ChatGPT',
+    packageType: 'Plus 1M',
+    description: 'Tài khoản AI cao cấp',
+    accountType: 'Tài khoản riêng',
+    warrantyPolicy: 'Bảo hành 30 ngày',
+    replacementPolicy: 'Đổi nếu lỗi từ dữ liệu bàn giao',
+    price: 10000,
+    currency: 'VND',
+    stock: { available: 2 }
+  };
+  const detailText = productDetailMessage(detailProduct);
+  assert.match(detailText, /Mô tả: Tài khoản AI cao cấp/);
+  assert.match(detailText, /Loại tài khoản: Tài khoản riêng/);
+  assert.match(detailText, /Bảo hành: Bảo hành 30 ngày/);
+  assert.match(detailText, /Điều kiện đổi lỗi: Đổi nếu lỗi từ dữ liệu bàn giao/);
+  assert.ok(buildProductDetailKeyboard(detailProduct).inline_keyboard.flat().some((button) => button.callback_data === 'buy:prd_detail:1'));
+
+  const confirmText = confirmationMessage(detailProduct, 2);
+  assert.match(confirmText, /Xác nhận mua/);
+  assert.match(confirmText, /Số lượng: 2/);
+  assert.match(confirmText, /20.000 VND/);
+  const confirmKeyboard = buildConfirmationKeyboard(detailProduct, 2);
+  assert.ok(confirmKeyboard.inline_keyboard.flat().some((button) => button.callback_data === 'confirm:prd_detail:2'));
 
   const orderText = orderMessage({
     id: 'ord<1>',
@@ -644,8 +668,18 @@ try {
   assert.match(orderText, /ord&lt;1&gt;/);
   assert.match(orderText, /Bot &lt;Pro&gt;/);
   assert.match(orderText, /KAITO&lt;REF&gt;/);
-  assert.match(orderText, /https:\/\/pay.local\/\?memo=A&amp;B/);
+  assert.equal(orderText.includes('https://pay.local'), false);
   assertNoUnsupportedHtml(orderText);
+  const paymentKeyboard = buildPaymentKeyboard({
+    id: 'ord_1',
+    status: 'pending_payment'
+  }, {
+    paymentUrl: 'https://pay.local/',
+    qrImageUrl: 'https://qr.local/'
+  });
+  assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => button.text === '💳 Thanh toán' && button.url === 'https://pay.local/'));
+  assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => button.text === '🖼 Xem QR' && button.url === 'https://qr.local/'));
+  assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => button.callback_data === 'cancel:ord_1'));
 
   const deliveryText = deliveryMessage({
     id: 'ord<2>',
@@ -814,13 +848,13 @@ try {
 
   assert.ok(calls.some((call) => call.url.includes('/answerCallbackQuery')));
   assert.equal(calls.some((call) => call.url.includes('/sendSticker') || call.url.includes('/sendAnimation')), false);
-  assert.ok(calls.some((call) => call.body.text?.includes('Thanh toán xong giao hàng tự động 24/7.')));
+  assert.ok(calls.some((call) => call.body.text?.includes('Thanh toán khớp sẽ được giao tự động 24/7.')));
   assert.ok(
-    calls.some((call) => call.url.includes('/sendMessage') && hasCustomEmojiId(call, 'ce_banner_instant')),
+    calls.some((call) => isTelegramTextCall(call) && hasCustomEmojiId(call, 'ce_banner_instant')),
     'Catalog message should send custom emoji entities from the owned banner pack.'
   );
-  assert.ok(calls.some((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => button.callback_data?.startsWith('brand'))));
-  assert.ok(calls.some((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => /^(buy|soldout):/.test(button.callback_data || ''))));
+  assert.ok(calls.some((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => button.callback_data?.startsWith('cat:'))));
+  assert.equal(calls.some((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => /^(buy|confirm):/.test(button.callback_data || ''))), false);
 
   calls.length = 0;
   await handleTelegramUpdate({
@@ -832,8 +866,8 @@ try {
     }
   });
 
-  const startMenuMessage = calls.find((call) => call.url.includes('/sendMessage') && String(call.body.chat_id) === '9001' && call.body.text?.includes('Admin: @kaitoukit'));
-  assert.ok(startMenuMessage, 'Back-to-menu callback should send the main menu message.');
+  const startMenuMessage = calls.find((call) => isTelegramTextCall(call) && String(call.body.chat_id) === '9001' && call.body.text?.includes('Admin: @kaitoukit'));
+  assert.ok(startMenuMessage, 'Back-to-menu callback should present the main menu message.');
   for (const id of dailyUpdateTileIds) {
     assert.ok(hasCustomEmojiId(startMenuMessage, id), `Back-to-menu callback should animate Daily Update slogan tile ${id}.`);
   }
@@ -842,27 +876,14 @@ try {
 
   const defaultCatalogKeyboard = buildCatalogKeyboard(catalog.DEFAULT_CATALOG_PRODUCTS);
   const defaultButtons = defaultCatalogKeyboard.inline_keyboard.flat();
-  for (const brand of ['Gmail', 'PayPal', 'Cursor', 'TikTok', 'Facebook']) {
+  for (const category of ['AI Accounts', 'Design Accounts', 'Work & Cloud Accounts', 'Social/MMO Accounts']) {
     assert.ok(
-      defaultButtons.some((button) => button.callback_data?.startsWith('brand') && button.text.includes(brand)),
-      `Catalog keyboard should include ${brand} brand button.`
+      defaultButtons.some((button) => button.callback_data?.startsWith('cat:') && button.text.includes(category)),
+      `Catalog keyboard should include ${category}.`
     );
   }
-  for (const brand of ['Microsoft', 'Canva', 'CapCut']) {
-    const button = defaultButtons.find((item) => item.callback_data?.startsWith('brand') && item.text.endsWith(brand));
-    assert.ok(button, `${brand} should render as brand text only when an animated custom emoji exists.`);
-    assert.ok(button.icon_custom_emoji_id, `${brand} should use animated custom emoji instead of fallback text icon.`);
-  }
-  const brandRowCount = Math.ceil(new Set(catalog.DEFAULT_CATALOG_PRODUCTS.map((product) => product.brand)).size / 3);
-  const hotRows = defaultCatalogKeyboard.inline_keyboard.slice(brandRowCount, -2);
-  assert.ok(hotRows.length >= 3, 'Catalog keyboard should show hot product rows below brand rows.');
-  assert.ok(hotRows.every((row) => row[0]?.text.includes('🔥 ')), 'Hot product rows should be visibly marked.');
-  assert.ok(hotRows.some((row) => row[0]?.text.includes('Cursor Pro')), 'Cursor hot product should be shown below brands.');
-  assert.equal(
-    defaultButtons.find((button) => button.text.includes('Cursor'))?.icon_custom_emoji_id,
-    'ce_cursor_motion',
-    'Cursor brand button should use animated custom emoji from .webm map.'
-  );
+  assert.equal(defaultButtons.some((button) => button.callback_data?.startsWith('brand:')), false);
+  assert.equal(defaultButtons.some((button) => button.callback_data?.startsWith('buy:')), false);
 
   calls.length = 0;
   await handleTelegramUpdate({
@@ -887,8 +908,8 @@ try {
     }
   });
 
-  const brandCall = calls.find((call) => call.url.includes('/sendMessage'));
-  assert.ok(brandCall, 'Brand callback should send a package chooser.');
+  const brandCall = calls.find((call) => isTelegramTextCall(call));
+  assert.ok(brandCall, 'Brand callback should present a package chooser.');
   assert.match(brandCall.body.text, /<b>AI Accounts \/ ChatGPT<\/b>/);
   assert.match(brandCall.body.text, /giữ slot/i);
   assert.equal(brandCall.body.text.includes('SKU:'), false, 'Brand chooser text should not expose SKU; buying should be button-first.');
@@ -899,7 +920,7 @@ try {
     false,
     'Brand callback must not send file_ids from a custom emoji pack as stickers.'
   );
-  assert.ok(brandCall.body.reply_markup.inline_keyboard.flat().some((button) => button.callback_data?.startsWith('soldout:')));
+  assert.ok(brandCall.body.reply_markup.inline_keyboard.flat().some((button) => button.callback_data?.startsWith('pkg:')));
   assert.equal(brandCall.body.reply_markup.inline_keyboard.flat().some((button) => button.callback_data?.startsWith('buy:')), false);
   assert.equal(
     brandCall.body.reply_markup.inline_keyboard.flat().some((button) => button.text.includes('\uFE0F')),
@@ -924,8 +945,8 @@ try {
   });
 
   assert.equal(calls.some((call) => call.url.includes('/sendSticker') || call.url.includes('/sendAnimation')), false);
-  assert.ok(calls.some((call) => call.url.includes('/sendMessage') && call.body.text.includes('🤑')));
-  assert.ok(calls.some((call) => call.url.includes('/sendMessage') && call.body.text.includes('👌')));
+  assert.ok(calls.some((call) => isTelegramTextCall(call) && call.body.text.includes('🤑')));
+  assert.ok(calls.some((call) => isTelegramTextCall(call) && call.body.text.includes('👌')));
 
   calls.length = 0;
   await handleTelegramUpdate({
@@ -938,10 +959,10 @@ try {
   });
 
   assert.equal(calls.some((call) => call.url.includes('/sendSticker') || call.url.includes('/sendAnimation')), false);
-  assert.ok(calls.some((call) => call.url.includes('/sendMessage') && call.body.text.includes('@kaitoukit')));
-  assert.ok(calls.some((call) => call.url.includes('/sendMessage') && call.body.text.includes('💬')));
-  assert.ok(calls.some((call) => call.url.includes('/sendMessage') && call.body.text.includes('🙏')));
-  assert.ok(calls.some((call) => call.url.includes('/sendMessage') && call.body.text.includes('🫡')));
+  assert.ok(calls.some((call) => isTelegramTextCall(call) && call.body.text.includes('@kaitoukit')));
+  assert.ok(calls.some((call) => isTelegramTextCall(call) && call.body.text.includes('💬')));
+  assert.ok(calls.some((call) => isTelegramTextCall(call) && call.body.text.includes('🙏')));
+  assert.ok(calls.some((call) => isTelegramTextCall(call) && call.body.text.includes('🫡')));
   assert.ok(calls.some((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => button.callback_data === 'catalog:all')));
 
   for (const menuData of [
@@ -969,7 +990,7 @@ try {
         from: { id: 9001, username: 'buyer' }
       }
     });
-    const menuCall = calls.find((call) => call.url.includes('/sendMessage'));
+    const menuCall = calls.find((call) => isTelegramTextCall(call));
     assert.ok(menuCall, `${menuData} menu item should respond with a message.`);
     assert.equal(menuCall.body.text.includes('Mình chưa hiểu'), false, `${menuData} should not fall through to unknown command.`);
   }
@@ -1116,6 +1137,10 @@ function parseTelegramBody(body) {
     return parsed;
   }
   return JSON.parse(body);
+}
+
+function isTelegramTextCall(call) {
+  return call.url.includes('/sendMessage') || call.url.includes('/editMessageText');
 }
 
 function hasCustomEmojiId(call, customEmojiId) {

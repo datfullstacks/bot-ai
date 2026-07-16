@@ -94,6 +94,9 @@
               <label>SKU<input name="sku" placeholder="chatgpt-plus-1m" required></label>
               <label>Name<input name="name" placeholder="ChatGPT Plus - 1 tháng" required></label>
               <label>Description<textarea name="description" rows="3"></textarea></label>
+              <label>Account type<textarea name="accountType" rows="2" placeholder="Private account, shared slot, activation, or account pack"></textarea></label>
+              <label>Warranty policy<textarea name="warrantyPolicy" rows="3" placeholder="State the exact warranty period and coverage"></textarea></label>
+              <label>Replacement policy<textarea name="replacementPolicy" rows="3" placeholder="State when a faulty delivery is eligible for replacement"></textarea></label>
               <label>Official price note<input name="officialPriceNote" placeholder="Official: $20/mo"></label>
               <label>Price<input name="price" type="number" min="1" value="10000" required></label>
               <label>Currency<input name="currency" value="VND" required></label>
@@ -137,7 +140,8 @@
             <form id="inventoryForm" class="panel">
               <h2>Import Inventory</h2>
               <label>Product<select name="productId" required></select></label>
-              <label>Items<textarea name="items" rows="12" placeholder="one account/code per line" required></textarea></label>
+              <label>Items<textarea name="items" rows="12" placeholder="one complete delivery payload per line&#10;email|password|recovery&#10;license-key" required></textarea></label>
+              <p class="panel-subtitle">Production imports require INVENTORY_ENCRYPTION_KEY. Duplicate lines are skipped.</p>
               <button type="submit">Import</button>
             </form>
             <section class="panel">

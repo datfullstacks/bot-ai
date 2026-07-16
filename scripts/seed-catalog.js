@@ -32,6 +32,9 @@ for (const product of DEFAULT_CATALOG_PRODUCTS) {
       sortOrder: product.sortOrder,
       hot: product.hot,
       officialPriceNote: product.officialPriceNote,
+      accountType: product.accountType,
+      warrantyPolicy: product.warrantyPolicy,
+      replacementPolicy: product.replacementPolicy,
       active: true
     });
     updated += 1;

@@ -1,7 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { config, nowIso } from '../config.js';
 import { normalizeProductInput, normalizePublicProduct } from '../catalog.js';
+import {
+  assertInventoryEncryptionReadyForImport,
+  assertInventorySecretsReadyForSale,
+  decryptInventorySecret,
+  encryptInventorySecret,
+  inventorySecretFingerprint,
+  inventorySecretPreview
+} from '../inventorySecrets.js';
+import { publicPaymentCheckout } from '../paymentView.js';
 import { paymentProvider } from '../payments.js';
+import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
 import { withPostgresClient, withPostgresTransaction } from '../postgresStore.js';
 
 const orderTtlMs = config.orders.ttlMinutes * 60 * 1000;
@@ -24,8 +34,8 @@ function publicProduct(product, stock) {
 }
 
 function sanitizeInventoryItem(item) {
-  const { secret, ...safe } = item;
-  return { ...safe, secretPreview: secret ? `${secret.slice(0, 6)}...` : '' };
+  const { secret, secretFingerprint, ...safe } = item;
+  return { ...safe, secretPreview: inventorySecretPreview(item) };
 }
 
 function jsonParam(doc) {
@@ -238,7 +248,7 @@ export async function createProduct(actorId, input) {
       updatedAt: nowIso()
     };
 
-    if (!product.name || product.price <= 0) {
+    if (!product.name || !Number.isSafeInteger(product.price) || product.price <= 0) {
       throw Object.assign(new Error('Name and positive price are required'), { statusCode: 400 });
     }
 
@@ -254,13 +264,27 @@ export async function updateProduct(actorId, productId, input) {
     if (!productRow) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
 
     const product = productRow.doc;
-    for (const key of ['name', 'description', 'currency', 'category', 'brand', 'packageType', 'officialPriceNote']) {
+    for (const key of [
+      'name',
+      'description',
+      'currency',
+      'category',
+      'brand',
+      'packageType',
+      'officialPriceNote',
+      'accountType',
+      'warrantyPolicy',
+      'replacementPolicy'
+    ]) {
       if (input[key] !== undefined) product[key] = String(input[key]);
     }
     if (input.price !== undefined) product.price = Number(input.price);
     if (input.sortOrder !== undefined) product.sortOrder = Number(input.sortOrder || 1000);
     if (input.active !== undefined) product.active = Boolean(input.active);
     if (input.hot !== undefined) product.hot = Boolean(input.hot);
+    if (!product.name || !Number.isSafeInteger(product.price) || product.price <= 0) {
+      throw Object.assign(new Error('Name and positive integer price are required'), { statusCode: 400 });
+    }
     product.updatedAt = nowIso();
 
     await upsertDoc(client, 'products', product);
@@ -274,12 +298,24 @@ export async function importInventory(actorId, productId, lines) {
     const productRow = await getDoc(client, 'products', productId);
     if (!productRow) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
 
-    const secrets = lines.map((line) => String(line).trim()).filter(Boolean);
+    assertInventoryEncryptionReadyForImport();
+    const requested = [...new Set(lines.map((line) => String(line).trim()).filter(Boolean))];
+    const existing = await client.query(
+      `SELECT doc
+       FROM app_documents
+       WHERE collection = 'inventory' AND doc->>'productId' = $1`,
+      [productId]
+    );
+    const existingFingerprints = new Set(existing.rows.map(({ doc }) => (
+      inventorySecretFingerprint(decryptInventorySecret(doc.secret))
+    )));
+    const secrets = requested.filter((secret) => !existingFingerprints.has(inventorySecretFingerprint(secret)));
     for (const secret of secrets) {
       await insertDoc(client, 'inventory', {
         id: makeId('inv'),
         productId,
-        secret,
+        secret: encryptInventorySecret(secret),
+        secretFingerprint: inventorySecretFingerprint(secret),
         status: 'available',
         orderId: null,
         reservedUntil: null,
@@ -289,8 +325,14 @@ export async function importInventory(actorId, productId, lines) {
       });
     }
 
-    await addAuditDoc(client, actorId, 'inventory.import', 'product', productId, { count: secrets.length });
-    return { imported: secrets.length };
+    await addAuditDoc(client, actorId, 'inventory.import', 'product', productId, {
+      count: secrets.length,
+      skippedDuplicates: requested.length - secrets.length
+    });
+    return {
+      imported: secrets.length,
+      skippedDuplicates: requested.length - secrets.length
+    };
   });
 }
 
@@ -341,11 +383,11 @@ async function expirePendingOrdersInClient(client, actorId, limit = 500) {
   return expired.rows.length;
 }
 
-export async function createOrderForUser(user, productSkuOrId, quantity = 1) {
+export async function createOrderForUser(user, productSkuOrId, quantity = 1, options = {}) {
   return withPostgresTransaction(async (client) => {
     await expirePendingOrdersInClient(client, 'system', 100);
 
-    const qty = Math.max(1, Math.min(config.orders.maxQuantity, Number(quantity || 1)));
+    const qty = normalizeOrderQuantity(quantity);
     const sku = String(productSkuOrId || '').toLowerCase();
     const productResult = await client.query(
       `SELECT id, doc
@@ -358,6 +400,37 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1) {
     const product = productResult.rows[0]?.doc;
     if (!product || !product.active) {
       throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
+    }
+    assertSalesOrderAllowed(product, user);
+
+    const checkoutKey = String(options.idempotencyKey || '').trim().slice(0, 200);
+    if (checkoutKey) {
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, [checkoutKey]);
+      const existingOrder = await client.query(
+        `SELECT doc
+         FROM app_documents
+         WHERE collection = 'orders'
+           AND doc->>'userId' = $1
+           AND doc->>'checkoutKey' = $2
+         LIMIT 1`,
+        [user.id, checkoutKey]
+      );
+      if (existingOrder.rows[0]) {
+        const order = existingOrder.rows[0].doc;
+        const existingPayment = await client.query(
+          `SELECT doc
+           FROM app_documents
+           WHERE collection = 'payments'
+             AND (id = $1 OR doc->>'orderId' = $2)
+           LIMIT 1`,
+          [String(order.paymentId || ''), order.id]
+        );
+        return {
+          order: publicOrder(order),
+          payment: existingPayment.rows[0]?.doc || null,
+          reused: true
+        };
+      }
     }
 
     const pending = await client.query(
@@ -387,6 +460,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1) {
     if (inventoryResult.rows.length < qty) {
       throw Object.assign(new Error('Not enough stock'), { statusCode: 409 });
     }
+    assertInventorySecretsReadyForSale(inventoryResult.rows.map((row) => row.doc));
 
     const order = {
       id: makeId('ord'),
@@ -399,6 +473,16 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1) {
       unitPrice: product.price,
       total: product.price * qty,
       currency: product.currency,
+      checkoutKey: checkoutKey || null,
+      productSnapshot: {
+        description: product.description || '',
+        category: product.category || '',
+        brand: product.brand || '',
+        packageType: product.packageType || '',
+        accountType: product.accountType || '',
+        warrantyPolicy: product.warrantyPolicy || '',
+        replacementPolicy: product.replacementPolicy || ''
+      },
       status: 'pending_payment',
       paymentId: null,
       deliverySecrets: [],
@@ -515,6 +599,120 @@ export async function listPayments(options = {}) {
   });
 }
 
+export async function getPublicPaymentStatus(providerPaymentId) {
+  return withPostgresClient(async (client) => {
+    const result = await client.query(
+      `SELECT payment.doc AS payment, orders.doc AS orders
+       FROM app_documents AS payment
+       LEFT JOIN app_documents AS orders
+         ON orders.collection = 'orders'
+        AND orders.id = payment.doc->>'orderId'
+       WHERE payment.collection = 'payments'
+         AND payment.doc->>'providerPaymentId' = $1
+       LIMIT 1`,
+      [providerPaymentId]
+    );
+    const payment = result.rows[0]?.payment;
+    if (!payment) return null;
+    const order = result.rows[0]?.orders;
+    return {
+      ok: true,
+      paymentStatus: payment.status,
+      orderStatus: order?.status || '',
+      updatedAt: payment.updatedAt || payment.createdAt || ''
+    };
+  });
+}
+
+async function readPaymentForOrder(client, order) {
+  const result = await client.query(
+    `SELECT doc
+     FROM app_documents
+     WHERE collection = 'payments'
+       AND (id = $1 OR doc->>'orderId' = $2)
+     LIMIT 1`,
+    [String(order.paymentId || ''), order.id]
+  );
+  return result.rows[0]?.doc || null;
+}
+
+async function checkoutContext(client, order) {
+  return {
+    order: publicOrder(order),
+    payment: publicPaymentCheckout(await readPaymentForOrder(client, order))
+  };
+}
+
+export async function listOrdersForUser(userId, { limit = 5 } = {}) {
+  return withPostgresClient(async (client) => {
+    const safeLimit = Math.min(Math.max(Number(limit || 5), 1), 20);
+    const result = await client.query(
+      `SELECT doc
+       FROM app_documents
+       WHERE collection = 'orders' AND doc->>'userId' = $1
+       ORDER BY doc->>'createdAt' DESC
+       LIMIT $2`,
+      [userId, safeLimit]
+    );
+    const contexts = [];
+    for (const { doc } of result.rows) {
+      contexts.push(await checkoutContext(client, doc));
+    }
+    return contexts;
+  });
+}
+
+export async function getOrderCheckoutForUser(userId, orderId) {
+  return withPostgresClient(async (client) => {
+    const result = await client.query(
+      `SELECT doc
+       FROM app_documents
+       WHERE collection = 'orders'
+         AND id = $1
+         AND doc->>'userId' = $2
+       LIMIT 1`,
+      [orderId, userId]
+    );
+    const order = result.rows[0]?.doc;
+    if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    return checkoutContext(client, order);
+  });
+}
+
+export async function cancelOrderForUser(userId, orderId) {
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(
+      `SELECT doc
+       FROM app_documents
+       WHERE collection = 'orders'
+         AND id = $1
+         AND doc->>'userId' = $2
+       LIMIT 1
+       FOR UPDATE`,
+      [orderId, userId]
+    );
+    const order = result.rows[0]?.doc;
+    if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    if (order.status === 'cancelled') return checkoutContext(client, order);
+    if (order.status !== 'pending_payment') {
+      throw Object.assign(new Error('Only pending orders can be cancelled'), { statusCode: 409 });
+    }
+
+    await releaseReservedInventory(client, order.id);
+    const expired = new Date(order.expiresAt).getTime() < Date.now();
+    await setOrderStatus(
+      client,
+      order,
+      expired ? 'expired' : 'cancelled',
+      userId,
+      expired ? 'payment_timeout' : 'buyer_cancelled',
+      expired ? { expiresAt: order.expiresAt } : {}
+    );
+    await upsertDoc(client, 'orders', order);
+    return checkoutContext(client, order);
+  });
+}
+
 export async function listAuditLogs(options = {}) {
   return withPostgresClient(async (client) => {
     const limit = Math.min(Math.max(Number(options.limit || 300), 1), 500);
@@ -551,9 +749,10 @@ async function findPaymentForEvent(client, event, forUpdate = true) {
       `SELECT id, doc
        FROM app_documents
        WHERE collection = 'payments'
+         AND doc->>'provider' = $2
          AND ((doc->>'providerPaymentId') = ANY($1::text[]) OR (doc->>'reference') = ANY($1::text[]))
        LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
-      [candidates]
+      [candidates, event.provider]
     );
     if (exact.rows[0]) return exact.rows[0].doc;
   }
@@ -569,10 +768,11 @@ async function findPaymentForEvent(client, event, forUpdate = true) {
     `SELECT id, doc
      FROM app_documents
      WHERE collection = 'payments'
+       AND doc->>'provider' = $2
        AND doc->>'status' = 'pending'
        AND $1 LIKE ('%' || upper(doc->>'reference') || '%')
      LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
-    [searchable]
+    [searchable, event.provider]
   );
   return fallback.rows[0]?.doc || null;
 }
@@ -613,6 +813,7 @@ async function reservedInventoryForOrder(client, orderId) {
 }
 
 async function markInventorySold(client, order, items, actorId, reason, details = {}) {
+  assertInventorySecretsReadyForSale(items);
   const soldAt = nowIso();
   order.deliverySecrets = items.map((item) => item.secret);
 
@@ -691,14 +892,27 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
     const existingEvent = await getDoc(client, 'paymentEvents', event.id);
     if (existingEvent) return { duplicate: true };
 
+    await insertDoc(client, 'paymentEvents', event);
+    if (event.test === true) {
+      await addAuditDoc(client, actorId, 'payment.test', 'payment_event', event.id, {
+        provider: event.provider
+      });
+      return { unmatched: true, test: true };
+    }
     const payment = await findPaymentForEvent(client, event, true);
-    if (!payment) throw Object.assign(new Error('Payment not found'), { statusCode: 404 });
+    if (!payment) {
+      await addAuditDoc(client, actorId, 'payment.unmatched', 'payment_event', event.id, {
+        provider: event.provider,
+        reference: event.reference || '',
+        bankReference: event.bankReference || ''
+      });
+      return { unmatched: true };
+    }
 
     const orderRow = await getDoc(client, 'orders', payment.orderId, { forUpdate: true });
     if (!orderRow) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
     const order = orderRow.doc;
 
-    await insertDoc(client, 'paymentEvents', event);
     payment.events ||= [];
     payment.events.push(event.id);
     payment.updatedAt = nowIso();
@@ -783,7 +997,7 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
     }
 
     payment.status = 'paid';
-    payment.reference = event.reference || payment.reference;
+    payment.bankReference = event.bankReference || payment.bankReference || '';
     order.paidAt = nowIso();
     await setOrderStatus(client, order, 'paid', actorId, 'payment_confirmed', { amount: order.total });
     await markInventorySold(client, order, reserved, actorId, 'inventory_delivered');
@@ -916,7 +1130,10 @@ export async function getDeliveryForOrder(orderId) {
     const orderRow = await getDoc(client, 'orders', orderId);
     if (!orderRow) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
     const order = orderRow.doc;
-    return { order: publicOrder(order), deliverySecrets: order.deliverySecrets || [] };
+    return {
+      order: publicOrder(order),
+      deliverySecrets: (order.deliverySecrets || []).map((secret) => decryptInventorySecret(secret))
+    };
   });
 }
 

@@ -95,6 +95,9 @@ export async function ensurePostgresSchema(client = getPool()) {
     CREATE INDEX IF NOT EXISTS idx_app_documents_products_sku
       ON app_documents (collection, (doc->>'sku'));
 
+    CREATE INDEX IF NOT EXISTS idx_app_documents_payments_provider_id
+      ON app_documents (collection, (doc->>'providerPaymentId'));
+
     CREATE INDEX IF NOT EXISTS idx_app_documents_collection_created_at
       ON app_documents (collection, (doc->>'createdAt'));
   `);

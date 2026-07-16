@@ -1,6 +1,13 @@
 import { config, nowIso } from './config.js';
+import {
+  decryptInventorySecret,
+  inventoryEncryptionStatus,
+  isEncryptedInventorySecret
+} from './inventorySecrets.js';
+import { salesReadinessProblems } from './salesGuard.js';
 import { readStore } from './storage.js';
 import { getTelegramEmojiStatus } from './telegramEmojiHealth.js';
+import { strongWebhookCredential } from './webhookSecurity.js';
 
 const supportedPaymentProviders = new Set(['mock', 'sepay']);
 const weakAdminPasswords = new Set(['admin123', 'change-me-now', 'password', 'admin']);
@@ -52,8 +59,10 @@ function appBaseUrl() {
 
 function sepayWebhookAuthConfigured() {
   if (config.sepay.webhookAuth === 'none') return false;
-  if (config.sepay.webhookAuth === 'hmac') return Boolean(config.sepay.webhookSecret);
-  if (['api_key', 'apikey'].includes(config.sepay.webhookAuth)) return Boolean(config.sepay.webhookApiKey);
+  if (config.sepay.webhookAuth === 'hmac') return strongWebhookCredential(config.sepay.webhookSecret);
+  if (['api_key', 'apikey'].includes(config.sepay.webhookAuth)) {
+    return strongWebhookCredential(config.sepay.webhookApiKey);
+  }
   return false;
 }
 
@@ -71,7 +80,25 @@ function inventorySummary(db) {
   });
 }
 
-function buildChecks() {
+function inventoryPayloadSummary(db) {
+  const summary = { available: 0, plaintext: 0, undecryptable: 0 };
+  for (const item of db.inventory) {
+    if (item.status !== 'available') continue;
+    summary.available += 1;
+    if (!isEncryptedInventorySecret(item.secret)) {
+      summary.plaintext += 1;
+      continue;
+    }
+    try {
+      decryptInventorySecret(item.secret);
+    } catch {
+      summary.undecryptable += 1;
+    }
+  }
+  return summary;
+}
+
+function buildChecks(db = null) {
   const checks = [];
   const production = process.env.NODE_ENV === 'production';
   const baseHostKind = hostKind(config.baseUrl);
@@ -117,6 +144,78 @@ function buildChecks() {
     checks.push(item('redis', 'Redis rate limit store', status, production ? 'Set REDIS_URL for multi-process traffic limits.' : 'Using in-memory rate limits locally.'));
   }
 
+  const encryption = inventoryEncryptionStatus();
+  if (encryption.valid) {
+    addOk(checks, 'inventory_encryption', 'Inventory encryption', 'AES-256-GCM key configured');
+  } else {
+    const status = production ? 'warning' : 'ok';
+    checks.push(item(
+      'inventory_encryption',
+      'Inventory encryption',
+      status,
+      encryption.error || (production
+        ? 'Set INVENTORY_ENCRYPTION_KEY before importing real stock.'
+        : 'Optional for local development.')
+    ));
+  }
+
+  if (production && db) {
+    const payloads = inventoryPayloadSummary(db);
+    if (payloads.plaintext > 0) {
+      addWarning(
+        checks,
+        'inventory_plaintext',
+        'Legacy plaintext inventory',
+        `${payloads.plaintext} available item(s) must be re-imported with encryption.`
+      );
+    } else if (payloads.undecryptable > 0) {
+      addWarning(
+        checks,
+        'inventory_decryption',
+        'Inventory decryption failed',
+        `${payloads.undecryptable} available item(s) cannot be decrypted with the configured key.`
+      );
+    } else if (payloads.available > 0) {
+      addOk(checks, 'inventory_payloads', 'Inventory payloads', 'Encrypted and decryptable');
+    }
+  }
+
+  if (!config.sales.enabled) {
+    addWarning(checks, 'sales', 'Sales are closed', 'Set SALES_ENABLED=true only after SePay, product policies and inventory are ready.');
+  } else {
+    const salesProblems = salesReadinessProblems();
+    if (salesProblems.length) {
+      addWarning(checks, 'sales', 'Sales configuration is incomplete', salesProblems.join('; '));
+    } else {
+      addOk(checks, 'sales', 'Sales', 'Order creation enabled');
+    }
+
+    if (db) {
+      const inventory = inventorySummary(db);
+      if (inventory.available > 0) {
+        addOk(checks, 'inventory_available', 'Available inventory', `${inventory.available} item(s) ready`);
+      } else {
+        addWarning(checks, 'inventory_available', 'No inventory available', 'Import encrypted stock before opening sales.');
+      }
+
+      const incompleteProducts = db.products.filter((product) => (
+        product.active !== false
+        && ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy']
+          .some((key) => !String(product[key] || '').trim())
+      ));
+      if (incompleteProducts.length) {
+        addWarning(
+          checks,
+          'product_policies',
+          'Product purchase information is incomplete',
+          `${incompleteProducts.length} active product(s) need description, account type, warranty and replacement policy.`
+        );
+      } else {
+        addOk(checks, 'product_policies', 'Product purchase information', 'Complete');
+      }
+    }
+  }
+
   if (!supportedPaymentProviders.has(config.payment.provider)) {
     addWarning(checks, 'payment_provider', 'Payment provider is unknown', `Configured value: ${config.payment.provider}`);
   } else if (config.payment.provider === 'mock') {
@@ -135,12 +234,31 @@ function buildChecks() {
 
     if (config.sepay.webhookAuth === 'none') {
       addWarning(checks, 'sepay_webhook_auth', 'SePay webhook auth disabled', 'Use hmac or api_key outside isolated testing.');
-    } else if (config.sepay.webhookAuth === 'hmac' && config.sepay.webhookSecret) {
+    } else if (config.sepay.webhookAuth === 'hmac' && strongWebhookCredential(config.sepay.webhookSecret)) {
       addOk(checks, 'sepay_webhook_auth', 'SePay webhook auth', 'HMAC');
-    } else if (['api_key', 'apikey'].includes(config.sepay.webhookAuth) && config.sepay.webhookApiKey) {
+    } else if (
+      ['api_key', 'apikey'].includes(config.sepay.webhookAuth)
+      && strongWebhookCredential(config.sepay.webhookApiKey)
+    ) {
       addOk(checks, 'sepay_webhook_auth', 'SePay webhook auth', 'API key');
     } else {
-      addWarning(checks, 'sepay_webhook_auth', 'SePay webhook secret missing', 'Set SEPAY_WEBHOOK_SECRET or SEPAY_WEBHOOK_API_KEY for the selected auth mode.');
+      addWarning(checks, 'sepay_webhook_auth', 'SePay webhook credential missing or weak', 'Set a strong SEPAY_WEBHOOK_SECRET or SEPAY_WEBHOOK_API_KEY for the selected auth mode.');
+    }
+
+    if (config.sepay.webhookAccountNumbers.length > 0) {
+      addOk(
+        checks,
+        'sepay_account_allowlist',
+        'SePay destination account allowlist',
+        `${config.sepay.webhookAccountNumbers.length} account(s) configured`
+      );
+    } else if (production) {
+      addWarning(
+        checks,
+        'sepay_account_allowlist',
+        'SePay destination account allowlist missing',
+        'Set SEPAY_WEBHOOK_ACCOUNT_NUMBERS before accepting production payments.'
+      );
     }
   }
 
@@ -182,7 +300,7 @@ function buildChecks() {
 
 export async function getSystemStatus() {
   const db = await readStore();
-  const checks = buildChecks();
+  const checks = buildChecks(db);
   const warnings = checks.filter((check) => check.status === 'warning').length;
   const telegramEmoji = getTelegramEmojiStatus();
 
@@ -215,6 +333,11 @@ export async function getSystemStatus() {
       maxQuantity: config.orders.maxQuantity,
       maxPendingPerUser: config.orders.maxPendingPerUser
     },
+    sales: {
+      enabled: config.sales.enabled,
+      inventoryEncryptionConfigured: inventoryEncryptionStatus().valid,
+      inventory: inventorySummary(db)
+    },
     telegram: {
       tokenConfigured: Boolean(config.telegram.token),
       polling: config.telegram.polling,
@@ -243,7 +366,7 @@ export async function getSystemStatus() {
 
 export async function getReadiness() {
   const db = await readStore();
-  const checks = buildChecks();
+  const checks = buildChecks(db);
   const warnings = checks.filter((check) => check.status === 'warning').length;
   const provider = supportedPaymentProviders.has(config.payment.provider) ? config.payment.provider : 'mock_fallback';
   const sepayEnabled = provider === 'sepay';
@@ -251,7 +374,7 @@ export async function getReadiness() {
   const telegramEmoji = getTelegramEmojiStatus();
 
   return {
-    ok: true,
+    ok: warnings === 0,
     status: warnings ? 'needs_config' : 'ready',
     warnings,
     generatedAt: nowIso(),
@@ -265,6 +388,10 @@ export async function getReadiness() {
     traffic: {
       redisConfigured: configured('REDIS_URL'),
       rateLimitStore: configured('REDIS_URL') ? 'redis' : 'memory'
+    },
+    sales: {
+      enabled: config.sales.enabled,
+      inventoryEncryptionConfigured: inventoryEncryptionStatus().valid
     },
     telegram: {
       tokenConfigured: Boolean(config.telegram.token),

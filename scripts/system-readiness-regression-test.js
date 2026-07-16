@@ -13,8 +13,11 @@ process.env.DATA_FILE = dataFile;
 process.env.DATABASE_URL = '';
 process.env.REDIS_URL = '';
 process.env.PAYMENT_PROVIDER = 'sepay';
+process.env.SALES_ENABLED = 'true';
+process.env.INVENTORY_ENCRYPTION_KEY = '11'.repeat(32);
 process.env.SEPAY_ACCOUNT_NUMBER = '1234567890';
 process.env.SEPAY_BANK_CODE = 'MBBank';
+process.env.SEPAY_WEBHOOK_ACCOUNT_NUMBERS = '1234567890';
 process.env.SEPAY_WEBHOOK_AUTH = 'hmac';
 process.env.SEPAY_WEBHOOK_SECRET = 'readiness-sepay-secret';
 process.env.TELEGRAM_BOT_TOKEN = '123456:test-token';
@@ -71,6 +74,9 @@ try {
     sku: 'ready-chatgpt',
     name: 'Ready ChatGPT',
     description: 'Readiness inventory product',
+    accountType: 'Tài khoản riêng',
+    warrantyPolicy: 'Bảo hành 30 ngày',
+    replacementPolicy: 'Đổi khi lỗi bàn giao',
     category: 'AI Accounts',
     brand: 'ChatGPT',
     packageType: 'Plus 1M',
@@ -89,6 +95,7 @@ try {
   assert.equal(readiness.sepay.accountConfigured, true);
   assert.equal(readiness.sepay.webhookAuth, 'hmac');
   assert.equal(readiness.sepay.webhookAuthConfigured, true);
+  assert.equal(readiness.checks.some((check) => check.id === 'sepay_account_allowlist' && check.status === 'ok'), true);
   assert.equal(readiness.telegram.tokenConfigured, true);
   assert.equal(readiness.telegram.polling, true);
   assert.equal(readiness.telegram.webhookSecretConfigured, true);

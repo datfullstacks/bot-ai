@@ -1,5 +1,15 @@
 import { config, nowIso } from '../config.js';
 import { normalizeProductInput } from '../catalog.js';
+import {
+  assertInventoryEncryptionReadyForImport,
+  assertInventorySecretsReadyForSale,
+  decryptInventorySecret,
+  encryptInventorySecret,
+  inventorySecretFingerprint,
+  inventorySecretPreview
+} from '../inventorySecrets.js';
+import { publicPaymentCheckout } from '../paymentView.js';
+import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
 import { addAudit, makeId, publicProduct, readStore, withWrite } from '../storage.js';
 import { paymentProvider } from '../payments.js';
 
@@ -8,8 +18,8 @@ const finalOrderStatuses = new Set(['delivered', 'refunded']);
 const closedPaymentStatuses = new Set(['paid', 'amount_mismatch', 'paid_needs_review']);
 
 function sanitizeInventoryItem(item) {
-  const { secret, ...safe } = item;
-  return { ...safe, secretPreview: secret ? `${secret.slice(0, 6)}...` : '' };
+  const { secret, secretFingerprint, ...safe } = item;
+  return { ...safe, secretPreview: inventorySecretPreview(item) };
 }
 
 export function publicOrder(order) {
@@ -108,7 +118,7 @@ export async function createProduct(actorId, input) {
       updatedAt: nowIso()
     };
 
-    if (!product.name || product.price <= 0) {
+    if (!product.name || !Number.isSafeInteger(product.price) || product.price <= 0) {
       throw Object.assign(new Error('Name and positive price are required'), { statusCode: 400 });
     }
 
@@ -123,13 +133,27 @@ export async function updateProduct(actorId, productId, input) {
     const product = db.products.find((item) => item.id === productId);
     if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
 
-    for (const key of ['name', 'description', 'currency', 'category', 'brand', 'packageType', 'officialPriceNote']) {
+    for (const key of [
+      'name',
+      'description',
+      'currency',
+      'category',
+      'brand',
+      'packageType',
+      'officialPriceNote',
+      'accountType',
+      'warrantyPolicy',
+      'replacementPolicy'
+    ]) {
       if (input[key] !== undefined) product[key] = String(input[key]);
     }
     if (input.price !== undefined) product.price = Number(input.price);
     if (input.sortOrder !== undefined) product.sortOrder = Number(input.sortOrder || 1000);
     if (input.active !== undefined) product.active = Boolean(input.active);
     if (input.hot !== undefined) product.hot = Boolean(input.hot);
+    if (!product.name || !Number.isSafeInteger(product.price) || product.price <= 0) {
+      throw Object.assign(new Error('Name and positive integer price are required'), { statusCode: 400 });
+    }
     product.updatedAt = nowIso();
 
     addAudit(db, actorId, 'product.update', 'product', product.id, { sku: product.sku });
@@ -142,11 +166,19 @@ export async function importInventory(actorId, productId, lines) {
     const product = db.products.find((item) => item.id === productId);
     if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
 
-    const secrets = lines.map((line) => String(line).trim()).filter(Boolean);
+    assertInventoryEncryptionReadyForImport();
+    const requested = [...new Set(lines.map((line) => String(line).trim()).filter(Boolean))];
+    const existingFingerprints = new Set(
+      db.inventory
+        .filter((item) => item.productId === productId)
+        .map((item) => inventorySecretFingerprint(decryptInventorySecret(item.secret)))
+    );
+    const secrets = requested.filter((secret) => !existingFingerprints.has(inventorySecretFingerprint(secret)));
     const created = secrets.map((secret) => ({
       id: makeId('inv'),
       productId,
-      secret,
+      secret: encryptInventorySecret(secret),
+      secretFingerprint: inventorySecretFingerprint(secret),
       status: 'available',
       orderId: null,
       reservedUntil: null,
@@ -156,8 +188,14 @@ export async function importInventory(actorId, productId, lines) {
     }));
 
     db.inventory.push(...created);
-    addAudit(db, actorId, 'inventory.import', 'product', productId, { count: created.length });
-    return { imported: created.length };
+    addAudit(db, actorId, 'inventory.import', 'product', productId, {
+      count: created.length,
+      skippedDuplicates: requested.length - created.length
+    });
+    return {
+      imported: created.length,
+      skippedDuplicates: requested.length - created.length
+    };
   });
 }
 
@@ -170,14 +208,32 @@ export async function listInventory(productId) {
     .map(sanitizeInventoryItem);
 }
 
-export async function createOrderForUser(user, productSkuOrId, quantity = 1) {
+export async function createOrderForUser(user, productSkuOrId, quantity = 1, options = {}) {
   return withWrite(async (db) => {
     expirePendingOrdersInDb(db, 'system');
 
-    const qty = Math.max(1, Math.min(config.orders.maxQuantity, Number(quantity || 1)));
+    const qty = normalizeOrderQuantity(quantity);
     const product = db.products.find((item) => item.id === productSkuOrId || item.sku === String(productSkuOrId).toLowerCase());
     if (!product || !product.active) {
       throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
+    }
+    assertSalesOrderAllowed(product, user);
+
+    const checkoutKey = String(options.idempotencyKey || '').trim().slice(0, 200);
+    if (checkoutKey) {
+      const existingOrder = db.orders.find((order) => (
+        order.userId === user.id && order.checkoutKey === checkoutKey
+      ));
+      if (existingOrder) {
+        const existingPayment = db.payments.find((payment) => (
+          payment.id === existingOrder.paymentId || payment.orderId === existingOrder.id
+        ));
+        return {
+          order: publicOrder(existingOrder),
+          payment: existingPayment,
+          reused: true
+        };
+      }
     }
 
     const pendingCount = db.orders.filter((order) => (
@@ -196,6 +252,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1) {
     if (availableItems.length < qty) {
       throw Object.assign(new Error('Not enough stock'), { statusCode: 409 });
     }
+    assertInventorySecretsReadyForSale(availableItems);
 
     const order = {
       id: makeId('ord'),
@@ -208,6 +265,16 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1) {
       unitPrice: product.price,
       total: product.price * qty,
       currency: product.currency,
+      checkoutKey: checkoutKey || null,
+      productSnapshot: {
+        description: product.description || '',
+        category: product.category || '',
+        brand: product.brand || '',
+        packageType: product.packageType || '',
+        accountType: product.accountType || '',
+        warrantyPolicy: product.warrantyPolicy || '',
+        replacementPolicy: product.replacementPolicy || ''
+      },
       status: 'pending_payment',
       paymentId: null,
       deliverySecrets: [],
@@ -286,6 +353,67 @@ export async function listPayments(options = {}) {
   return pageItems(db.payments.slice().reverse(), options);
 }
 
+export async function getPublicPaymentStatus(providerPaymentId) {
+  const db = await readStore();
+  const payment = db.payments.find((item) => item.providerPaymentId === providerPaymentId);
+  if (!payment) return null;
+  const order = db.orders.find((item) => item.id === payment.orderId);
+  return {
+    ok: true,
+    paymentStatus: payment.status,
+    orderStatus: order?.status || '',
+    updatedAt: payment.updatedAt || payment.createdAt || ''
+  };
+}
+
+function checkoutContext(db, order) {
+  const payment = db.payments.find((item) => item.id === order.paymentId || item.orderId === order.id);
+  return {
+    order: publicOrder(order),
+    payment: publicPaymentCheckout(payment)
+  };
+}
+
+export async function listOrdersForUser(userId, { limit = 5 } = {}) {
+  const db = await readStore();
+  return db.orders
+    .filter((order) => order.userId === userId)
+    .slice()
+    .reverse()
+    .slice(0, Math.min(Math.max(Number(limit || 5), 1), 20))
+    .map((order) => checkoutContext(db, order));
+}
+
+export async function getOrderCheckoutForUser(userId, orderId) {
+  const db = await readStore();
+  const order = db.orders.find((item) => item.id === orderId && item.userId === userId);
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+  return checkoutContext(db, order);
+}
+
+export async function cancelOrderForUser(userId, orderId) {
+  return withWrite(async (db) => {
+    const order = db.orders.find((item) => item.id === orderId && item.userId === userId);
+    if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    if (order.status === 'cancelled') return checkoutContext(db, order);
+    if (order.status !== 'pending_payment') {
+      throw Object.assign(new Error('Only pending orders can be cancelled'), { statusCode: 409 });
+    }
+
+    releaseReservedInventory(db, order.id);
+    const expired = new Date(order.expiresAt).getTime() < Date.now();
+    setOrderStatus(
+      db,
+      order,
+      expired ? 'expired' : 'cancelled',
+      userId,
+      expired ? 'payment_timeout' : 'buyer_cancelled',
+      expired ? { expiresAt: order.expiresAt } : {}
+    );
+    return checkoutContext(db, order);
+  });
+}
+
 export async function listAuditLogs(options = {}) {
   const db = await readStore();
   return pageItems(db.auditLogs, { limit: options.limit || 300, offset: options.offset || 0 });
@@ -304,13 +432,27 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       return { duplicate: true };
     }
 
+    db.paymentEvents.push(event);
+    if (event.test === true) {
+      addAudit(db, actorId, 'payment.test', 'payment_event', event.id, {
+        provider: event.provider
+      });
+      return { unmatched: true, test: true };
+    }
     const payment = findPaymentForEvent(db, event);
-    if (!payment) throw Object.assign(new Error('Payment not found'), { statusCode: 404 });
+    if (!payment) {
+      addAudit(db, actorId, 'payment.unmatched', 'payment_event', event.id, {
+        provider: event.provider,
+        reference: event.reference || '',
+        bankReference: event.bankReference || ''
+      });
+      return { unmatched: true };
+    }
 
     const order = db.orders.find((item) => item.id === payment.orderId);
     if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
-    db.paymentEvents.push(event);
+    payment.events ||= [];
     payment.events.push(event.id);
     payment.updatedAt = nowIso();
 
@@ -383,7 +525,7 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
     }
 
     payment.status = 'paid';
-    payment.reference = event.reference || payment.reference;
+    payment.bankReference = event.bankReference || payment.bankReference || '';
     order.paidAt = nowIso();
     setOrderStatus(db, order, 'paid', actorId, 'payment_confirmed', { amount: order.total });
 
@@ -401,7 +543,10 @@ function findPaymentForEvent(db, event) {
     event.raw?.code
   ].map((value) => String(value || '').trim()).filter(Boolean);
 
-  let payment = db.payments.find((item) => candidates.includes(item.providerPaymentId) || candidates.includes(item.reference));
+  let payment = db.payments.find((item) => (
+    item.provider === event.provider
+    && (candidates.includes(item.providerPaymentId) || candidates.includes(item.reference))
+  ));
   if (payment) return payment;
 
   const searchable = [
@@ -412,7 +557,7 @@ function findPaymentForEvent(db, event) {
   if (!searchable.trim()) return null;
 
   return db.payments.find((item) => {
-    if (item.status !== 'pending') return false;
+    if (item.provider !== event.provider || item.status !== 'pending') return false;
     const reference = String(item.reference || '').toUpperCase();
     return reference && searchable.includes(reference);
   }) || null;
@@ -432,6 +577,7 @@ function findPaymentForOrder(db, order) {
 }
 
 function markInventorySold(db, order, items, actorId, reason, details = {}) {
+  assertInventorySecretsReadyForSale(items);
   const soldAt = nowIso();
   order.deliverySecrets = items.map((item) => item.secret);
 
@@ -592,7 +738,10 @@ export async function getDeliveryForOrder(orderId) {
   const db = await readStore();
   const order = db.orders.find((item) => item.id === orderId);
   if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
-  return { order: publicOrder(order), deliverySecrets: order.deliverySecrets || [] };
+  return {
+    order: publicOrder(order),
+    deliverySecrets: (order.deliverySecrets || []).map((secret) => decryptInventorySecret(secret))
+  };
 }
 
 export async function expireOrders() {

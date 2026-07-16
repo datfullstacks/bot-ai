@@ -11,8 +11,12 @@ process.env.DATA_FILE = dataFile;
 process.env.DATABASE_URL = '';
 process.env.REDIS_URL = '';
 process.env.PAYMENT_PROVIDER = 'sepay';
+process.env.SALES_ENABLED = 'true';
+process.env.INVENTORY_ENCRYPTION_KEY = '33'.repeat(32);
 process.env.SEPAY_ACCOUNT_NUMBER = '1234567890';
 process.env.SEPAY_BANK_CODE = 'MBBank';
+process.env.SEPAY_WEBHOOK_ACCOUNT_NUMBERS = '1234567890';
+process.env.SEPAY_WEBHOOK_GATEWAYS = 'MBBank';
 process.env.SEPAY_PAYMENT_PREFIX = 'KAITO';
 process.env.SEPAY_MEMO_SUFFIX = 'thanh toan don hang';
 process.env.SEPAY_WEBHOOK_AUTH = 'hmac';
@@ -36,6 +40,9 @@ async function createStockedProduct(actorId, sku, count) {
     sku,
     name: `SePay ${sku}`,
     description: 'SePay auto-delivery test product',
+    accountType: 'Tài khoản riêng',
+    warrantyPolicy: 'Bảo hành test',
+    replacementPolicy: 'Đổi lỗi test',
     category: 'AI Accounts',
     brand: 'ChatGPT',
     packageType: 'Plus 1M',
@@ -53,6 +60,8 @@ async function createStockedProduct(actorId, sku, count) {
 function sepayBody({ id, amount, reference, transferType = 'in' }) {
   return {
     id,
+    gateway: 'MBBank',
+    accountNumber: '1234567890',
     transferType,
     transferAmount: amount,
     code: '',
@@ -92,12 +101,48 @@ try {
   assert.equal(checkout.payment.currency, 'VND');
   assert.equal(checkout.payment.accountNumber, '1234567890');
   assert.equal(checkout.payment.bankCode, 'MBBank');
-  assert.match(checkout.payment.reference, /^KAITO[A-Z0-9]+$/);
+  assert.match(checkout.payment.reference, /^KAITO[A-Z0-9]{15}$/);
   assert.match(checkout.payment.memo, new RegExp(checkout.payment.reference));
   assert.match(checkout.payment.qrImageUrl, /https:\/\/qr\.sepay\.vn\/img\?/);
   assert.match(checkout.payment.qrImageUrl, /acc=1234567890/);
   assert.match(checkout.payment.qrImageUrl, /bank=MBBank/);
   assert.match(checkout.payment.qrImageUrl, /amount=99000/);
+
+  await assert.rejects(
+    () => paymentProviders.sepay.createPayment({
+      amount: 10,
+      currency: 'USD',
+      expiresAt: checkout.order.expiresAt
+    }),
+    /require VND currency/
+  );
+  await assert.rejects(
+    () => paymentProviders.sepay.createPayment({
+      amount: 10.5,
+      currency: 'VND',
+      expiresAt: checkout.order.expiresAt
+    }),
+    /positive integer/
+  );
+
+  const dashboardTestEvent = await verifySignedSePayBody({
+    ...sepayBody({
+      id: 0,
+      amount: 0,
+      reference: checkout.payment.reference
+    }),
+    gateway: 'SampleBank',
+    accountNumber: '0000000000'
+  });
+  assert.match(dashboardTestEvent.id, /^sepay_test_[a-f0-9]{24}$/);
+  assert.equal(dashboardTestEvent.test, true);
+  assert.equal(dashboardTestEvent.status, 'ignored');
+  const dashboardTestResult = await shop.applyPaymentEvent(dashboardTestEvent, 'sepay-webhook');
+  assert.equal(dashboardTestResult.unmatched, true);
+  assert.equal(dashboardTestResult.test, true);
+  const stillPending = await shop.getPublicPaymentStatus(checkout.payment.providerPaymentId);
+  assert.equal(stillPending.paymentStatus, 'pending');
+  assert.equal(stillPending.orderStatus, 'pending_payment');
 
   const paidEvent = await verifySignedSePayBody(sepayBody({
     id: 'bank_tx_success_1',
@@ -110,6 +155,8 @@ try {
   const paidResult = await shop.applyPaymentEvent(paidEvent, 'sepay-webhook');
   assert.equal(paidResult.order.status, 'delivered');
   assert.equal(paidResult.payment.status, 'paid');
+  assert.equal(paidResult.payment.reference, checkout.payment.reference);
+  assert.equal(paidResult.payment.bankReference, 'bank_tx_success_1');
 
   const delivery = await shop.getDeliveryForOrder(checkout.order.id);
   assert.deepEqual(delivery.deliverySecrets, ['sepay-auto-chatgpt-account-1|password']);
@@ -137,6 +184,22 @@ try {
     /Invalid SePay webhook signature/
   );
 
+  await assert.rejects(
+    () => paymentProviders.mock.verifyWebhook({
+      rawBody: '{}',
+      body: {}
+    }),
+    /Invalid payment signature/
+  );
+
+  const unmatchedEvent = await verifySignedSePayBody(sepayBody({
+    id: 'bank_tx_unmatched',
+    amount: 12345,
+    reference: 'NO_MATCH_REFERENCE'
+  }));
+  const unmatchedResult = await shop.applyPaymentEvent(unmatchedEvent, 'sepay-webhook');
+  assert.equal(unmatchedResult.unmatched, true);
+
   const reviewProduct = await createStockedProduct(actorId, 'sepay-review-chatgpt', 1);
   const reviewCheckout = await shop.createOrderForUser(user, reviewProduct.sku, 1);
   const mismatchEvent = await verifySignedSePayBody(sepayBody({
@@ -154,6 +217,22 @@ try {
   const approved = await shop.approveReviewDelivery(actorId, reviewCheckout.order.id, { note: 'manual review ok' });
   assert.equal(approved.order.status, 'delivered');
   assert.equal(approved.delivered, 1);
+
+  const cancelledProduct = await createStockedProduct(actorId, 'sepay-cancelled-chatgpt', 1);
+  const cancelledCheckout = await shop.createOrderForUser(user, cancelledProduct.sku, 1);
+  const cancelled = await shop.cancelOrderForUser(user.id, cancelledCheckout.order.id);
+  assert.equal(cancelled.order.status, 'cancelled');
+  const lateEvent = await verifySignedSePayBody(sepayBody({
+    id: 'bank_tx_after_cancel',
+    amount: cancelledCheckout.order.total,
+    reference: cancelledCheckout.payment.reference
+  }));
+  const lateResult = await shop.applyPaymentEvent(lateEvent, 'sepay-webhook');
+  assert.equal(lateResult.order.status, 'payment_review');
+  const cancelledDelivery = await shop.getDeliveryForOrder(cancelledCheckout.order.id);
+  assert.equal(cancelledDelivery.deliverySecrets.length, 0);
+  const cancelledInventory = await shop.listInventory(cancelledProduct.id);
+  assert.equal(cancelledInventory.filter((item) => item.status === 'available').length, 1);
 
   console.log(JSON.stringify({ ok: true, checked: 'sepay automatic payment and review safety' }, null, 2));
 } finally {

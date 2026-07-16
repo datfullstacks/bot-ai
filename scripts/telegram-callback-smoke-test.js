@@ -10,6 +10,7 @@ process.env.DATA_FILE = dataFile;
 process.env.DATABASE_URL = '';
 process.env.REDIS_URL = '';
 process.env.PAYMENT_PROVIDER = 'mock';
+process.env.SALES_ENABLED = 'true';
 process.env.TELEGRAM_BOT_TOKEN = '123:test';
 process.env.TELEGRAM_POLLING = 'false';
 process.env.TELEGRAM_WELCOME_ANIMATION_URL = 'https://cdn.example.local/kaito-welcome.gif';
@@ -61,25 +62,77 @@ try {
   assert.ok(product, 'Default catalog should include ChatGPT Plus.');
   await shop.importInventory('telegram-smoke', product.id, ['chatgpt-plus-login|secret']);
 
+  calls.length = 0;
   await telegram.handleTelegramUpdate({
     callback_query: {
-      id: 'cb_buy_1',
-      data: 'buy:chatgpt-plus-1m:1',
+      id: 'cb_pkg_1',
+      data: `pkg:${product.id}`,
       message: { chat: { id: 91001 }, message_id: 55 },
       from: { id: 91001, username: 'callback-buyer', first_name: 'Callback' }
     }
   });
+  assert.ok(calls.some((call) => call.url.includes('/editMessageText') && call.body.text.includes('Loại tài khoản')));
+  assert.equal((await storage.readStore()).orders.length, 0, 'Viewing a package must not create an order.');
 
-  const sendMessageCalls = calls.filter((call) => call.url.includes('/sendMessage'));
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_buy_review_1',
+      data: `buy:${product.id}:1`,
+      message: { chat: { id: 91001 }, message_id: 55 },
+      from: { id: 91001, username: 'callback-buyer', first_name: 'Callback' }
+    }
+  });
+  assert.ok(calls.some((call) => call.url.includes('/editMessageText') && call.body.text.includes('Xác nhận mua')));
+  assert.equal((await storage.readStore()).orders.length, 0, 'Reviewing checkout must not reserve inventory.');
+
+  calls.length = 0;
+  const confirmUpdate = {
+    callback_query: {
+      id: 'cb_confirm_1',
+      data: `confirm:${product.id}:1`,
+      message: { chat: { id: 91001 }, message_id: 55 },
+      from: { id: 91001, username: 'callback-buyer', first_name: 'Callback' }
+    }
+  };
+  await telegram.handleTelegramUpdate(confirmUpdate);
   assert.ok(calls.some((call) => call.url.includes('/answerCallbackQuery')), 'Callback should be answered.');
-  assert.ok(sendMessageCalls.some((call) => call.body.text.includes('Đơn đã tạo')), 'Buy callback should create an order message.');
-  assert.ok(sendMessageCalls.some((call) => call.body.text.includes('Link thanh toán')), 'Order message should include payment URL.');
+  const receiptCall = calls.find((call) => call.url.includes('/editMessageText') && call.body.text.includes('Đơn đã tạo'));
+  assert.ok(receiptCall, 'Only confirmation should create an order receipt.');
+  assert.ok(receiptCall.body.reply_markup.inline_keyboard.flat().some((button) => button.text === '💳 Thanh toán' && button.url));
+  assert.ok(receiptCall.body.reply_markup.inline_keyboard.flat().some((button) => button.text === '🖼 Xem QR' || button.text === '❌ Hủy đơn'));
 
-  const db = await storage.readStore();
-  assert.equal(db.orders.length, 1);
+  await telegram.handleTelegramUpdate(confirmUpdate);
+  let db = await storage.readStore();
+  assert.equal(db.orders.length, 1, 'Double confirmation must reuse the same checkout.');
+  assert.equal(db.payments.length, 1, 'Double confirmation must not create a second payment.');
   assert.equal(db.orders[0].productSku, 'chatgpt-plus-1m');
 
-  console.log(JSON.stringify({ ok: true, checked: 'telegram buy callback' }, null, 2));
+  const orderId = db.orders[0].id;
+  await telegram.handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_cancel_forged',
+      data: `cancel_yes:${orderId}`,
+      message: { chat: { id: 91002 }, message_id: 56 },
+      from: { id: 91002, username: 'other-buyer', first_name: 'Other' }
+    }
+  });
+  db = await storage.readStore();
+  assert.equal(db.orders[0].status, 'pending_payment', 'Another Telegram user must not cancel this order.');
+
+  await telegram.handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_cancel_owner',
+      data: `cancel_yes:${orderId}`,
+      message: { chat: { id: 91001 }, message_id: 55 },
+      from: { id: 91001, username: 'callback-buyer', first_name: 'Callback' }
+    }
+  });
+  db = await storage.readStore();
+  assert.equal(db.orders[0].status, 'cancelled');
+  assert.equal(db.inventory.find((item) => item.productId === product.id).status, 'available');
+
+  console.log(JSON.stringify({ ok: true, checked: 'telegram checkout confirmation and buyer cancellation' }, null, 2));
 } finally {
   await rm(dataFile, { force: true });
   await rm(startImageFile, { force: true });

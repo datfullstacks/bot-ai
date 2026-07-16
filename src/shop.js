@@ -16,8 +16,12 @@ export const updateProduct = (...args) => activeShopStore().updateProduct(...arg
 export const importInventory = (...args) => activeShopStore().importInventory(...args);
 export const listInventory = (...args) => activeShopStore().listInventory(...args);
 export const createOrderForUser = (...args) => activeShopStore().createOrderForUser(...args);
+export const listOrdersForUser = (...args) => activeShopStore().listOrdersForUser(...args);
+export const getOrderCheckoutForUser = (...args) => activeShopStore().getOrderCheckoutForUser(...args);
+export const cancelOrderForUser = (...args) => activeShopStore().cancelOrderForUser(...args);
 export const listOrders = (...args) => activeShopStore().listOrders(...args);
 export const listPayments = (...args) => activeShopStore().listPayments(...args);
+export const getPublicPaymentStatus = (...args) => activeShopStore().getPublicPaymentStatus(...args);
 export const listAuditLogs = (...args) => activeShopStore().listAuditLogs(...args);
 export const recordAudit = (...args) => activeShopStore().recordAudit(...args);
 export const applyPaymentEvent = (...args) => activeShopStore().applyPaymentEvent(...args);

@@ -232,7 +232,22 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     sortOrder: 330,
     officialPriceNote: 'Discord account is free; Nitro pricing varies by region'
   }
-].map((product) => normalizeProductInput(product));
+].map((product) => normalizeProductInput({
+  ...product,
+  accountType: product.accountType || inferAccountType(product),
+  warrantyPolicy: product.warrantyPolicy
+    || 'Hỗ trợ kiểm tra lỗi đăng nhập trong thời hạn gói; thời gian xử lý được xác nhận theo từng sản phẩm.',
+  replacementPolicy: product.replacementPolicy
+    || 'Đổi thông tin khi lỗi thuộc dữ liệu shop giao và được xác minh; không áp dụng khi khách tự thay đổi bảo mật hoặc vi phạm chính sách nền tảng.'
+}));
+
+function inferAccountType(product = {}) {
+  const packageType = String(product.packageType || '').toLowerCase();
+  if (packageType.includes('pack')) return 'Gói nhiều tài khoản, bàn giao theo số lượng ghi trên sản phẩm.';
+  if (packageType.includes('slot')) return 'Slot thành viên trong workspace/team.';
+  if (packageType.includes('verified')) return 'Tài khoản đã chuẩn bị theo trạng thái mô tả.';
+  return 'Tài khoản hoặc quyền truy cập số theo đúng mô tả gói.';
+}
 
 export function normalizeProductInput(input = {}) {
   return {
@@ -247,7 +262,10 @@ export function normalizeProductInput(input = {}) {
     sortOrder: Number(input.sortOrder || 1000),
     active: input.active !== false,
     hot: input.hot === true || String(input.hot || '').toLowerCase() === 'true',
-    officialPriceNote: String(input.officialPriceNote || '').trim()
+    officialPriceNote: String(input.officialPriceNote || '').trim(),
+    accountType: String(input.accountType || '').trim(),
+    warrantyPolicy: String(input.warrantyPolicy || '').trim(),
+    replacementPolicy: String(input.replacementPolicy || input.exchangePolicy || '').trim()
   };
 }
 
@@ -259,7 +277,10 @@ export function normalizePublicProduct(product = {}) {
     packageType: String(product.packageType || '').trim(),
     sortOrder: Number(product.sortOrder || 1000),
     hot: product.hot === true || String(product.hot || '').toLowerCase() === 'true',
-    officialPriceNote: String(product.officialPriceNote || '').trim()
+    officialPriceNote: String(product.officialPriceNote || '').trim(),
+    accountType: String(product.accountType || '').trim(),
+    warrantyPolicy: String(product.warrantyPolicy || '').trim(),
+    replacementPolicy: String(product.replacementPolicy || product.exchangePolicy || '').trim()
   };
 }
 

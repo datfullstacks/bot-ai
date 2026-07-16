@@ -9,12 +9,15 @@ assert.ok(DEFAULT_CATALOG_PRODUCTS.length >= 10, 'Catalog should include account
 
 const bySku = new Map(DEFAULT_CATALOG_PRODUCTS.map((product) => [product.sku, product]));
 for (const product of DEFAULT_CATALOG_PRODUCTS) {
-  const visibleText = `${product.name} ${product.description}`;
+  const visibleText = `${product.name} ${product.description} ${product.accountType} ${product.warrantyPolicy} ${product.replacementPolicy}`;
   assert.equal(
     /Ã|Â|Æ|Ä|áº|á»/.test(visibleText),
     false,
     `Catalog text should be readable UTF-8, found mojibake in ${product.sku}`
   );
+  assert.ok(product.accountType, `${product.sku} should describe the account type.`);
+  assert.ok(product.warrantyPolicy, `${product.sku} should describe warranty coverage.`);
+  assert.ok(product.replacementPolicy, `${product.sku} should describe replacement conditions.`);
 }
 
 for (const sku of [
@@ -70,7 +73,10 @@ const normalized = normalizeProductInput({
   price: '99000',
   currency: '',
   hot: true,
-  officialPriceNote: 'Official: $20/mo'
+  officialPriceNote: 'Official: $20/mo',
+  accountType: 'Tài khoản riêng',
+  warrantyPolicy: 'Bảo hành 30 ngày',
+  replacementPolicy: 'Đổi khi lỗi bàn giao'
 });
 
 assert.deepEqual(normalized, {
@@ -85,7 +91,10 @@ assert.deepEqual(normalized, {
   sortOrder: 1000,
   active: true,
   hot: true,
-  officialPriceNote: 'Official: $20/mo'
+  officialPriceNote: 'Official: $20/mo',
+  accountType: 'Tài khoản riêng',
+  warrantyPolicy: 'Bảo hành 30 ngày',
+  replacementPolicy: 'Đổi khi lỗi bàn giao'
 });
 
 assert.equal(brandSortKey({ category: 'AI Accounts', brand: 'ChatGPT', sortOrder: 10 }), 'AI Accounts\x00ChatGPT\x00000010');

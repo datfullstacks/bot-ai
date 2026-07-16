@@ -13,6 +13,7 @@ import {
   expireOrders,
   getDashboardSummary,
   getDeliveryForOrder,
+  getPublicPaymentStatus,
   importInventory,
   listAuditLogs,
   listInventory,
@@ -47,6 +48,16 @@ function sendJson(res, status, body, headers = {}) {
     ...headers
   });
   res.end(JSON.stringify(body));
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
 }
 
 async function readRawBody(req) {
@@ -161,7 +172,18 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/public/telegram/webhook' && req.method === 'POST') {
-    if (config.telegram.webhookSecret && searchParams.get('secret') !== config.telegram.webhookSecret) {
+    if (config.telegram.polling) {
+      return sendJson(res, 404, { error: 'Telegram webhook is disabled while polling is enabled' });
+    }
+    if (!config.telegram.webhookSecret) {
+      return sendJson(res, 503, { error: 'Telegram webhook is not configured' });
+    }
+    const suppliedSecret = String(
+      req.headers['x-telegram-bot-api-secret-token']
+      || searchParams.get('secret')
+      || ''
+    );
+    if (suppliedSecret !== config.telegram.webhookSecret) {
       return sendJson(res, 401, { error: 'Invalid webhook secret' });
     }
     const { body } = await readJson(req);
@@ -170,6 +192,9 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/public/payments/mock-webhook' && req.method === 'POST') {
+    if (process.env.NODE_ENV === 'production' || config.payment.provider !== 'mock') {
+      return sendJson(res, 404, { error: 'Mock payment webhook is disabled' });
+    }
     const { rawBody, body } = await readJson(req);
     const event = await paymentProviders.mock.verifyWebhook({
       rawBody,
@@ -177,8 +202,11 @@ async function handleApi(req, res, url) {
       signature: req.headers['x-payment-signature']
     });
     const result = await applyPaymentEvent(event);
-    if (result.order?.id) await notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message));
-    return sendJson(res, 200, { ok: true, result });
+    sendJson(res, 200, { ok: true, result });
+    if (result.order?.id) {
+      setImmediate(() => notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message)));
+    }
+    return;
   }
 
   if (pathname === '/api/public/payments/sepay-webhook' && req.method === 'POST') {
@@ -189,8 +217,18 @@ async function handleApi(req, res, url) {
       headers: req.headers
     });
     const result = await applyPaymentEvent(event, 'sepay-webhook');
-    if (result.order?.id) await notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message));
-    return sendJson(res, 200, { success: true });
+    sendJson(res, 200, { success: true });
+    if (result.order?.id) {
+      setImmediate(() => notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message)));
+    }
+    return;
+  }
+
+  const paymentStatusParams = routeParams('/api/public/payments/:providerPaymentId/status', pathname);
+  if (paymentStatusParams && req.method === 'GET') {
+    const status = await getPublicPaymentStatus(paymentStatusParams.providerPaymentId);
+    if (!status) return sendJson(res, 404, { error: 'Payment not found' });
+    return sendJson(res, 200, status, { 'cache-control': 'no-store' });
   }
 
   const admin = await requireAdminForRequest(req, res);
@@ -360,25 +398,65 @@ async function handleSePayPage(req, res, pathname) {
     return true;
   }
 
+  const providerPaymentId = String(payment.providerPaymentId || '');
   const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SePay Payment</title>
+  <title>Thanh toán đơn hàng</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="pay-page">
   <main class="pay-box">
-    <h1>SePay QR</h1>
-    <p>Reference: <strong>${payment.reference}</strong></p>
-    <p>Bank: <strong>${payment.bankCode}</strong></p>
-    <p>Account: <strong>${payment.accountNumber}</strong></p>
-    <p>Amount: <strong>${Number(payment.amount).toLocaleString('vi-VN')} ${payment.currency}</strong></p>
-    <p>Memo: <strong>${payment.memo || payment.reference}</strong></p>
-    <p>Status: <strong>${payment.status}</strong></p>
-    ${payment.qrImageUrl ? `<img class="qr-image" src="${payment.qrImageUrl}" alt="SePay QR">` : ''}
+    <h1>Thanh toán qua SePay</h1>
+    <p>Quét QR hoặc chuyển khoản đúng số tiền và nội dung bên dưới.</p>
+    ${payment.qrImageUrl ? `<img class="qr-image" src="${escapeHtml(payment.qrImageUrl)}" alt="Mã QR thanh toán SePay">` : ''}
+    <p>Ngân hàng: <strong>${escapeHtml(payment.bankCode)}</strong></p>
+    <p>Số tài khoản: <strong id="accountNumber">${escapeHtml(payment.accountNumber)}</strong></p>
+    <p>Số tiền: <strong>${Number(payment.amount).toLocaleString('vi-VN')} ${escapeHtml(payment.currency)}</strong></p>
+    <p>Nội dung: <strong id="paymentMemo">${escapeHtml(payment.memo || payment.reference)}</strong></p>
+    <p>Trạng thái: <strong id="paymentStatus">${escapeHtml(payment.status)}</strong></p>
+    <div class="actions">
+      <button type="button" data-copy="accountNumber">Sao chép số tài khoản</button>
+      <button type="button" data-copy="paymentMemo">Sao chép nội dung</button>
+    </div>
+    <p id="paymentNotice">Trang sẽ tự cập nhật khi SePay xác nhận giao dịch.</p>
   </main>
+  <script>
+    const providerPaymentId = ${JSON.stringify(providerPaymentId)};
+    document.querySelectorAll('[data-copy]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const value = document.getElementById(button.dataset.copy)?.textContent || '';
+        await navigator.clipboard.writeText(value);
+        const original = button.textContent;
+        button.textContent = 'Đã sao chép';
+        setTimeout(() => { button.textContent = original; }, 1200);
+      });
+    });
+    async function refreshPaymentStatus() {
+      try {
+        const response = await fetch('/api/public/payments/' + encodeURIComponent(providerPaymentId) + '/status', {
+          cache: 'no-store'
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        document.getElementById('paymentStatus').textContent = data.orderStatus || data.paymentStatus;
+        if (['paid', 'delivered'].includes(data.paymentStatus) || data.orderStatus === 'delivered') {
+          document.getElementById('paymentNotice').textContent = 'Thanh toán đã được xác nhận. Kiểm tra Telegram để nhận hàng.';
+          return;
+        }
+        if (['cancelled', 'expired', 'payment_review', 'refunded'].includes(data.orderStatus)) {
+          document.getElementById('paymentNotice').textContent = 'Đơn cần được kiểm tra. Vui lòng quay lại Telegram và liên hệ hỗ trợ.';
+          return;
+        }
+        setTimeout(refreshPaymentStatus, 3000);
+      } catch {
+        setTimeout(refreshPaymentStatus, 5000);
+      }
+    }
+    refreshPaymentStatus();
+  </script>
 </body>
 </html>`;
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });

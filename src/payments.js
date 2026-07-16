@@ -1,6 +1,7 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { config, nowIso } from './config.js';
 import { makeId } from './storage.js';
+import { strongWebhookCredential } from './webhookSecurity.js';
 
 function hmac(body) {
   return createHmac('sha256', config.payment.webhookSecret).update(body).digest('hex');
@@ -21,8 +22,14 @@ function safeEqualHex(a, b) {
 }
 
 function compactCode(prefix) {
-  const cleanPrefix = String(prefix || 'KAITO').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) || 'KAITO';
-  const stamp = Date.now().toString(36).toUpperCase();
+  const cleanPrefix = String(prefix || 'KAITO').trim().toUpperCase();
+  if (!/^[A-Z0-9]{2,5}$/.test(cleanPrefix)) {
+    throw Object.assign(
+      new Error('SEPAY_PAYMENT_PREFIX must contain 2-5 letters or numbers'),
+      { statusCode: 500 }
+    );
+  }
+  const stamp = Date.now().toString(36).toUpperCase().padStart(9, '0').slice(-9);
   const random = randomBytes(3).toString('hex').toUpperCase();
   return `${cleanPrefix}${stamp}${random}`;
 }
@@ -73,7 +80,7 @@ export class MockPaymentProvider {
   }
 
   async verifyWebhook({ rawBody, body, signature }) {
-    if (signature && !safeEqualHex(signature, hmac(rawBody))) {
+    if (!signature || !safeEqualHex(signature, hmac(rawBody))) {
       throw Object.assign(new Error('Invalid payment signature'), { statusCode: 401 });
     }
 
@@ -106,15 +113,24 @@ export class SePayPaymentProvider {
   }
 
   async createPayment(input) {
+    const amount = Number(input.amount);
+    const currency = String(input.currency || '').trim().toUpperCase();
+    if (currency !== 'VND') {
+      throw Object.assign(new Error('SePay payments require VND currency'), { statusCode: 400 });
+    }
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      throw Object.assign(new Error('SePay payment amount must be a positive integer'), { statusCode: 400 });
+    }
+
     const reference = compactCode(config.sepay.paymentPrefix);
     const providerPaymentId = reference;
-    const qrImageUrl = sepayQrUrl({ amount: input.amount, reference });
+    const qrImageUrl = sepayQrUrl({ amount, reference });
 
     return {
       provider: this.name,
       providerPaymentId,
       reference,
-      amount: input.amount,
+      amount,
       currency: 'VND',
       paymentUrl: `${this.baseUrl}/pay/sepay/${providerPaymentId}`,
       qrImageUrl,
@@ -130,17 +146,60 @@ export class SePayPaymentProvider {
   async verifyWebhook({ rawBody, body, headers = {} }) {
     this.verifyWebhookAuth(rawBody, headers);
 
+    const transactionId = String(body.id ?? '').trim();
+    if (!transactionId) {
+      throw Object.assign(new Error('SePay transaction id is required'), { statusCode: 400 });
+    }
+
+    if (transactionId === '0') {
+      const fingerprint = createHash('sha256').update(rawBody).digest('hex').slice(0, 24);
+      return {
+        id: `sepay_test_${fingerprint}`,
+        test: true,
+        provider: this.name,
+        providerPaymentId: '',
+        reference: '',
+        bankReference: 'test',
+        amount: Number(body.transferAmount || 0),
+        currency: 'VND',
+        status: 'ignored',
+        raw: body,
+        receivedAt: nowIso()
+      };
+    }
+
+    const accountNumber = String(body.accountNumber || '').trim();
+    if (
+      config.sepay.webhookAccountNumbers.length
+      && !config.sepay.webhookAccountNumbers.includes(accountNumber)
+    ) {
+      throw Object.assign(new Error('Unexpected SePay destination account'), { statusCode: 401 });
+    }
+
+    const gateway = String(body.gateway || '').trim();
+    if (
+      config.sepay.webhookGateways.length
+      && !config.sepay.webhookGateways.some((value) => value.toLowerCase() === gateway.toLowerCase())
+    ) {
+      throw Object.assign(new Error('Unexpected SePay gateway'), { statusCode: 401 });
+    }
+
     const code = String(body.code || '').trim();
-    const reference = code || String(body.referenceCode || body.id || '').trim();
+    const bankReference = String(body.referenceCode || transactionId).trim();
     const transferType = String(body.transferType || '').toLowerCase();
     const isIncoming = transferType === 'in';
+    const amount = Number(body.transferAmount || 0);
+    if (isIncoming && (!Number.isSafeInteger(amount) || amount <= 0)) {
+      throw Object.assign(new Error('Invalid SePay transfer amount'), { statusCode: 400 });
+    }
 
     return {
-      id: `sepay_${body.id || body.referenceCode || makeId('evt')}`,
+      id: `sepay_${transactionId}`,
       provider: this.name,
       providerPaymentId: code,
-      reference,
-      amount: Number(body.transferAmount || 0),
+      reference: code,
+      bankReference,
+      amount,
       currency: 'VND',
       status: isIncoming ? 'paid' : 'ignored',
       raw: body,
@@ -150,18 +209,30 @@ export class SePayPaymentProvider {
 
   verifyWebhookAuth(rawBody, headers) {
     const authMode = config.sepay.webhookAuth;
-    if (authMode === 'none') return;
+    if (authMode === 'none') {
+      if (process.env.NODE_ENV === 'production') {
+        throw Object.assign(new Error('SEPAY_WEBHOOK_AUTH=none is not allowed in production'), { statusCode: 500 });
+      }
+      return;
+    }
 
     if (authMode === 'api_key' || authMode === 'apikey') {
+      if (!strongWebhookCredential(config.sepay.webhookApiKey)) {
+        throw Object.assign(new Error('SEPAY_WEBHOOK_API_KEY is missing or too weak'), { statusCode: 500 });
+      }
       const expected = `Apikey ${config.sepay.webhookApiKey}`;
-      if (!config.sepay.webhookApiKey || !safeEqualText(headers.authorization, expected)) {
+      if (!safeEqualText(headers.authorization, expected)) {
         throw Object.assign(new Error('Invalid SePay API key'), { statusCode: 401 });
       }
       return;
     }
 
-    if (!config.sepay.webhookSecret) {
-      throw Object.assign(new Error('SEPAY_WEBHOOK_SECRET is required'), { statusCode: 500 });
+    if (authMode !== 'hmac') {
+      throw Object.assign(new Error(`Unsupported SEPAY_WEBHOOK_AUTH: ${authMode}`), { statusCode: 500 });
+    }
+
+    if (!strongWebhookCredential(config.sepay.webhookSecret)) {
+      throw Object.assign(new Error('SEPAY_WEBHOOK_SECRET is missing or too weak'), { statusCode: 500 });
     }
 
     const signature = String(headers['x-sepay-signature'] || '');
@@ -195,5 +266,9 @@ export const paymentProviders = {
   mock: new MockPaymentProvider(),
   sepay: new SePayPaymentProvider()
 };
+
+if (!paymentProviders[config.payment.provider] && process.env.NODE_ENV === 'production') {
+  throw new Error(`Unsupported PAYMENT_PROVIDER: ${config.payment.provider}`);
+}
 
 export const paymentProvider = paymentProviders[config.payment.provider] || paymentProviders.mock;
