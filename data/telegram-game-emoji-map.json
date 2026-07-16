@@ -1,0 +1,35 @@
+{
+  "packName": "kaito_ai_shop_game_emoji_by_kaitokidaibot",
+  "title": "KAITO AI SHOP Game Emoji",
+  "stickerType": "custom_emoji",
+  "stickerFormat": "animated",
+  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\game-emoji",
+  "dryRun": false,
+  "generatedAt": "2026-06-15T07:58:01.653Z",
+  "customEmojiIdsByFile": {
+    "products.tgs": "6159074727001333630"
+  },
+  "customEmojiIdsByBrand": {
+    "products": [
+      "6159074727001333630"
+    ]
+  },
+  "fileIdsByFile": {
+    "products.tgs": "CAACAgUAAxUAAWovsIW-sP9-AQSGds0ibX0rcCP_AAJ-HwAC1W15VQGPcLV2vs9KPAQ"
+  },
+  "fileIdsByBrand": {
+    "products": [
+      "CAACAgUAAxUAAWovsIW-sP9-AQSGds0ibX0rcCP_AAJ-HwAC1W15VQGPcLV2vs9KPAQ"
+    ]
+  },
+  "stickers": [
+    {
+      "brand": "products",
+      "brandKey": "products",
+      "fileName": "products.tgs",
+      "emoji": "🛒",
+      "fileId": "CAACAgUAAxUAAWovsIW-sP9-AQSGds0ibX0rcCP_AAJ-HwAC1W15VQGPcLV2vs9KPAQ",
+      "customEmojiId": "6159074727001333630"
+    }
+  ]
+}

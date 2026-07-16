@@ -1,0 +1,469 @@
+{
+  "ok": true,
+  "sourceImage": "C:\\Users\\Dat\\Downloads\\ChatGPT Image May 20, 2026, 03_03_35 AM.png",
+  "outputDir": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji",
+  "cropDir": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source",
+  "generated": 20,
+  "files": [
+    {
+      "key": "products",
+      "label": "San pham",
+      "emoji": "🛒",
+      "effect": "shake",
+      "color": "#facc15",
+      "roughBox": [
+        0,
+        0,
+        251,
+        314
+      ],
+      "cropBox": [
+        39,
+        100,
+        236,
+        270
+      ],
+      "cropName": "products.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\products.png",
+      "motionName": "products.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\products.webm"
+    },
+    {
+      "key": "topup",
+      "label": "Nap tien",
+      "emoji": "💳",
+      "effect": "pulse-glow",
+      "color": "#22c55e",
+      "roughBox": [
+        251,
+        0,
+        502,
+        314
+      ],
+      "cropBox": [
+        297,
+        88,
+        479,
+        270
+      ],
+      "cropName": "topup.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\topup.png",
+      "motionName": "topup.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\topup.webm"
+    },
+    {
+      "key": "account",
+      "label": "Tai khoan",
+      "emoji": "👤",
+      "effect": "blink",
+      "color": "#22d3ee",
+      "roughBox": [
+        502,
+        0,
+        752,
+        314
+      ],
+      "cropBox": [
+        535,
+        88,
+        719,
+        270
+      ],
+      "cropName": "account.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\account.png",
+      "motionName": "account.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\account.webm"
+    },
+    {
+      "key": "orders",
+      "label": "Don hang",
+      "emoji": "📦",
+      "effect": "pop",
+      "color": "#fb923c",
+      "roughBox": [
+        752,
+        0,
+        1003,
+        314
+      ],
+      "cropBox": [
+        767,
+        86,
+        986,
+        270
+      ],
+      "cropName": "orders.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\orders.png",
+      "motionName": "orders.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\orders.webm"
+    },
+    {
+      "key": "language",
+      "label": "Doi ngon ngu",
+      "emoji": "🌐",
+      "effect": "rotate",
+      "color": "#a855f7",
+      "roughBox": [
+        1003,
+        0,
+        1254,
+        314
+      ],
+      "cropBox": [
+        1018,
+        98,
+        1215,
+        270
+      ],
+      "cropName": "language.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\language.png",
+      "motionName": "language.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\language.webm"
+    },
+    {
+      "key": "support",
+      "label": "Ho tro",
+      "emoji": "🎧",
+      "effect": "neon-flicker",
+      "color": "#f472b6",
+      "roughBox": [
+        0,
+        314,
+        251,
+        627
+      ],
+      "cropBox": [
+        39,
+        375,
+        236,
+        583
+      ],
+      "cropName": "support.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\support.png",
+      "motionName": "support.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\support.webm"
+    },
+    {
+      "key": "security",
+      "label": "Bao mat",
+      "emoji": "🛡️",
+      "effect": "sweep-glow",
+      "color": "#38bdf8",
+      "roughBox": [
+        251,
+        314,
+        502,
+        627
+      ],
+      "cropBox": [
+        292,
+        379,
+        473,
+        583
+      ],
+      "cropName": "security.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\security.png",
+      "motionName": "security.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\security.webm"
+    },
+    {
+      "key": "instant-delivery",
+      "label": "Giao hang tuc thi",
+      "emoji": "⚡",
+      "effect": "flash",
+      "color": "#facc15",
+      "roughBox": [
+        502,
+        314,
+        752,
+        627
+      ],
+      "cropBox": [
+        549,
+        370,
+        705,
+        572
+      ],
+      "cropName": "instant-delivery.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\instant-delivery.png",
+      "motionName": "instant-delivery.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\instant-delivery.webm"
+    },
+    {
+      "key": "automation-247",
+      "label": "Tu dong 24/7",
+      "emoji": "🔄",
+      "effect": "trail-rotate",
+      "color": "#22c55e",
+      "roughBox": [
+        752,
+        314,
+        1003,
+        627
+      ],
+      "cropBox": [
+        771,
+        381,
+        960,
+        583
+      ],
+      "cropName": "automation-247.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\automation-247.png",
+      "motionName": "automation-247.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\automation-247.webm"
+    },
+    {
+      "key": "quality",
+      "label": "Chat luong uy tin",
+      "emoji": "⭐",
+      "effect": "soft-pulse",
+      "color": "#facc15",
+      "roughBox": [
+        1003,
+        314,
+        1254,
+        627
+      ],
+      "cropBox": [
+        1018,
+        372,
+        1204,
+        583
+      ],
+      "cropName": "quality.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\quality.png",
+      "motionName": "quality.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\quality.webm"
+    },
+    {
+      "key": "member",
+      "label": "Thanh vien",
+      "emoji": "👑",
+      "effect": "neon-glow",
+      "color": "#facc15",
+      "roughBox": [
+        0,
+        627,
+        251,
+        940
+      ],
+      "cropBox": [
+        36,
+        676,
+        236,
+        853
+      ],
+      "cropName": "member.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\member.png",
+      "motionName": "member.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\member.webm"
+    },
+    {
+      "key": "offers",
+      "label": "Uu dai",
+      "emoji": "🎁",
+      "effect": "open-scale",
+      "color": "#d946ef",
+      "roughBox": [
+        251,
+        627,
+        502,
+        940
+      ],
+      "cropBox": [
+        288,
+        660,
+        481,
+        870
+      ],
+      "cropName": "offers.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\offers.png",
+      "motionName": "offers.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\offers.webm"
+    },
+    {
+      "key": "notifications",
+      "label": "Thong bao",
+      "emoji": "📣",
+      "effect": "alert-shake",
+      "color": "#ef4444",
+      "roughBox": [
+        502,
+        627,
+        752,
+        940
+      ],
+      "cropBox": [
+        517,
+        658,
+        733,
+        867
+      ],
+      "cropName": "notifications.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\notifications.png",
+      "motionName": "notifications.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\notifications.webm"
+    },
+    {
+      "key": "promotions",
+      "label": "Khuyen mai",
+      "emoji": "🎫",
+      "effect": "slide-glow",
+      "color": "#22d3ee",
+      "roughBox": [
+        752,
+        627,
+        1003,
+        940
+      ],
+      "cropBox": [
+        767,
+        680,
+        974,
+        852
+      ],
+      "cropName": "promotions.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\promotions.png",
+      "motionName": "promotions.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\promotions.webm"
+    },
+    {
+      "key": "reviews",
+      "label": "Danh gia",
+      "emoji": "✨",
+      "effect": "sparkle",
+      "color": "#f472b6",
+      "roughBox": [
+        1003,
+        627,
+        1254,
+        940
+      ],
+      "cropBox": [
+        1018,
+        663,
+        1203,
+        855
+      ],
+      "cropName": "reviews.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\reviews.png",
+      "motionName": "reviews.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\reviews.webm"
+    },
+    {
+      "key": "academy",
+      "label": "Hoc vien",
+      "emoji": "🎓",
+      "effect": "drop-glow",
+      "color": "#84cc16",
+      "roughBox": [
+        0,
+        940,
+        251,
+        1254
+      ],
+      "cropBox": [
+        24,
+        971,
+        236,
+        1133
+      ],
+      "cropName": "academy.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\academy.png",
+      "motionName": "academy.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\academy.webm"
+    },
+    {
+      "key": "news",
+      "label": "Tin tuc",
+      "emoji": "📄",
+      "effect": "scroll-fade",
+      "color": "#f59e0b",
+      "roughBox": [
+        251,
+        940,
+        502,
+        1254
+      ],
+      "cropBox": [
+        301,
+        971,
+        461,
+        1128
+      ],
+      "cropName": "news.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\news.png",
+      "motionName": "news.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\news.webm"
+    },
+    {
+      "key": "events",
+      "label": "Su kien",
+      "emoji": "🎮",
+      "effect": "pop-glow",
+      "color": "#8b5cf6",
+      "roughBox": [
+        502,
+        940,
+        752,
+        1254
+      ],
+      "cropBox": [
+        517,
+        971,
+        735,
+        1122
+      ],
+      "cropName": "events.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\events.png",
+      "motionName": "events.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\events.webm"
+    },
+    {
+      "key": "policy",
+      "label": "Chinh sach",
+      "emoji": "🛡️",
+      "effect": "sweep-glow",
+      "color": "#22d3ee",
+      "roughBox": [
+        752,
+        940,
+        1003,
+        1254
+      ],
+      "cropBox": [
+        780,
+        971,
+        948,
+        1143
+      ],
+      "cropName": "policy.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\policy.png",
+      "motionName": "policy.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\policy.webm"
+    },
+    {
+      "key": "logout",
+      "label": "Dang xuat",
+      "emoji": "⏻",
+      "effect": "power-fade",
+      "color": "#ef4444",
+      "roughBox": [
+        1003,
+        940,
+        1254,
+        1254
+      ],
+      "cropBox": [
+        1019,
+        971,
+        1196,
+        1133
+      ],
+      "cropName": "logout.png",
+      "cropPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji-source\\logout.png",
+      "motionName": "logout.webm",
+      "motionPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\menu-emoji\\logout.webm"
+    }
+  ]
+}

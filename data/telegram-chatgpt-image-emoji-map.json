@@ -1,0 +1,147 @@
+{
+  "packName": "kaito_ai_shop_magic_icons_0517_by_kaitokidaibot",
+  "title": "KAITO AI SHOP Magic Icons",
+  "stickerType": "custom_emoji",
+  "stickerFormat": "static",
+  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\custom-emoji\\chatgpt-image-20260517-045225-pack",
+  "dryRun": false,
+  "generatedAt": "2026-05-17T04:34:45.903Z",
+  "customEmojiIdsByFile": {
+    "crystal.png": "6073581272670674528",
+    "delivery-drone.png": "6073497202980823733",
+    "globe.png": "6073404298543243282",
+    "helmet.png": "6075699752404525432",
+    "key.png": "6073434393379085681",
+    "payment-card.png": "6073175449800810040",
+    "scroll.png": "6073297564310970071",
+    "treasure-chest.png": "6073215938457509283"
+  },
+  "customEmojiIdsByBrand": {
+    "crystal": [
+      "6073581272670674528"
+    ],
+    "deliverydrone": [
+      "6073497202980823733"
+    ],
+    "globe": [
+      "6073404298543243282"
+    ],
+    "helmet": [
+      "6075699752404525432"
+    ],
+    "key": [
+      "6073434393379085681"
+    ],
+    "paymentcard": [
+      "6073175449800810040"
+    ],
+    "scroll": [
+      "6073297564310970071"
+    ],
+    "treasurechest": [
+      "6073215938457509283"
+    ]
+  },
+  "fileIdsByFile": {
+    "crystal.png": "CAACAgUAAxUAAWoJRWQsEuoHrSXU3xKqbybmp2G0AAJgHgAC_bFJVBkV315V0lxnOwQ",
+    "delivery-drone.png": "CAACAgUAAxUAAWoJRWR5VCWKHUcSb-QawpdAbU88AAK1IgACh2VJVDWDqG0XjM8DOwQ",
+    "globe.png": "CAACAgUAAxUAAWoJRWSsjEvmCfr78wABqpWHdAebAAMSIAACCBFJVHRA3Kr65lTiOwQ",
+    "helmet.png": "CAACAgUAAxUAAWoJRWTtglzuJluk-13NQ9l0I7b1AAJ4IQACvDhRVBinrG612Vg4OwQ",
+    "key.png": "CAACAgUAAxUAAWoJRWRNBe0VS6S1z3LvCKoWo6sjAAJxHQACZyxJVP3HU8y3RTbPOwQ",
+    "payment-card.png": "CAACAgUAAxUAAWoJRWSNECDfd3hUtHATp8b29Tc1AAI4HgAC5UBIVM5kt7PQ7o5uOwQ",
+    "scroll.png": "CAACAgUAAxUAAWoJRWQWtymeNNJruaxJZVwopAuUAALXHgAC9a9IVA4y-adZ9jH_OwQ",
+    "treasure-chest.png": "CAACAgUAAxUAAWoJRWRCBCGQxQ5YP-15gDAq0I8vAAKjHQACuGVIVPRjJ-VSTLVYOwQ"
+  },
+  "fileIdsByBrand": {
+    "crystal": [
+      "CAACAgUAAxUAAWoJRWQsEuoHrSXU3xKqbybmp2G0AAJgHgAC_bFJVBkV315V0lxnOwQ"
+    ],
+    "deliverydrone": [
+      "CAACAgUAAxUAAWoJRWR5VCWKHUcSb-QawpdAbU88AAK1IgACh2VJVDWDqG0XjM8DOwQ"
+    ],
+    "globe": [
+      "CAACAgUAAxUAAWoJRWSsjEvmCfr78wABqpWHdAebAAMSIAACCBFJVHRA3Kr65lTiOwQ"
+    ],
+    "helmet": [
+      "CAACAgUAAxUAAWoJRWTtglzuJluk-13NQ9l0I7b1AAJ4IQACvDhRVBinrG612Vg4OwQ"
+    ],
+    "key": [
+      "CAACAgUAAxUAAWoJRWRNBe0VS6S1z3LvCKoWo6sjAAJxHQACZyxJVP3HU8y3RTbPOwQ"
+    ],
+    "paymentcard": [
+      "CAACAgUAAxUAAWoJRWSNECDfd3hUtHATp8b29Tc1AAI4HgAC5UBIVM5kt7PQ7o5uOwQ"
+    ],
+    "scroll": [
+      "CAACAgUAAxUAAWoJRWQWtymeNNJruaxJZVwopAuUAALXHgAC9a9IVA4y-adZ9jH_OwQ"
+    ],
+    "treasurechest": [
+      "CAACAgUAAxUAAWoJRWRCBCGQxQ5YP-15gDAq0I8vAAKjHQACuGVIVPRjJ-VSTLVYOwQ"
+    ]
+  },
+  "stickers": [
+    {
+      "brand": "crystal",
+      "brandKey": "crystal",
+      "fileName": "crystal.png",
+      "emoji": "💎",
+      "fileId": "CAACAgUAAxUAAWoJRWQsEuoHrSXU3xKqbybmp2G0AAJgHgAC_bFJVBkV315V0lxnOwQ",
+      "customEmojiId": "6073581272670674528"
+    },
+    {
+      "brand": "delivery-drone",
+      "brandKey": "deliverydrone",
+      "fileName": "delivery-drone.png",
+      "emoji": "🚚",
+      "fileId": "CAACAgUAAxUAAWoJRWR5VCWKHUcSb-QawpdAbU88AAK1IgACh2VJVDWDqG0XjM8DOwQ",
+      "customEmojiId": "6073497202980823733"
+    },
+    {
+      "brand": "globe",
+      "brandKey": "globe",
+      "fileName": "globe.png",
+      "emoji": "🌐",
+      "fileId": "CAACAgUAAxUAAWoJRWSsjEvmCfr78wABqpWHdAebAAMSIAACCBFJVHRA3Kr65lTiOwQ",
+      "customEmojiId": "6073404298543243282"
+    },
+    {
+      "brand": "helmet",
+      "brandKey": "helmet",
+      "fileName": "helmet.png",
+      "emoji": "🛡️",
+      "fileId": "CAACAgUAAxUAAWoJRWTtglzuJluk-13NQ9l0I7b1AAJ4IQACvDhRVBinrG612Vg4OwQ",
+      "customEmojiId": "6075699752404525432"
+    },
+    {
+      "brand": "key",
+      "brandKey": "key",
+      "fileName": "key.png",
+      "emoji": "🔑",
+      "fileId": "CAACAgUAAxUAAWoJRWRNBe0VS6S1z3LvCKoWo6sjAAJxHQACZyxJVP3HU8y3RTbPOwQ",
+      "customEmojiId": "6073434393379085681"
+    },
+    {
+      "brand": "payment-card",
+      "brandKey": "paymentcard",
+      "fileName": "payment-card.png",
+      "emoji": "💳",
+      "fileId": "CAACAgUAAxUAAWoJRWSNECDfd3hUtHATp8b29Tc1AAI4HgAC5UBIVM5kt7PQ7o5uOwQ",
+      "customEmojiId": "6073175449800810040"
+    },
+    {
+      "brand": "scroll",
+      "brandKey": "scroll",
+      "fileName": "scroll.png",
+      "emoji": "📜",
+      "fileId": "CAACAgUAAxUAAWoJRWQWtymeNNJruaxJZVwopAuUAALXHgAC9a9IVA4y-adZ9jH_OwQ",
+      "customEmojiId": "6073297564310970071"
+    },
+    {
+      "brand": "treasure-chest",
+      "brandKey": "treasurechest",
+      "fileName": "treasure-chest.png",
+      "emoji": "💰",
+      "fileId": "CAACAgUAAxUAAWoJRWRCBCGQxQ5YP-15gDAq0I8vAAKjHQACuGVIVPRjJ-VSTLVYOwQ",
+      "customEmojiId": "6073215938457509283"
+    }
+  ]
+}

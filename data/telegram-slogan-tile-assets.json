@@ -1,0 +1,110 @@
+{
+  "ok": true,
+  "outputDir": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles",
+  "previewPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tile-preview.png",
+  "generated": 6,
+  "slogans": {
+    "daily_update": {
+      "key": "daily_update",
+      "text": "DAILY UPDATE",
+      "fallbackText": "\ud83c\udfab DAILY UPDATE \ud83c\udfab",
+      "emoji": "\ud83c\udfab",
+      "effect": "marquee_text",
+      "placeholder": "\ud83c\udfab\ud83c\udfab\ud83c\udfab\ud83c\udfab\ud83c\udfab\ud83c\udfab",
+      "tiles": [
+        {
+          "index": 0,
+          "key": "daily_update_00",
+          "emoji": "\ud83c\udfab",
+          "fileName": "daily_update_00.webm",
+          "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_00.webm"
+        },
+        {
+          "index": 1,
+          "key": "daily_update_01",
+          "emoji": "\ud83c\udfab",
+          "fileName": "daily_update_01.webm",
+          "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_01.webm"
+        },
+        {
+          "index": 2,
+          "key": "daily_update_02",
+          "emoji": "\ud83c\udfab",
+          "fileName": "daily_update_02.webm",
+          "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_02.webm"
+        },
+        {
+          "index": 3,
+          "key": "daily_update_03",
+          "emoji": "\ud83c\udfab",
+          "fileName": "daily_update_03.webm",
+          "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_03.webm"
+        },
+        {
+          "index": 4,
+          "key": "daily_update_04",
+          "emoji": "\ud83c\udfab",
+          "fileName": "daily_update_04.webm",
+          "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_04.webm"
+        },
+        {
+          "index": 5,
+          "key": "daily_update_05",
+          "emoji": "\ud83c\udfab",
+          "fileName": "daily_update_05.webm",
+          "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_05.webm"
+        }
+      ]
+    }
+  },
+  "files": [
+    {
+      "sloganKey": "daily_update",
+      "index": 0,
+      "key": "daily_update_00",
+      "emoji": "\ud83c\udfab",
+      "fileName": "daily_update_00.webm",
+      "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_00.webm"
+    },
+    {
+      "sloganKey": "daily_update",
+      "index": 1,
+      "key": "daily_update_01",
+      "emoji": "\ud83c\udfab",
+      "fileName": "daily_update_01.webm",
+      "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_01.webm"
+    },
+    {
+      "sloganKey": "daily_update",
+      "index": 2,
+      "key": "daily_update_02",
+      "emoji": "\ud83c\udfab",
+      "fileName": "daily_update_02.webm",
+      "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_02.webm"
+    },
+    {
+      "sloganKey": "daily_update",
+      "index": 3,
+      "key": "daily_update_03",
+      "emoji": "\ud83c\udfab",
+      "fileName": "daily_update_03.webm",
+      "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_03.webm"
+    },
+    {
+      "sloganKey": "daily_update",
+      "index": 4,
+      "key": "daily_update_04",
+      "emoji": "\ud83c\udfab",
+      "fileName": "daily_update_04.webm",
+      "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_04.webm"
+    },
+    {
+      "sloganKey": "daily_update",
+      "index": 5,
+      "key": "daily_update_05",
+      "emoji": "\ud83c\udfab",
+      "fileName": "daily_update_05.webm",
+      "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_05.webm"
+    }
+  ]
+}

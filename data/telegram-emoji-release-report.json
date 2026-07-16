@@ -1,0 +1,236 @@
+{
+  "ok": true,
+  "generatedAt": "2026-06-15T05:40:57.322Z",
+  "dryRun": false,
+  "packs": [
+    {
+      "pack": "slogan-tiles",
+      "assets": {
+        "ok": true,
+        "outputDir": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles",
+        "previewPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tile-preview.png",
+        "generated": 6,
+        "slogans": {
+          "daily_update": {
+            "key": "daily_update",
+            "text": "DAILY UPDATE",
+            "fallbackText": "🎫 DAILY UPDATE 🎫",
+            "emoji": "🎫",
+            "effect": "marquee_text",
+            "placeholder": "🎫🎫🎫🎫🎫🎫",
+            "tiles": [
+              {
+                "index": 0,
+                "key": "daily_update_00",
+                "emoji": "🎫",
+                "fileName": "daily_update_00.webm",
+                "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_00.webm"
+              },
+              {
+                "index": 1,
+                "key": "daily_update_01",
+                "emoji": "🎫",
+                "fileName": "daily_update_01.webm",
+                "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_01.webm"
+              },
+              {
+                "index": 2,
+                "key": "daily_update_02",
+                "emoji": "🎫",
+                "fileName": "daily_update_02.webm",
+                "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_02.webm"
+              },
+              {
+                "index": 3,
+                "key": "daily_update_03",
+                "emoji": "🎫",
+                "fileName": "daily_update_03.webm",
+                "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_03.webm"
+              },
+              {
+                "index": 4,
+                "key": "daily_update_04",
+                "emoji": "🎫",
+                "fileName": "daily_update_04.webm",
+                "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_04.webm"
+              },
+              {
+                "index": 5,
+                "key": "daily_update_05",
+                "emoji": "🎫",
+                "fileName": "daily_update_05.webm",
+                "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_05.webm"
+              }
+            ]
+          }
+        },
+        "files": [
+          {
+            "sloganKey": "daily_update",
+            "index": 0,
+            "key": "daily_update_00",
+            "emoji": "🎫",
+            "fileName": "daily_update_00.webm",
+            "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_00.webm"
+          },
+          {
+            "sloganKey": "daily_update",
+            "index": 1,
+            "key": "daily_update_01",
+            "emoji": "🎫",
+            "fileName": "daily_update_01.webm",
+            "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_01.webm"
+          },
+          {
+            "sloganKey": "daily_update",
+            "index": 2,
+            "key": "daily_update_02",
+            "emoji": "🎫",
+            "fileName": "daily_update_02.webm",
+            "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_02.webm"
+          },
+          {
+            "sloganKey": "daily_update",
+            "index": 3,
+            "key": "daily_update_03",
+            "emoji": "🎫",
+            "fileName": "daily_update_03.webm",
+            "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_03.webm"
+          },
+          {
+            "sloganKey": "daily_update",
+            "index": 4,
+            "key": "daily_update_04",
+            "emoji": "🎫",
+            "fileName": "daily_update_04.webm",
+            "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_04.webm"
+          },
+          {
+            "sloganKey": "daily_update",
+            "index": 5,
+            "key": "daily_update_05",
+            "emoji": "🎫",
+            "fileName": "daily_update_05.webm",
+            "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles\\daily_update_05.webm"
+          }
+        ]
+      },
+      "upload": {
+        "packName": "kaito_ai_shop_daily_update_marquee_by_kaitokidaibot",
+        "title": "KAITO AI SHOP Slogan Tiles",
+        "stickerType": "custom_emoji",
+        "stickerFormat": "video",
+        "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-tiles",
+        "dryRun": false,
+        "generatedAt": "2026-06-15T05:40:57.321Z",
+        "customEmojiIdsByFile": {
+          "daily_update_00.webm": "6161247572431215378",
+          "daily_update_01.webm": "6158819683253361598",
+          "daily_update_02.webm": "6161027339393179887",
+          "daily_update_03.webm": "6161426496473800115",
+          "daily_update_04.webm": "6161111207219567658",
+          "daily_update_05.webm": "6161297973872434886"
+        },
+        "customEmojiIdsByBrand": {
+          "dailyupdate00": [
+            "6161247572431215378"
+          ],
+          "dailyupdate01": [
+            "6158819683253361598"
+          ],
+          "dailyupdate02": [
+            "6161027339393179887"
+          ],
+          "dailyupdate03": [
+            "6161426496473800115"
+          ],
+          "dailyupdate04": [
+            "6161111207219567658"
+          ],
+          "dailyupdate05": [
+            "6161297973872434886"
+          ]
+        },
+        "fileIdsByFile": {
+          "daily_update_00.webm": "CAACAgUAAxUAAWovkGSpx47ZWn_7rPtptjBLwik3AAISGwACBiaBVfdOBPod7bCrPAQ",
+          "daily_update_01.webm": "CAACAgUAAxUAAWovkGRATe5hB_4wxXyQwq9Gjhc1AAK-GwAC34V4VUCiyBBDFuhzPAQ",
+          "daily_update_02.webm": "CAACAgUAAxUAAWovkGTPAAGL14z9b_I1ZWdrLNeYowAC7yAAArldgFV8mAK4dWLVgDwE",
+          "daily_update_03.webm": "CAACAgUAAxUAAWovkGScNRq3l-jMyUXbbENp2m_zAAKzHQACwciBVfyuLqzAvVi1PAQ",
+          "daily_update_04.webm": "CAACAgUAAxUAAWovkGSsKTUzuwvxjT0tHj59iydaAAIqHAADqoBVvlrtwedw5Pc8BA",
+          "daily_update_05.webm": "CAACAgUAAxUAAWovkGTyc3mDTm9HVIqW--SEA9ShAALGHgAC3VOBVdqHRz98_FUtPAQ"
+        },
+        "fileIdsByBrand": {
+          "dailyupdate00": [
+            "CAACAgUAAxUAAWovkGSpx47ZWn_7rPtptjBLwik3AAISGwACBiaBVfdOBPod7bCrPAQ"
+          ],
+          "dailyupdate01": [
+            "CAACAgUAAxUAAWovkGRATe5hB_4wxXyQwq9Gjhc1AAK-GwAC34V4VUCiyBBDFuhzPAQ"
+          ],
+          "dailyupdate02": [
+            "CAACAgUAAxUAAWovkGTPAAGL14z9b_I1ZWdrLNeYowAC7yAAArldgFV8mAK4dWLVgDwE"
+          ],
+          "dailyupdate03": [
+            "CAACAgUAAxUAAWovkGScNRq3l-jMyUXbbENp2m_zAAKzHQACwciBVfyuLqzAvVi1PAQ"
+          ],
+          "dailyupdate04": [
+            "CAACAgUAAxUAAWovkGSsKTUzuwvxjT0tHj59iydaAAIqHAADqoBVvlrtwedw5Pc8BA"
+          ],
+          "dailyupdate05": [
+            "CAACAgUAAxUAAWovkGTyc3mDTm9HVIqW--SEA9ShAALGHgAC3VOBVdqHRz98_FUtPAQ"
+          ]
+        },
+        "stickers": [
+          {
+            "brand": "daily_update_00",
+            "brandKey": "dailyupdate00",
+            "fileName": "daily_update_00.webm",
+            "emoji": "🎫",
+            "fileId": "CAACAgUAAxUAAWovkGSpx47ZWn_7rPtptjBLwik3AAISGwACBiaBVfdOBPod7bCrPAQ",
+            "customEmojiId": "6161247572431215378"
+          },
+          {
+            "brand": "daily_update_01",
+            "brandKey": "dailyupdate01",
+            "fileName": "daily_update_01.webm",
+            "emoji": "🎫",
+            "fileId": "CAACAgUAAxUAAWovkGRATe5hB_4wxXyQwq9Gjhc1AAK-GwAC34V4VUCiyBBDFuhzPAQ",
+            "customEmojiId": "6158819683253361598"
+          },
+          {
+            "brand": "daily_update_02",
+            "brandKey": "dailyupdate02",
+            "fileName": "daily_update_02.webm",
+            "emoji": "🎫",
+            "fileId": "CAACAgUAAxUAAWovkGTPAAGL14z9b_I1ZWdrLNeYowAC7yAAArldgFV8mAK4dWLVgDwE",
+            "customEmojiId": "6161027339393179887"
+          },
+          {
+            "brand": "daily_update_03",
+            "brandKey": "dailyupdate03",
+            "fileName": "daily_update_03.webm",
+            "emoji": "🎫",
+            "fileId": "CAACAgUAAxUAAWovkGScNRq3l-jMyUXbbENp2m_zAAKzHQACwciBVfyuLqzAvVi1PAQ",
+            "customEmojiId": "6161426496473800115"
+          },
+          {
+            "brand": "daily_update_04",
+            "brandKey": "dailyupdate04",
+            "fileName": "daily_update_04.webm",
+            "emoji": "🎫",
+            "fileId": "CAACAgUAAxUAAWovkGSsKTUzuwvxjT0tHj59iydaAAIqHAADqoBVvlrtwedw5Pc8BA",
+            "customEmojiId": "6161111207219567658"
+          },
+          {
+            "brand": "daily_update_05",
+            "brandKey": "dailyupdate05",
+            "fileName": "daily_update_05.webm",
+            "emoji": "🎫",
+            "fileId": "CAACAgUAAxUAAWovkGTyc3mDTm9HVIqW--SEA9ShAALGHgAC3VOBVdqHRz98_FUtPAQ",
+            "customEmojiId": "6161297973872434886"
+          }
+        ],
+        "outputPath": "C:\\Users\\Dat\\Downloads\\vcodex3\\data\\telegram-slogan-tile-emoji-map.json"
+      }
+    }
+  ]
+}

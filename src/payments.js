@@ -1,0 +1,199 @@
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { config, nowIso } from './config.js';
+import { makeId } from './storage.js';
+
+function hmac(body) {
+  return createHmac('sha256', config.payment.webhookSecret).update(body).digest('hex');
+}
+
+function safeEqualText(a, b) {
+  const left = Buffer.from(String(a || ''));
+  const right = Buffer.from(String(b || ''));
+  if (left.length === 0 || left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+function safeEqualHex(a, b) {
+  const left = Buffer.from(String(a || ''), 'hex');
+  const right = Buffer.from(String(b || ''), 'hex');
+  if (left.length === 0 || left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+function compactCode(prefix) {
+  const cleanPrefix = String(prefix || 'KAITO').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) || 'KAITO';
+  const stamp = Date.now().toString(36).toUpperCase();
+  const random = randomBytes(3).toString('hex').toUpperCase();
+  return `${cleanPrefix}${stamp}${random}`;
+}
+
+function sepayMemo(reference) {
+  return [config.sepay.memoPrefix, reference, config.sepay.memoSuffix]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+function sepayQrUrl({ amount, reference }) {
+  if (!config.sepay.accountNumber || !config.sepay.bankCode) {
+    throw Object.assign(new Error('SEPAY_ACCOUNT_NUMBER and SEPAY_BANK_CODE are required'), { statusCode: 500 });
+  }
+
+  const params = new URLSearchParams({
+    acc: config.sepay.accountNumber,
+    bank: config.sepay.bankCode,
+    amount: String(Math.round(Number(amount || 0))),
+    des: sepayMemo(reference)
+  });
+
+  if (config.sepay.qrTemplate) params.set('template', config.sepay.qrTemplate);
+  return `https://qr.sepay.vn/img?${params.toString()}`;
+}
+
+export class MockPaymentProvider {
+  constructor(baseUrl = config.baseUrl) {
+    this.name = 'mock';
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+  }
+
+  async createPayment(input) {
+    const providerPaymentId = makeId('paymock');
+    const reference = `KAITO${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 90 + 10)}`;
+    return {
+      provider: this.name,
+      providerPaymentId,
+      reference,
+      amount: input.amount,
+      currency: input.currency,
+      paymentUrl: `${this.baseUrl}/pay/mock/${providerPaymentId}`,
+      qrText: `MOCK_QR|amount=${input.amount}|ref=${reference}`,
+      expiresAt: input.expiresAt,
+      status: 'pending'
+    };
+  }
+
+  async verifyWebhook({ rawBody, body, signature }) {
+    if (signature && !safeEqualHex(signature, hmac(rawBody))) {
+      throw Object.assign(new Error('Invalid payment signature'), { statusCode: 401 });
+    }
+
+    return {
+      id: body.eventId || makeId('evt'),
+      provider: this.name,
+      providerPaymentId: body.providerPaymentId,
+      reference: body.reference || '',
+      amount: Number(body.amount || 0),
+      currency: body.currency || 'VND',
+      status: body.status || 'paid',
+      raw: body,
+      receivedAt: nowIso()
+    };
+  }
+
+  async getPaymentStatus() {
+    return { status: 'pending' };
+  }
+
+  signWebhookPayload(payload) {
+    return hmac(JSON.stringify(payload));
+  }
+}
+
+export class SePayPaymentProvider {
+  constructor(baseUrl = config.baseUrl) {
+    this.name = 'sepay';
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+  }
+
+  async createPayment(input) {
+    const reference = compactCode(config.sepay.paymentPrefix);
+    const providerPaymentId = reference;
+    const qrImageUrl = sepayQrUrl({ amount: input.amount, reference });
+
+    return {
+      provider: this.name,
+      providerPaymentId,
+      reference,
+      amount: input.amount,
+      currency: 'VND',
+      paymentUrl: `${this.baseUrl}/pay/sepay/${providerPaymentId}`,
+      qrImageUrl,
+      qrText: qrImageUrl,
+      memo: sepayMemo(reference),
+      accountNumber: config.sepay.accountNumber,
+      bankCode: config.sepay.bankCode,
+      expiresAt: input.expiresAt,
+      status: 'pending'
+    };
+  }
+
+  async verifyWebhook({ rawBody, body, headers = {} }) {
+    this.verifyWebhookAuth(rawBody, headers);
+
+    const code = String(body.code || '').trim();
+    const reference = code || String(body.referenceCode || body.id || '').trim();
+    const transferType = String(body.transferType || '').toLowerCase();
+    const isIncoming = transferType === 'in';
+
+    return {
+      id: `sepay_${body.id || body.referenceCode || makeId('evt')}`,
+      provider: this.name,
+      providerPaymentId: code,
+      reference,
+      amount: Number(body.transferAmount || 0),
+      currency: 'VND',
+      status: isIncoming ? 'paid' : 'ignored',
+      raw: body,
+      receivedAt: nowIso()
+    };
+  }
+
+  verifyWebhookAuth(rawBody, headers) {
+    const authMode = config.sepay.webhookAuth;
+    if (authMode === 'none') return;
+
+    if (authMode === 'api_key' || authMode === 'apikey') {
+      const expected = `Apikey ${config.sepay.webhookApiKey}`;
+      if (!config.sepay.webhookApiKey || !safeEqualText(headers.authorization, expected)) {
+        throw Object.assign(new Error('Invalid SePay API key'), { statusCode: 401 });
+      }
+      return;
+    }
+
+    if (!config.sepay.webhookSecret) {
+      throw Object.assign(new Error('SEPAY_WEBHOOK_SECRET is required'), { statusCode: 500 });
+    }
+
+    const signature = String(headers['x-sepay-signature'] || '');
+    const timestamp = String(headers['x-sepay-timestamp'] || '');
+    const timestampSeconds = Number(timestamp);
+
+    if (!signature || !timestamp || !Number.isFinite(timestampSeconds)) {
+      throw Object.assign(new Error('Missing SePay signature headers'), { statusCode: 401 });
+    }
+
+    const drift = Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds);
+    if (drift > 300) {
+      throw Object.assign(new Error('Expired SePay webhook timestamp'), { statusCode: 401 });
+    }
+
+    const expected = `sha256=${createHmac('sha256', config.sepay.webhookSecret)
+      .update(`${timestamp}.${rawBody}`)
+      .digest('hex')}`;
+
+    if (!safeEqualText(signature, expected)) {
+      throw Object.assign(new Error('Invalid SePay webhook signature'), { statusCode: 401 });
+    }
+  }
+
+  async getPaymentStatus() {
+    return { status: 'pending' };
+  }
+}
+
+export const paymentProviders = {
+  mock: new MockPaymentProvider(),
+  sepay: new SePayPaymentProvider()
+};
+
+export const paymentProvider = paymentProviders[config.payment.provider] || paymentProviders.mock;

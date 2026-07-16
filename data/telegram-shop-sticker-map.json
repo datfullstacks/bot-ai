@@ -1,0 +1,76 @@
+{
+  "packName": "kaito_ai_shop_flow_0517021234_by_kaitokidaibot",
+  "title": "KAITO AI SHOP Flow Stickers",
+  "stickerType": "regular",
+  "stickerFormat": "video",
+  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\shop-stickers",
+  "dryRun": false,
+  "generatedAt": "2026-05-16T19:12:45.439Z",
+  "stageFileIds": {
+    "start": "CAACAgUAAxUAAWoIwaxzQq_4vo3TeV-uBqT1fPs-AAKMHwACiIxIVI8MIwPSins5OwQ",
+    "catalog": "CAACAgUAAxUAAWoIwaxHUurS7_79kDXORR3brwMzAALPHwACnTRIVKmBiZOg_cHHOwQ",
+    "brand": "CAACAgUAAxUAAWoIwaxMEEpRDafqrDY41XZgN4dJAAJcHgAC2zZIVBBwHhqWR3raOwQ",
+    "topup": "CAACAgUAAxUAAWoIwayLOdcMmdu42AickMFd13cNAAKZIAACjB9AVObBKz7NtjsvOwQ",
+    "account": "CAACAgUAAxUAAWoIwaxT8bVOUXgZo-Fck0LVgHnhAAJKHgACWbBBVAFnUi95wVdXOwQ",
+    "language": "CAACAgUAAxUAAWoIwazO3ccjX6J4C_t6Mwu0vCFCAAIWHgACBPNIVCdOopfn29pUOwQ",
+    "support": "CAACAgUAAxUAAWoIwaxlCl6G9w1_BfyXTcu1WGJHAAKAHwAC6RhAVA_1KWfO-nCKOwQ",
+    "order": "CAACAgUAAxUAAWoIwaxlHuce9kF9cAGhhQgAAUKBNgACpRwAAm6YSVTSh7a5m2xoBTsE",
+    "delivery": "CAACAgUAAxUAAWoIwawgpRvoAAHUyt0i3GSKN2bg9AACRx8AAh6tSVR49WnM4mIAAeg7BA"
+  },
+  "stickers": [
+    {
+      "stage": "start",
+      "fileName": "start.webm",
+      "emoji": "✨",
+      "fileId": "CAACAgUAAxUAAWoIwaxzQq_4vo3TeV-uBqT1fPs-AAKMHwACiIxIVI8MIwPSins5OwQ"
+    },
+    {
+      "stage": "catalog",
+      "fileName": "catalog.webm",
+      "emoji": "🛒",
+      "fileId": "CAACAgUAAxUAAWoIwaxHUurS7_79kDXORR3brwMzAALPHwACnTRIVKmBiZOg_cHHOwQ"
+    },
+    {
+      "stage": "brand",
+      "fileName": "brand.webm",
+      "emoji": "🏷",
+      "fileId": "CAACAgUAAxUAAWoIwaxMEEpRDafqrDY41XZgN4dJAAJcHgAC2zZIVBBwHhqWR3raOwQ"
+    },
+    {
+      "stage": "topup",
+      "fileName": "topup.webm",
+      "emoji": "💳",
+      "fileId": "CAACAgUAAxUAAWoIwayLOdcMmdu42AickMFd13cNAAKZIAACjB9AVObBKz7NtjsvOwQ"
+    },
+    {
+      "stage": "account",
+      "fileName": "account.webm",
+      "emoji": "👤",
+      "fileId": "CAACAgUAAxUAAWoIwaxT8bVOUXgZo-Fck0LVgHnhAAJKHgACWbBBVAFnUi95wVdXOwQ"
+    },
+    {
+      "stage": "language",
+      "fileName": "language.webm",
+      "emoji": "🌍",
+      "fileId": "CAACAgUAAxUAAWoIwazO3ccjX6J4C_t6Mwu0vCFCAAIWHgACBPNIVCdOopfn29pUOwQ"
+    },
+    {
+      "stage": "support",
+      "fileName": "support.webm",
+      "emoji": "🛟",
+      "fileId": "CAACAgUAAxUAAWoIwaxlCl6G9w1_BfyXTcu1WGJHAAKAHwAC6RhAVA_1KWfO-nCKOwQ"
+    },
+    {
+      "stage": "order",
+      "fileName": "order.webm",
+      "emoji": "📦",
+      "fileId": "CAACAgUAAxUAAWoIwaxlHuce9kF9cAGhhQgAAUKBNgACpRwAAm6YSVTSh7a5m2xoBTsE"
+    },
+    {
+      "stage": "delivery",
+      "fileName": "delivery.webm",
+      "emoji": "🚚",
+      "fileId": "CAACAgUAAxUAAWoIwawgpRvoAAHUyt0i3GSKN2bg9AACRx8AAh6tSVR49WnM4mIAAeg7BA"
+    }
+  ]
+}

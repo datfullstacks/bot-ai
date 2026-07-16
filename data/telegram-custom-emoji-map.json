@@ -1,0 +1,707 @@
+{
+  "packName": "kaito_ai_shop_brand_yspin_0517_by_kaitokidaibot",
+  "title": "KAITO AI SHOP Brand Y Spin",
+  "stickerType": "custom_emoji",
+  "stickerFormat": "video",
+  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\motion-emoji",
+  "dryRun": false,
+  "generatedAt": "2026-05-16T21:37:25.460Z",
+  "customEmojiIdsByFile": {
+    "Antigravity.webm": "6073359252926242531",
+    "Apple Intelligent.webm": "6073651035824463746",
+    "Canva.webm": "6071195658855915329",
+    "CapCut.webm": "6073250856541626070",
+    "ChatGPT Brand.webm": "6073620648930844860",
+    "ChatGPT.webm": "6073235055356943296",
+    "Claude Brand.webm": "6070957021883015004",
+    "Claude.webm": "6073213941297717539",
+    "Codex.webm": "6073385997687594518",
+    "Cohere.webm": "6073230103259652429",
+    "Cursor Brand.webm": "6071180231333389150",
+    "Cursor.webm": "6073290937176432312",
+    "DeepSeek Brand.webm": "6070965049176892525",
+    "DeepSeek.webm": "6073431966722563201",
+    "Discord.webm": "6073408477546423026",
+    "Facebook.webm": "6073607407546671172",
+    "Fireworks AI Brand.webm": "6073551366813392014",
+    "Gemini Brand.webm": "6073522543287869237",
+    "Gemini.webm": "6073227019473133964",
+    "Gmail.webm": "6073294145517002316",
+    "Google Antigravity Brand.webm": "6073506810822663473",
+    "Google.webm": "6073514584713469596",
+    "Grok Brand.webm": "6073500269587473460",
+    "Grok.webm": "6073629324764782970",
+    "Hugging Face.webm": "6070860140305718509",
+    "Kimi Brand.webm": "6073501004026879570",
+    "Kimi.webm": "6073256822251200201",
+    "manus Brand.webm": "6073235755436613588",
+    "manus.webm": "6073376561644444877",
+    "Microsoft Copilot Brand.webm": "6073510143717286677",
+    "Microsoft Copilot.webm": "6073459776635804772",
+    "Microsoft.webm": "6073204801607310766",
+    "MiniMax.webm": "6073323402834222379",
+    "Mistral AI Brand.webm": "6073272679270456298",
+    "Mistral AI.webm": "6073546320226819309",
+    "Notion.webm": "6073566369134156945",
+    "PayPal.webm": "6073163458252120398",
+    "perplexity Brand.webm": "6073624501516508819",
+    "Perplexity.webm": "6071239858364358785",
+    "Poe Brand.webm": "6073384588938322336",
+    "Poe.webm": "6073494419842016248",
+    "Qwen.webm": "6073219451740756919",
+    "s AI.webm": "6073422719657974632",
+    "Telegram.webm": "6073584622745165151",
+    "TikTok.webm": "6073398637776346281",
+    "y.ai.webm": "6073148357147107004"
+  },
+  "customEmojiIdsByBrand": {
+    "antigravity": [
+      "6073359252926242531"
+    ],
+    "appleintelligent": [
+      "6073651035824463746"
+    ],
+    "canva": [
+      "6071195658855915329"
+    ],
+    "capcut": [
+      "6073250856541626070"
+    ],
+    "chatgpt": [
+      "6073620648930844860",
+      "6073235055356943296"
+    ],
+    "claude": [
+      "6070957021883015004",
+      "6073213941297717539"
+    ],
+    "codex": [
+      "6073385997687594518"
+    ],
+    "cohere": [
+      "6073230103259652429"
+    ],
+    "cursor": [
+      "6071180231333389150",
+      "6073290937176432312"
+    ],
+    "deepseek": [
+      "6070965049176892525",
+      "6073431966722563201"
+    ],
+    "discord": [
+      "6073408477546423026"
+    ],
+    "facebook": [
+      "6073607407546671172"
+    ],
+    "fireworksai": [
+      "6073551366813392014"
+    ],
+    "gemini": [
+      "6073522543287869237",
+      "6073227019473133964"
+    ],
+    "gmail": [
+      "6073294145517002316"
+    ],
+    "googleantigravity": [
+      "6073506810822663473"
+    ],
+    "google": [
+      "6073514584713469596"
+    ],
+    "grok": [
+      "6073500269587473460",
+      "6073629324764782970"
+    ],
+    "huggingface": [
+      "6070860140305718509"
+    ],
+    "kimi": [
+      "6073501004026879570",
+      "6073256822251200201"
+    ],
+    "manus": [
+      "6073235755436613588",
+      "6073376561644444877"
+    ],
+    "microsoftcopilot": [
+      "6073510143717286677",
+      "6073459776635804772"
+    ],
+    "microsoft": [
+      "6073204801607310766"
+    ],
+    "minimax": [
+      "6073323402834222379"
+    ],
+    "mistralai": [
+      "6073272679270456298",
+      "6073546320226819309"
+    ],
+    "notion": [
+      "6073566369134156945"
+    ],
+    "paypal": [
+      "6073163458252120398"
+    ],
+    "perplexity": [
+      "6073624501516508819",
+      "6071239858364358785"
+    ],
+    "poe": [
+      "6073384588938322336",
+      "6073494419842016248"
+    ],
+    "qwen": [
+      "6073219451740756919"
+    ],
+    "sai": [
+      "6073422719657974632"
+    ],
+    "telegram": [
+      "6073584622745165151"
+    ],
+    "tiktok": [
+      "6073398637776346281"
+    ],
+    "yai": [
+      "6073148357147107004"
+    ]
+  },
+  "fileIdsByFile": {
+    "Antigravity.webm": "CAACAgUAAxUAAWoI45NKTZue17LLVnUGA1Qb7qdoAALjHgACEOhIVMQ9VWv1WPCqOwQ",
+    "Apple Intelligent.webm": "CAACAgUAAxUAAWoI45OMwrqmvf3_yy70TbZdHj3SAAKCHwACcPFJVCe9I3o4aRJ-OwQ",
+    "Canva.webm": "CAACAgUAAxUAAWoI45NxKvsT_iz5w4IU7GtQa7etAAJBHwACSThBVOIKiPYq7Br-OwQ",
+    "CapCut.webm": "CAACAgUAAxUAAWoI45O9AmpcpoJRPRrpmAZQjuE_AALWHgACeoVIVD7PZmrTLQUdOwQ",
+    "ChatGPT Brand.webm": "CAACAgUAAxUAAWoI45M74GirxNT729c7w-xL3_SXAAK8IAACzdVJVEJ9VqR1gZpkOwQ",
+    "ChatGPT.webm": "CAACAgUAAxUAAWoI45PonRf6flAHCQ0glegmLwg9AALAGwACG3dIVNKLNqRunP-3OwQ",
+    "Claude Brand.webm": "CAACAgUAAxUAAWoI45OJD9ohhdjZ-dg_Sn6eTtXZAAJcHwACP19AVHPCvLndOqX8OwQ",
+    "Claude.webm": "CAACAgUAAxUAAWoI45PSlXqx8dNYr2sHd2OQpRHWAAIjIQAC52NIVJY-cZHQdbdeOwQ",
+    "Codex.webm": "CAACAgUAAxUAAWoI45PddVIRFNix8WpE3kts59PSAAIWHgACYwABSVQCAAF556Aw2-A7BA",
+    "Cohere.webm": "CAACAgUAAxUAAWoI45PCGNokFcPk321_c31r3NqAAAJNIQACmnJIVCdxcpQQT6-sOwQ",
+    "Cursor Brand.webm": "CAACAgUAAxUAAWoI45MIiosqmii0rkxQvNMnxuMeAAJeIwACQSpBVCHFLnT6cHwtOwQ",
+    "Cursor.webm": "CAACAgUAAxUAAWoI45PvswHK8Rz3lVRFJuvmaFD4AAK4HgAC7qlIVHWMu-K_WW5YOwQ",
+    "DeepSeek Brand.webm": "CAACAgUAAxUAAWoI45N6A59SIpKrWyFmXQ-PaTqLAAJtJAACjGZAVHkrvQV3TxXmOwQ",
+    "DeepSeek.webm": "CAACAgUAAxUAAWoI45MKin2y527wzD6WJgOYGc2mAAKBHAACMipJVIkqyXTJFYa9OwQ",
+    "Discord.webm": "CAACAgUAAxUAAWoI45P3mqEUZ6lNKMKRZqDzGT8CAALyIgAC1RRJVLIufMuXVpeCOwQ",
+    "Facebook.webm": "CAACAgUAAxUAAWoI45NGVWkbt97p5az_hj1hqKQLAAJEIAACwslJVNv64_ZEThkmOwQ",
+    "Fireworks AI Brand.webm": "CAACAgUAAxUAAWoI45Nr6QqV9a9Ys56WbnBnmwc9AAKOHAACypZJVOAaVyGEEvelOwQ",
+    "Gemini Brand.webm": "CAACAgUAAxUAAWoI45NuWeCXFdNWVNaMJp_Hf5_HAAI1HwACk3xJVLq4XXFrZDnbOwQ",
+    "Gemini.webm": "CAACAgUAAxUAAWoI45OVZsijnBMTGEBvJTymKI7aAAKMIQACzG9IVLbbEIWGSQABKzsE",
+    "Gmail.webm": "CAACAgUAAxUAAWoI45MYMx7aXBVYJgAB8eL9jdQN_gACTB4AAtmsSFSzYs5ZSAqlVzsE",
+    "Google Antigravity Brand.webm": "CAACAgUAAxUAAWoI45PMPD_BFkD-MFjN6q3rmycPAAIxHQACRG5JVPyHa8Gdwss0OwQ",
+    "Google.webm": "CAACAgUAAxUAAWoI45NCSNHYT38YOx0H2tir5mU0AAKcHgACVnVJVH_-hwvISWj-OwQ",
+    "Grok Brand.webm": "CAACAgUAAxUAAWoI45MBQa3kzqj1b5SrCxYd4p_TAAI0JAACUWhJVK5wTLH28ttrOwQ",
+    "Grok.webm": "CAACAgUAAxUAAWoI45PDotjMsOZ7JOjoO0_SMj8gAAJ6IQACsd1JVNG7KE5a8KTMOwQ",
+    "Hugging Face.webm": "CAACAgUAAxUAAWoI45PaqP4EI3mShH3lM2hiDTQ4AALtHAACIgdAVJmyfwwLHPHiOwQ",
+    "Kimi Brand.webm": "CAACAgUAAxUAAWoI45MBiPjx0slGC7utbkCUeev6AAJSHgAC_GhJVFYeNkdHCiGqOwQ",
+    "Kimi.webm": "CAACAgUAAxUAAWoI45PaIJY1tYrXVmbkBlh3ULZcAALJHgAC54pIVBJotxqdARbkOwQ",
+    "manus Brand.webm": "CAACAgUAAxUAAWoI45MXEC1TdomynbVeq8otIgABIAAC1B8AAr53SFSM5z9LML5GwzsE",
+    "manus.webm": "CAACAgUAAxUAAWoI45PJnK8YVTcUzzaGue0kX_gCAALNHAACzvdIVE5lq8THseCEOwQ",
+    "Microsoft Copilot Brand.webm": "CAACAgUAAxUAAWoI45O05bPHq1WRnbvIa9PqdBTZAAIVIwACTHFJVBX_7c3ldg1xOwQ",
+    "Microsoft Copilot.webm": "CAACAgUAAxUAAWoI45MP5ZwQdgGliVl-mciJFD_NAAJkHAACfUNJVBwezWaiExM1OwQ",
+    "Microsoft.webm": "CAACAgUAAxUAAWoI45OSvJGs9cUidk2KoVxQm5cMAAKuHQACl1tIVF_sXSf3JL5oOwQ",
+    "MiniMax.webm": "CAACAgUAAxUAAWoI45M5IAirN8Xj37XXkXIXOH2oAAIrHQACdcdIVIkVt9iYfrDjOwQ",
+    "Mistral AI Brand.webm": "CAACAgUAAxUAAWoI45PC_PCxElG8BUNkjUs0ki5SAALqGwACU5lIVLipvy5UZ6_KOwQ",
+    "Mistral AI.webm": "CAACAgUAAxUAAWoI45PWUS6BJclUVWJGyZCBX8fPAALtHAACM5JJVDzKTm6mLlYfOwQ",
+    "Notion.webm": "CAACAgUAAxUAAWoI45MTgmMNS5r--I26R9XllNf6AAKRHAACb6RJVNzA5mg3I8rqOwQ",
+    "PayPal.webm": "CAACAgUAAxUAAWoI45OCKhfCj6xMzhKlsKSQh-LuAAJOIQAC_TVIVBPaYhFDwt9IOwQ",
+    "perplexity Brand.webm": "CAACAgUAAxUAAWoI45N8SYd7gOQjOTx3iMXZASm1AAKTHgACTtlJVFKnszIywaMYOwQ",
+    "Perplexity.webm": "CAACAgUAAxUAAWoI45ON3cS4Fvh_oC-V6996KiAnAAKBIAACfGBBVJLs1DrNx_CQOwQ",
+    "Poe Brand.webm": "CAACAgUAAxUAAWoI45PwupY9FXRx0IDjAzuOUfBZAAKgIQACG_9IVDECZZE3DS9lOwQ",
+    "Poe.webm": "CAACAgUAAxUAAWoI45O9o2Ryi0TCD_rxvCkbymISAAL4IwAC_2JJVJ6qGdVYsQsyOwQ",
+    "Qwen.webm": "CAACAgUAAxUAAWoI45OG8k49SSHvfPlErxwjmNP_AAK3GwAC6mhIVBSz4dW5Ck4bOwQ",
+    "s AI.webm": "CAACAgUAAxUAAWoI45NRcN6MDtXT1DS6vyc26b3iAAJoGwACySFJVM9s_GTgyrxJOwQ",
+    "Telegram.webm": "CAACAgUAAxUAAWoI45Nxka-YS47GNYAMNKYS0O9CAAJfHQACCbVJVMbaZ696Pvh6OwQ",
+    "TikTok.webm": "CAACAgUAAxUAAWoI45PdX62NEH4HzVBxDadymu0jAAKpHAAC4gtJVH9ZZcnHt85zOwQ",
+    "y.ai.webm": "CAACAgUAAxUAAWoI45OKMawWlEOPETmYRMzbIMB-AAK8HgACQShIVC3BwBdrzt93OwQ"
+  },
+  "fileIdsByBrand": {
+    "antigravity": [
+      "CAACAgUAAxUAAWoI45NKTZue17LLVnUGA1Qb7qdoAALjHgACEOhIVMQ9VWv1WPCqOwQ"
+    ],
+    "appleintelligent": [
+      "CAACAgUAAxUAAWoI45OMwrqmvf3_yy70TbZdHj3SAAKCHwACcPFJVCe9I3o4aRJ-OwQ"
+    ],
+    "canva": [
+      "CAACAgUAAxUAAWoI45NxKvsT_iz5w4IU7GtQa7etAAJBHwACSThBVOIKiPYq7Br-OwQ"
+    ],
+    "capcut": [
+      "CAACAgUAAxUAAWoI45O9AmpcpoJRPRrpmAZQjuE_AALWHgACeoVIVD7PZmrTLQUdOwQ"
+    ],
+    "chatgpt": [
+      "CAACAgUAAxUAAWoI45M74GirxNT729c7w-xL3_SXAAK8IAACzdVJVEJ9VqR1gZpkOwQ",
+      "CAACAgUAAxUAAWoI45PonRf6flAHCQ0glegmLwg9AALAGwACG3dIVNKLNqRunP-3OwQ"
+    ],
+    "claude": [
+      "CAACAgUAAxUAAWoI45OJD9ohhdjZ-dg_Sn6eTtXZAAJcHwACP19AVHPCvLndOqX8OwQ",
+      "CAACAgUAAxUAAWoI45PSlXqx8dNYr2sHd2OQpRHWAAIjIQAC52NIVJY-cZHQdbdeOwQ"
+    ],
+    "codex": [
+      "CAACAgUAAxUAAWoI45PddVIRFNix8WpE3kts59PSAAIWHgACYwABSVQCAAF556Aw2-A7BA"
+    ],
+    "cohere": [
+      "CAACAgUAAxUAAWoI45PCGNokFcPk321_c31r3NqAAAJNIQACmnJIVCdxcpQQT6-sOwQ"
+    ],
+    "cursor": [
+      "CAACAgUAAxUAAWoI45MIiosqmii0rkxQvNMnxuMeAAJeIwACQSpBVCHFLnT6cHwtOwQ",
+      "CAACAgUAAxUAAWoI45PvswHK8Rz3lVRFJuvmaFD4AAK4HgAC7qlIVHWMu-K_WW5YOwQ"
+    ],
+    "deepseek": [
+      "CAACAgUAAxUAAWoI45N6A59SIpKrWyFmXQ-PaTqLAAJtJAACjGZAVHkrvQV3TxXmOwQ",
+      "CAACAgUAAxUAAWoI45MKin2y527wzD6WJgOYGc2mAAKBHAACMipJVIkqyXTJFYa9OwQ"
+    ],
+    "discord": [
+      "CAACAgUAAxUAAWoI45P3mqEUZ6lNKMKRZqDzGT8CAALyIgAC1RRJVLIufMuXVpeCOwQ"
+    ],
+    "facebook": [
+      "CAACAgUAAxUAAWoI45NGVWkbt97p5az_hj1hqKQLAAJEIAACwslJVNv64_ZEThkmOwQ"
+    ],
+    "fireworksai": [
+      "CAACAgUAAxUAAWoI45Nr6QqV9a9Ys56WbnBnmwc9AAKOHAACypZJVOAaVyGEEvelOwQ"
+    ],
+    "gemini": [
+      "CAACAgUAAxUAAWoI45NuWeCXFdNWVNaMJp_Hf5_HAAI1HwACk3xJVLq4XXFrZDnbOwQ",
+      "CAACAgUAAxUAAWoI45OVZsijnBMTGEBvJTymKI7aAAKMIQACzG9IVLbbEIWGSQABKzsE"
+    ],
+    "gmail": [
+      "CAACAgUAAxUAAWoI45MYMx7aXBVYJgAB8eL9jdQN_gACTB4AAtmsSFSzYs5ZSAqlVzsE"
+    ],
+    "googleantigravity": [
+      "CAACAgUAAxUAAWoI45PMPD_BFkD-MFjN6q3rmycPAAIxHQACRG5JVPyHa8Gdwss0OwQ"
+    ],
+    "google": [
+      "CAACAgUAAxUAAWoI45NCSNHYT38YOx0H2tir5mU0AAKcHgACVnVJVH_-hwvISWj-OwQ"
+    ],
+    "grok": [
+      "CAACAgUAAxUAAWoI45MBQa3kzqj1b5SrCxYd4p_TAAI0JAACUWhJVK5wTLH28ttrOwQ",
+      "CAACAgUAAxUAAWoI45PDotjMsOZ7JOjoO0_SMj8gAAJ6IQACsd1JVNG7KE5a8KTMOwQ"
+    ],
+    "huggingface": [
+      "CAACAgUAAxUAAWoI45PaqP4EI3mShH3lM2hiDTQ4AALtHAACIgdAVJmyfwwLHPHiOwQ"
+    ],
+    "kimi": [
+      "CAACAgUAAxUAAWoI45MBiPjx0slGC7utbkCUeev6AAJSHgAC_GhJVFYeNkdHCiGqOwQ",
+      "CAACAgUAAxUAAWoI45PaIJY1tYrXVmbkBlh3ULZcAALJHgAC54pIVBJotxqdARbkOwQ"
+    ],
+    "manus": [
+      "CAACAgUAAxUAAWoI45MXEC1TdomynbVeq8otIgABIAAC1B8AAr53SFSM5z9LML5GwzsE",
+      "CAACAgUAAxUAAWoI45PJnK8YVTcUzzaGue0kX_gCAALNHAACzvdIVE5lq8THseCEOwQ"
+    ],
+    "microsoftcopilot": [
+      "CAACAgUAAxUAAWoI45O05bPHq1WRnbvIa9PqdBTZAAIVIwACTHFJVBX_7c3ldg1xOwQ",
+      "CAACAgUAAxUAAWoI45MP5ZwQdgGliVl-mciJFD_NAAJkHAACfUNJVBwezWaiExM1OwQ"
+    ],
+    "microsoft": [
+      "CAACAgUAAxUAAWoI45OSvJGs9cUidk2KoVxQm5cMAAKuHQACl1tIVF_sXSf3JL5oOwQ"
+    ],
+    "minimax": [
+      "CAACAgUAAxUAAWoI45M5IAirN8Xj37XXkXIXOH2oAAIrHQACdcdIVIkVt9iYfrDjOwQ"
+    ],
+    "mistralai": [
+      "CAACAgUAAxUAAWoI45PC_PCxElG8BUNkjUs0ki5SAALqGwACU5lIVLipvy5UZ6_KOwQ",
+      "CAACAgUAAxUAAWoI45PWUS6BJclUVWJGyZCBX8fPAALtHAACM5JJVDzKTm6mLlYfOwQ"
+    ],
+    "notion": [
+      "CAACAgUAAxUAAWoI45MTgmMNS5r--I26R9XllNf6AAKRHAACb6RJVNzA5mg3I8rqOwQ"
+    ],
+    "paypal": [
+      "CAACAgUAAxUAAWoI45OCKhfCj6xMzhKlsKSQh-LuAAJOIQAC_TVIVBPaYhFDwt9IOwQ"
+    ],
+    "perplexity": [
+      "CAACAgUAAxUAAWoI45N8SYd7gOQjOTx3iMXZASm1AAKTHgACTtlJVFKnszIywaMYOwQ",
+      "CAACAgUAAxUAAWoI45ON3cS4Fvh_oC-V6996KiAnAAKBIAACfGBBVJLs1DrNx_CQOwQ"
+    ],
+    "poe": [
+      "CAACAgUAAxUAAWoI45PwupY9FXRx0IDjAzuOUfBZAAKgIQACG_9IVDECZZE3DS9lOwQ",
+      "CAACAgUAAxUAAWoI45O9o2Ryi0TCD_rxvCkbymISAAL4IwAC_2JJVJ6qGdVYsQsyOwQ"
+    ],
+    "qwen": [
+      "CAACAgUAAxUAAWoI45OG8k49SSHvfPlErxwjmNP_AAK3GwAC6mhIVBSz4dW5Ck4bOwQ"
+    ],
+    "sai": [
+      "CAACAgUAAxUAAWoI45NRcN6MDtXT1DS6vyc26b3iAAJoGwACySFJVM9s_GTgyrxJOwQ"
+    ],
+    "telegram": [
+      "CAACAgUAAxUAAWoI45Nxka-YS47GNYAMNKYS0O9CAAJfHQACCbVJVMbaZ696Pvh6OwQ"
+    ],
+    "tiktok": [
+      "CAACAgUAAxUAAWoI45PdX62NEH4HzVBxDadymu0jAAKpHAAC4gtJVH9ZZcnHt85zOwQ"
+    ],
+    "yai": [
+      "CAACAgUAAxUAAWoI45OKMawWlEOPETmYRMzbIMB-AAK8HgACQShIVC3BwBdrzt93OwQ"
+    ]
+  },
+  "stickers": [
+    {
+      "brand": "Antigravity",
+      "brandKey": "antigravity",
+      "fileName": "Antigravity.webm",
+      "emoji": "🛸",
+      "fileId": "CAACAgUAAxUAAWoI45NKTZue17LLVnUGA1Qb7qdoAALjHgACEOhIVMQ9VWv1WPCqOwQ",
+      "customEmojiId": "6073359252926242531"
+    },
+    {
+      "brand": "Apple Intelligent",
+      "brandKey": "appleintelligent",
+      "fileName": "Apple Intelligent.webm",
+      "emoji": "🍎",
+      "fileId": "CAACAgUAAxUAAWoI45OMwrqmvf3_yy70TbZdHj3SAAKCHwACcPFJVCe9I3o4aRJ-OwQ",
+      "customEmojiId": "6073651035824463746"
+    },
+    {
+      "brand": "Canva",
+      "brandKey": "canva",
+      "fileName": "Canva.webm",
+      "emoji": "🎨",
+      "fileId": "CAACAgUAAxUAAWoI45NxKvsT_iz5w4IU7GtQa7etAAJBHwACSThBVOIKiPYq7Br-OwQ",
+      "customEmojiId": "6071195658855915329"
+    },
+    {
+      "brand": "CapCut",
+      "brandKey": "capcut",
+      "fileName": "CapCut.webm",
+      "emoji": "🎬",
+      "fileId": "CAACAgUAAxUAAWoI45O9AmpcpoJRPRrpmAZQjuE_AALWHgACeoVIVD7PZmrTLQUdOwQ",
+      "customEmojiId": "6073250856541626070"
+    },
+    {
+      "brand": "ChatGPT",
+      "brandKey": "chatgpt",
+      "fileName": "ChatGPT Brand.webm",
+      "emoji": "🤖",
+      "fileId": "CAACAgUAAxUAAWoI45M74GirxNT729c7w-xL3_SXAAK8IAACzdVJVEJ9VqR1gZpkOwQ",
+      "customEmojiId": "6073620648930844860"
+    },
+    {
+      "brand": "ChatGPT",
+      "brandKey": "chatgpt",
+      "fileName": "ChatGPT.webm",
+      "emoji": "🤖",
+      "fileId": "CAACAgUAAxUAAWoI45PonRf6flAHCQ0glegmLwg9AALAGwACG3dIVNKLNqRunP-3OwQ",
+      "customEmojiId": "6073235055356943296"
+    },
+    {
+      "brand": "Claude",
+      "brandKey": "claude",
+      "fileName": "Claude Brand.webm",
+      "emoji": "🧠",
+      "fileId": "CAACAgUAAxUAAWoI45OJD9ohhdjZ-dg_Sn6eTtXZAAJcHwACP19AVHPCvLndOqX8OwQ",
+      "customEmojiId": "6070957021883015004"
+    },
+    {
+      "brand": "Claude",
+      "brandKey": "claude",
+      "fileName": "Claude.webm",
+      "emoji": "🧠",
+      "fileId": "CAACAgUAAxUAAWoI45PSlXqx8dNYr2sHd2OQpRHWAAIjIQAC52NIVJY-cZHQdbdeOwQ",
+      "customEmojiId": "6073213941297717539"
+    },
+    {
+      "brand": "Codex",
+      "brandKey": "codex",
+      "fileName": "Codex.webm",
+      "emoji": "💻",
+      "fileId": "CAACAgUAAxUAAWoI45PddVIRFNix8WpE3kts59PSAAIWHgACYwABSVQCAAF556Aw2-A7BA",
+      "customEmojiId": "6073385997687594518"
+    },
+    {
+      "brand": "Cohere",
+      "brandKey": "cohere",
+      "fileName": "Cohere.webm",
+      "emoji": "🔷",
+      "fileId": "CAACAgUAAxUAAWoI45PCGNokFcPk321_c31r3NqAAAJNIQACmnJIVCdxcpQQT6-sOwQ",
+      "customEmojiId": "6073230103259652429"
+    },
+    {
+      "brand": "Cursor",
+      "brandKey": "cursor",
+      "fileName": "Cursor Brand.webm",
+      "emoji": "🖱️",
+      "fileId": "CAACAgUAAxUAAWoI45MIiosqmii0rkxQvNMnxuMeAAJeIwACQSpBVCHFLnT6cHwtOwQ",
+      "customEmojiId": "6071180231333389150"
+    },
+    {
+      "brand": "Cursor",
+      "brandKey": "cursor",
+      "fileName": "Cursor.webm",
+      "emoji": "🖱️",
+      "fileId": "CAACAgUAAxUAAWoI45PvswHK8Rz3lVRFJuvmaFD4AAK4HgAC7qlIVHWMu-K_WW5YOwQ",
+      "customEmojiId": "6073290937176432312"
+    },
+    {
+      "brand": "DeepSeek",
+      "brandKey": "deepseek",
+      "fileName": "DeepSeek Brand.webm",
+      "emoji": "🔍",
+      "fileId": "CAACAgUAAxUAAWoI45N6A59SIpKrWyFmXQ-PaTqLAAJtJAACjGZAVHkrvQV3TxXmOwQ",
+      "customEmojiId": "6070965049176892525"
+    },
+    {
+      "brand": "DeepSeek",
+      "brandKey": "deepseek",
+      "fileName": "DeepSeek.webm",
+      "emoji": "🔍",
+      "fileId": "CAACAgUAAxUAAWoI45MKin2y527wzD6WJgOYGc2mAAKBHAACMipJVIkqyXTJFYa9OwQ",
+      "customEmojiId": "6073431966722563201"
+    },
+    {
+      "brand": "Discord",
+      "brandKey": "discord",
+      "fileName": "Discord.webm",
+      "emoji": "🎮",
+      "fileId": "CAACAgUAAxUAAWoI45P3mqEUZ6lNKMKRZqDzGT8CAALyIgAC1RRJVLIufMuXVpeCOwQ",
+      "customEmojiId": "6073408477546423026"
+    },
+    {
+      "brand": "Facebook",
+      "brandKey": "facebook",
+      "fileName": "Facebook.webm",
+      "emoji": "📘",
+      "fileId": "CAACAgUAAxUAAWoI45NGVWkbt97p5az_hj1hqKQLAAJEIAACwslJVNv64_ZEThkmOwQ",
+      "customEmojiId": "6073607407546671172"
+    },
+    {
+      "brand": "Fireworks AI",
+      "brandKey": "fireworksai",
+      "fileName": "Fireworks AI Brand.webm",
+      "emoji": "🎆",
+      "fileId": "CAACAgUAAxUAAWoI45Nr6QqV9a9Ys56WbnBnmwc9AAKOHAACypZJVOAaVyGEEvelOwQ",
+      "customEmojiId": "6073551366813392014"
+    },
+    {
+      "brand": "Gemini",
+      "brandKey": "gemini",
+      "fileName": "Gemini Brand.webm",
+      "emoji": "✨",
+      "fileId": "CAACAgUAAxUAAWoI45NuWeCXFdNWVNaMJp_Hf5_HAAI1HwACk3xJVLq4XXFrZDnbOwQ",
+      "customEmojiId": "6073522543287869237"
+    },
+    {
+      "brand": "Gemini",
+      "brandKey": "gemini",
+      "fileName": "Gemini.webm",
+      "emoji": "✨",
+      "fileId": "CAACAgUAAxUAAWoI45OVZsijnBMTGEBvJTymKI7aAAKMIQACzG9IVLbbEIWGSQABKzsE",
+      "customEmojiId": "6073227019473133964"
+    },
+    {
+      "brand": "Gmail",
+      "brandKey": "gmail",
+      "fileName": "Gmail.webm",
+      "emoji": "📧",
+      "fileId": "CAACAgUAAxUAAWoI45MYMx7aXBVYJgAB8eL9jdQN_gACTB4AAtmsSFSzYs5ZSAqlVzsE",
+      "customEmojiId": "6073294145517002316"
+    },
+    {
+      "brand": "Google Antigravity",
+      "brandKey": "googleantigravity",
+      "fileName": "Google Antigravity Brand.webm",
+      "emoji": "🛸",
+      "fileId": "CAACAgUAAxUAAWoI45PMPD_BFkD-MFjN6q3rmycPAAIxHQACRG5JVPyHa8Gdwss0OwQ",
+      "customEmojiId": "6073506810822663473"
+    },
+    {
+      "brand": "Google",
+      "brandKey": "google",
+      "fileName": "Google.webm",
+      "emoji": "🔎",
+      "fileId": "CAACAgUAAxUAAWoI45NCSNHYT38YOx0H2tir5mU0AAKcHgACVnVJVH_-hwvISWj-OwQ",
+      "customEmojiId": "6073514584713469596"
+    },
+    {
+      "brand": "Grok",
+      "brandKey": "grok",
+      "fileName": "Grok Brand.webm",
+      "emoji": "⚡",
+      "fileId": "CAACAgUAAxUAAWoI45MBQa3kzqj1b5SrCxYd4p_TAAI0JAACUWhJVK5wTLH28ttrOwQ",
+      "customEmojiId": "6073500269587473460"
+    },
+    {
+      "brand": "Grok",
+      "brandKey": "grok",
+      "fileName": "Grok.webm",
+      "emoji": "⚡",
+      "fileId": "CAACAgUAAxUAAWoI45PDotjMsOZ7JOjoO0_SMj8gAAJ6IQACsd1JVNG7KE5a8KTMOwQ",
+      "customEmojiId": "6073629324764782970"
+    },
+    {
+      "brand": "Hugging Face",
+      "brandKey": "huggingface",
+      "fileName": "Hugging Face.webm",
+      "emoji": "🤗",
+      "fileId": "CAACAgUAAxUAAWoI45PaqP4EI3mShH3lM2hiDTQ4AALtHAACIgdAVJmyfwwLHPHiOwQ",
+      "customEmojiId": "6070860140305718509"
+    },
+    {
+      "brand": "Kimi",
+      "brandKey": "kimi",
+      "fileName": "Kimi Brand.webm",
+      "emoji": "🌙",
+      "fileId": "CAACAgUAAxUAAWoI45MBiPjx0slGC7utbkCUeev6AAJSHgAC_GhJVFYeNkdHCiGqOwQ",
+      "customEmojiId": "6073501004026879570"
+    },
+    {
+      "brand": "Kimi",
+      "brandKey": "kimi",
+      "fileName": "Kimi.webm",
+      "emoji": "🌙",
+      "fileId": "CAACAgUAAxUAAWoI45PaIJY1tYrXVmbkBlh3ULZcAALJHgAC54pIVBJotxqdARbkOwQ",
+      "customEmojiId": "6073256822251200201"
+    },
+    {
+      "brand": "manus",
+      "brandKey": "manus",
+      "fileName": "manus Brand.webm",
+      "emoji": "✍️",
+      "fileId": "CAACAgUAAxUAAWoI45MXEC1TdomynbVeq8otIgABIAAC1B8AAr53SFSM5z9LML5GwzsE",
+      "customEmojiId": "6073235755436613588"
+    },
+    {
+      "brand": "manus",
+      "brandKey": "manus",
+      "fileName": "manus.webm",
+      "emoji": "✍️",
+      "fileId": "CAACAgUAAxUAAWoI45PJnK8YVTcUzzaGue0kX_gCAALNHAACzvdIVE5lq8THseCEOwQ",
+      "customEmojiId": "6073376561644444877"
+    },
+    {
+      "brand": "Microsoft Copilot",
+      "brandKey": "microsoftcopilot",
+      "fileName": "Microsoft Copilot Brand.webm",
+      "emoji": "🪟",
+      "fileId": "CAACAgUAAxUAAWoI45O05bPHq1WRnbvIa9PqdBTZAAIVIwACTHFJVBX_7c3ldg1xOwQ",
+      "customEmojiId": "6073510143717286677"
+    },
+    {
+      "brand": "Microsoft Copilot",
+      "brandKey": "microsoftcopilot",
+      "fileName": "Microsoft Copilot.webm",
+      "emoji": "🪟",
+      "fileId": "CAACAgUAAxUAAWoI45MP5ZwQdgGliVl-mciJFD_NAAJkHAACfUNJVBwezWaiExM1OwQ",
+      "customEmojiId": "6073459776635804772"
+    },
+    {
+      "brand": "Microsoft",
+      "brandKey": "microsoft",
+      "fileName": "Microsoft.webm",
+      "emoji": "💻",
+      "fileId": "CAACAgUAAxUAAWoI45OSvJGs9cUidk2KoVxQm5cMAAKuHQACl1tIVF_sXSf3JL5oOwQ",
+      "customEmojiId": "6073204801607310766"
+    },
+    {
+      "brand": "MiniMax",
+      "brandKey": "minimax",
+      "fileName": "MiniMax.webm",
+      "emoji": "⚡",
+      "fileId": "CAACAgUAAxUAAWoI45M5IAirN8Xj37XXkXIXOH2oAAIrHQACdcdIVIkVt9iYfrDjOwQ",
+      "customEmojiId": "6073323402834222379"
+    },
+    {
+      "brand": "Mistral AI",
+      "brandKey": "mistralai",
+      "fileName": "Mistral AI Brand.webm",
+      "emoji": "🌬️",
+      "fileId": "CAACAgUAAxUAAWoI45PC_PCxElG8BUNkjUs0ki5SAALqGwACU5lIVLipvy5UZ6_KOwQ",
+      "customEmojiId": "6073272679270456298"
+    },
+    {
+      "brand": "Mistral AI",
+      "brandKey": "mistralai",
+      "fileName": "Mistral AI.webm",
+      "emoji": "🌬️",
+      "fileId": "CAACAgUAAxUAAWoI45PWUS6BJclUVWJGyZCBX8fPAALtHAACM5JJVDzKTm6mLlYfOwQ",
+      "customEmojiId": "6073546320226819309"
+    },
+    {
+      "brand": "Notion",
+      "brandKey": "notion",
+      "fileName": "Notion.webm",
+      "emoji": "📝",
+      "fileId": "CAACAgUAAxUAAWoI45MTgmMNS5r--I26R9XllNf6AAKRHAACb6RJVNzA5mg3I8rqOwQ",
+      "customEmojiId": "6073566369134156945"
+    },
+    {
+      "brand": "PayPal",
+      "brandKey": "paypal",
+      "fileName": "PayPal.webm",
+      "emoji": "💳",
+      "fileId": "CAACAgUAAxUAAWoI45OCKhfCj6xMzhKlsKSQh-LuAAJOIQAC_TVIVBPaYhFDwt9IOwQ",
+      "customEmojiId": "6073163458252120398"
+    },
+    {
+      "brand": "perplexity",
+      "brandKey": "perplexity",
+      "fileName": "perplexity Brand.webm",
+      "emoji": "🔎",
+      "fileId": "CAACAgUAAxUAAWoI45N8SYd7gOQjOTx3iMXZASm1AAKTHgACTtlJVFKnszIywaMYOwQ",
+      "customEmojiId": "6073624501516508819"
+    },
+    {
+      "brand": "Perplexity",
+      "brandKey": "perplexity",
+      "fileName": "Perplexity.webm",
+      "emoji": "🔎",
+      "fileId": "CAACAgUAAxUAAWoI45ON3cS4Fvh_oC-V6996KiAnAAKBIAACfGBBVJLs1DrNx_CQOwQ",
+      "customEmojiId": "6071239858364358785"
+    },
+    {
+      "brand": "Poe",
+      "brandKey": "poe",
+      "fileName": "Poe Brand.webm",
+      "emoji": "💬",
+      "fileId": "CAACAgUAAxUAAWoI45PwupY9FXRx0IDjAzuOUfBZAAKgIQACG_9IVDECZZE3DS9lOwQ",
+      "customEmojiId": "6073384588938322336"
+    },
+    {
+      "brand": "Poe",
+      "brandKey": "poe",
+      "fileName": "Poe.webm",
+      "emoji": "💬",
+      "fileId": "CAACAgUAAxUAAWoI45O9o2Ryi0TCD_rxvCkbymISAAL4IwAC_2JJVJ6qGdVYsQsyOwQ",
+      "customEmojiId": "6073494419842016248"
+    },
+    {
+      "brand": "Qwen",
+      "brandKey": "qwen",
+      "fileName": "Qwen.webm",
+      "emoji": "🧠",
+      "fileId": "CAACAgUAAxUAAWoI45OG8k49SSHvfPlErxwjmNP_AAK3GwAC6mhIVBSz4dW5Ck4bOwQ",
+      "customEmojiId": "6073219451740756919"
+    },
+    {
+      "brand": "s AI",
+      "brandKey": "sai",
+      "fileName": "s AI.webm",
+      "emoji": "🤖",
+      "fileId": "CAACAgUAAxUAAWoI45NRcN6MDtXT1DS6vyc26b3iAAJoGwACySFJVM9s_GTgyrxJOwQ",
+      "customEmojiId": "6073422719657974632"
+    },
+    {
+      "brand": "Telegram",
+      "brandKey": "telegram",
+      "fileName": "Telegram.webm",
+      "emoji": "✈️",
+      "fileId": "CAACAgUAAxUAAWoI45Nxka-YS47GNYAMNKYS0O9CAAJfHQACCbVJVMbaZ696Pvh6OwQ",
+      "customEmojiId": "6073584622745165151"
+    },
+    {
+      "brand": "TikTok",
+      "brandKey": "tiktok",
+      "fileName": "TikTok.webm",
+      "emoji": "🎵",
+      "fileId": "CAACAgUAAxUAAWoI45PdX62NEH4HzVBxDadymu0jAAKpHAAC4gtJVH9ZZcnHt85zOwQ",
+      "customEmojiId": "6073398637776346281"
+    },
+    {
+      "brand": "y.ai",
+      "brandKey": "yai",
+      "fileName": "y.ai.webm",
+      "emoji": "🤖",
+      "fileId": "CAACAgUAAxUAAWoI45OKMawWlEOPETmYRMzbIMB-AAK8HgACQShIVC3BwBdrzt93OwQ",
+      "customEmojiId": "6073148357147107004"
+    }
+  ]
+}

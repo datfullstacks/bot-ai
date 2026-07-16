@@ -1,0 +1,531 @@
+{
+  "packName": "kaito_ai_shop_banner_motion_v2_by_kaitokidaibot",
+  "title": "KAITO AI SHOP Banner Motion",
+  "stickerType": "custom_emoji",
+  "stickerFormat": "video",
+  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\banner-emoji",
+  "dryRun": false,
+  "generatedAt": "2026-06-15T04:28:19.852Z",
+  "customEmojiIdsByFile": {
+    "account.webm": "6159094982067101620",
+    "ai.webm": "6161241099915500397",
+    "auto247.webm": "6159213420085255770",
+    "checkin.webm": "6158910500336839523",
+    "combo.webm": "6159084193109254113",
+    "contact.webm": "6161097892820949621",
+    "delivery.webm": "6159117646609523291",
+    "event.webm": "6161030315805516566",
+    "guide.webm": "6161094955063319762",
+    "hot.webm": "6161293404027232180",
+    "instant.webm": "6158988213475089456",
+    "kaito.webm": "6161389714373877249",
+    "logout.webm": "6161179540149247207",
+    "member.webm": "6160973519157992578",
+    "minigame.webm": "6158935080434670675",
+    "mmo.webm": "6161212027281873711",
+    "new.webm": "6159213493099699578",
+    "news.webm": "6158974856126800805",
+    "orders.webm": "6161176452067761884",
+    "payment.webm": "6160986043282629046",
+    "policy.webm": "6161473814128501177",
+    "products.webm": "6161069765080129802",
+    "refund.webm": "6158965652011885469",
+    "review.webm": "6158694802784264423",
+    "sale.webm": "6158928715293139689",
+    "secure.webm": "6161428772806468379",
+    "soldout.webm": "6159111414611976988",
+    "stock.webm": "6161074837436506514",
+    "support.webm": "6161137432289878344",
+    "trusted.webm": "6161105052531432822",
+    "vip.webm": "6160946271885467022",
+    "welcome.webm": "6159232700193447768"
+  },
+  "customEmojiIdsByBrand": {
+    "account": [
+      "6159094982067101620"
+    ],
+    "ai": [
+      "6161241099915500397"
+    ],
+    "auto247": [
+      "6159213420085255770"
+    ],
+    "checkin": [
+      "6158910500336839523"
+    ],
+    "combo": [
+      "6159084193109254113"
+    ],
+    "contact": [
+      "6161097892820949621"
+    ],
+    "delivery": [
+      "6159117646609523291"
+    ],
+    "event": [
+      "6161030315805516566"
+    ],
+    "guide": [
+      "6161094955063319762"
+    ],
+    "hot": [
+      "6161293404027232180"
+    ],
+    "instant": [
+      "6158988213475089456"
+    ],
+    "kaito": [
+      "6161389714373877249"
+    ],
+    "logout": [
+      "6161179540149247207"
+    ],
+    "member": [
+      "6160973519157992578"
+    ],
+    "minigame": [
+      "6158935080434670675"
+    ],
+    "mmo": [
+      "6161212027281873711"
+    ],
+    "new": [
+      "6159213493099699578"
+    ],
+    "news": [
+      "6158974856126800805"
+    ],
+    "orders": [
+      "6161176452067761884"
+    ],
+    "payment": [
+      "6160986043282629046"
+    ],
+    "policy": [
+      "6161473814128501177"
+    ],
+    "products": [
+      "6161069765080129802"
+    ],
+    "refund": [
+      "6158965652011885469"
+    ],
+    "review": [
+      "6158694802784264423"
+    ],
+    "sale": [
+      "6158928715293139689"
+    ],
+    "secure": [
+      "6161428772806468379"
+    ],
+    "soldout": [
+      "6159111414611976988"
+    ],
+    "stock": [
+      "6161074837436506514"
+    ],
+    "support": [
+      "6161137432289878344"
+    ],
+    "trusted": [
+      "6161105052531432822"
+    ],
+    "vip": [
+      "6160946271885467022"
+    ],
+    "welcome": [
+      "6159232700193447768"
+    ]
+  },
+  "fileIdsByFile": {
+    "account.webm": "CAACAgUAAxUAAWovf12oAAHa4wlyj-Pg1gRw3uXfVQACtB8AAkGAeVVNdIOAHgABgqY8BA",
+    "ai.webm": "CAACAgUAAxUAAWovf11bBvIX1h24SReHPzy5bXqVAAJtGwACIyCBVYfTvjSKakAlPAQ",
+    "auto247.webm": "CAACAgUAAxUAAWovf10_pPLudWP95z8Xd8_IzCKcAAJaHgAC-et5Vd34vU1nFWHMPAQ",
+    "checkin.webm": "CAACAgUAAxUAAWovf110E89V-b6E346Z97ceO8yLAAJjKwACeNh4VfAt43c53AKFPAQ",
+    "combo.webm": "CAACAgUAAxUAAWovf11iDFAGQ7-N97sPIIkmpBfCAALhHwACcXZ5VbEhpUuSJwZPPAQ",
+    "contact.webm": "CAACAgUAAxUAAWovf10r4RJ-jhxJIdENW7zgMakWAAJ1GgAC5J2AVSZWJrZn2l9ZPAQ",
+    "delivery.webm": "CAACAgUAAxUAAWovf11wFfHIIuWhKyLkJ_qtYbvGAAJbIgAC3pR5VUD-iqAI22RePAQ",
+    "event.webm": "CAACAgUAAxUAAWovf11ykD1PZim7AAGqqReWqlPWdgACFiMAAm5ggFW7wB3_PmB8ojwE",
+    "guide.webm": "CAACAgUAAxUAAWovf119b1NfDbuIdGKPzKbjy1pSAALSHAACOJuAVc-yBQHeoYgGPAQ",
+    "hot.webm": "CAACAgUAAxUAAWovf11tQMkY-yz0IOG0VDeWMrhQAAK0HwACtU-BVVfjRndZ5wHHPAQ",
+    "instant.webm": "CAACAgUAAxUAAWovf13I2kAGnJ7vYjmCbYaG8QFFAAIwHAACJh95VXag_MbjJb8iPAQ",
+    "kaito.webm": "CAACAgUAAxUAAWovf120a5ZgOPnOf0OiVu7_3jAYAAIBHgACTaeBVcI4BtOh9U8mPAQ",
+    "logout.webm": "CAACAgUAAxUAAWovf10_kt76jFUo2EXncwf9KTRLAALnHAACJuiAVZ_uW_DMAiP6PAQ",
+    "member.webm": "CAACAgUAAxUAAWovf10HUASONQwGD6y1AmPGXWR8AAKCHAACxiyAVViFd-IhMZpaPAQ",
+    "minigame.webm": "CAACAgUAAxUAAWovf13ai5brG8ANSMWK-2gFqicfAAJTHAAC0-54VRl2zJBpVwABzTwE",
+    "mmo.webm": "CAACAgUAAxUAAWovf10vVEmBuu4nUUOGzk6s-YiwAAIvGwACsgWBVXPSAk94VuzmPAQ",
+    "new.webm": "CAACAgUAAxUAAWovf10Phb9DyqPZpmm5QOwxBNHfAAJ6HQACCux5VQRSvvwm14XuPAQ",
+    "news.webm": "CAACAgUAAxUAAWovf11fBByPTzyyIphWMKLhCzWgAAKlIwADE3lV2ytMS8MVBWE8BA",
+    "orders.webm": "CAACAgUAAxUAAWovf13XICdzgBGMlgNAcgqawLHTAALcHgACV-WAVTX483Iz9oOoPAQ",
+    "payment.webm": "CAACAgUAAxUAAWovf11LIZs2wafiTZU3J4UjDdVEAAK2IQACKjiAVRfo8VxO4t-7PAQ",
+    "policy.webm": "CAACAgUAAxUAAWovf10cIRllbYDWlla5TrDfvJ6QAAK5IQACyvOBVaNzxK6Tqs0pPAQ",
+    "products.webm": "CAACAgUAAxUAAWovf13Yg_cgCJK0Wv5zvfffR82gAAIKIQACT4SAVVHjxzLj5vfqPAQ",
+    "refund.webm": "CAACAgUAAxUAAWovf13Pkdc_0R16siseTPc8pTtrAAKdIwACoQp5VY_xMqNJ4L0wPAQ",
+    "review.webm": "CAACAgUAAxUAAWovf13u2l1yeePZV375nBmEriaIAALnIAACSxR4VcVBPbb4BWb3PAQ",
+    "sale.webm": "CAACAgUAAxUAAWovf11Ex3cSxGZ3llzuWvr7yIFaAALpIgACCel4VXB9_4QsDjRyPAQ",
+    "secure.webm": "CAACAgUAAxUAAWovf130tyAGG4fCObFjnQKyoXpfAAIbIwAC08qBVRTTC3Sr70X3PAQ",
+    "soldout.webm": "CAACAgUAAxUAAWovf138aclhV-3pwaU3JMIcd2PFAAIcIwACM495Ve5pK1P9reQFPAQ",
+    "stock.webm": "CAACAgUAAxUAAWovf13HoqpHpdU9pzJWP3Bggw75AAKSIQAC7IiAVYqcnrJHxFPYPAQ",
+    "support.webm": "CAACAgUAAxUAAWovf11Err_WNPddFgc3I_UZ6vd1AAJIIQAC2sGAVeajI1FNHLeAPAQ",
+    "trusted.webm": "CAACAgUAAxUAAWovf10sWB1tkhH7JHiz55S4KE0wAAJ2HQACZ6SAVdqK7uDJemmIPAQ",
+    "vip.webm": "CAACAgUAAxUAAWovf13KqKaTMfFjyRizNS_jAAFkIAACjh0AAv4TgFVRUuBvX2u01TwE",
+    "welcome.webm": "CAACAgUAAxUAAWovf11EsgABZ90xLJeugBysLLovcgACWB8AAoL9eVV_ysk4Y91M3DwE"
+  },
+  "fileIdsByBrand": {
+    "account": [
+      "CAACAgUAAxUAAWovf12oAAHa4wlyj-Pg1gRw3uXfVQACtB8AAkGAeVVNdIOAHgABgqY8BA"
+    ],
+    "ai": [
+      "CAACAgUAAxUAAWovf11bBvIX1h24SReHPzy5bXqVAAJtGwACIyCBVYfTvjSKakAlPAQ"
+    ],
+    "auto247": [
+      "CAACAgUAAxUAAWovf10_pPLudWP95z8Xd8_IzCKcAAJaHgAC-et5Vd34vU1nFWHMPAQ"
+    ],
+    "checkin": [
+      "CAACAgUAAxUAAWovf110E89V-b6E346Z97ceO8yLAAJjKwACeNh4VfAt43c53AKFPAQ"
+    ],
+    "combo": [
+      "CAACAgUAAxUAAWovf11iDFAGQ7-N97sPIIkmpBfCAALhHwACcXZ5VbEhpUuSJwZPPAQ"
+    ],
+    "contact": [
+      "CAACAgUAAxUAAWovf10r4RJ-jhxJIdENW7zgMakWAAJ1GgAC5J2AVSZWJrZn2l9ZPAQ"
+    ],
+    "delivery": [
+      "CAACAgUAAxUAAWovf11wFfHIIuWhKyLkJ_qtYbvGAAJbIgAC3pR5VUD-iqAI22RePAQ"
+    ],
+    "event": [
+      "CAACAgUAAxUAAWovf11ykD1PZim7AAGqqReWqlPWdgACFiMAAm5ggFW7wB3_PmB8ojwE"
+    ],
+    "guide": [
+      "CAACAgUAAxUAAWovf119b1NfDbuIdGKPzKbjy1pSAALSHAACOJuAVc-yBQHeoYgGPAQ"
+    ],
+    "hot": [
+      "CAACAgUAAxUAAWovf11tQMkY-yz0IOG0VDeWMrhQAAK0HwACtU-BVVfjRndZ5wHHPAQ"
+    ],
+    "instant": [
+      "CAACAgUAAxUAAWovf13I2kAGnJ7vYjmCbYaG8QFFAAIwHAACJh95VXag_MbjJb8iPAQ"
+    ],
+    "kaito": [
+      "CAACAgUAAxUAAWovf120a5ZgOPnOf0OiVu7_3jAYAAIBHgACTaeBVcI4BtOh9U8mPAQ"
+    ],
+    "logout": [
+      "CAACAgUAAxUAAWovf10_kt76jFUo2EXncwf9KTRLAALnHAACJuiAVZ_uW_DMAiP6PAQ"
+    ],
+    "member": [
+      "CAACAgUAAxUAAWovf10HUASONQwGD6y1AmPGXWR8AAKCHAACxiyAVViFd-IhMZpaPAQ"
+    ],
+    "minigame": [
+      "CAACAgUAAxUAAWovf13ai5brG8ANSMWK-2gFqicfAAJTHAAC0-54VRl2zJBpVwABzTwE"
+    ],
+    "mmo": [
+      "CAACAgUAAxUAAWovf10vVEmBuu4nUUOGzk6s-YiwAAIvGwACsgWBVXPSAk94VuzmPAQ"
+    ],
+    "new": [
+      "CAACAgUAAxUAAWovf10Phb9DyqPZpmm5QOwxBNHfAAJ6HQACCux5VQRSvvwm14XuPAQ"
+    ],
+    "news": [
+      "CAACAgUAAxUAAWovf11fBByPTzyyIphWMKLhCzWgAAKlIwADE3lV2ytMS8MVBWE8BA"
+    ],
+    "orders": [
+      "CAACAgUAAxUAAWovf13XICdzgBGMlgNAcgqawLHTAALcHgACV-WAVTX483Iz9oOoPAQ"
+    ],
+    "payment": [
+      "CAACAgUAAxUAAWovf11LIZs2wafiTZU3J4UjDdVEAAK2IQACKjiAVRfo8VxO4t-7PAQ"
+    ],
+    "policy": [
+      "CAACAgUAAxUAAWovf10cIRllbYDWlla5TrDfvJ6QAAK5IQACyvOBVaNzxK6Tqs0pPAQ"
+    ],
+    "products": [
+      "CAACAgUAAxUAAWovf13Yg_cgCJK0Wv5zvfffR82gAAIKIQACT4SAVVHjxzLj5vfqPAQ"
+    ],
+    "refund": [
+      "CAACAgUAAxUAAWovf13Pkdc_0R16siseTPc8pTtrAAKdIwACoQp5VY_xMqNJ4L0wPAQ"
+    ],
+    "review": [
+      "CAACAgUAAxUAAWovf13u2l1yeePZV375nBmEriaIAALnIAACSxR4VcVBPbb4BWb3PAQ"
+    ],
+    "sale": [
+      "CAACAgUAAxUAAWovf11Ex3cSxGZ3llzuWvr7yIFaAALpIgACCel4VXB9_4QsDjRyPAQ"
+    ],
+    "secure": [
+      "CAACAgUAAxUAAWovf130tyAGG4fCObFjnQKyoXpfAAIbIwAC08qBVRTTC3Sr70X3PAQ"
+    ],
+    "soldout": [
+      "CAACAgUAAxUAAWovf138aclhV-3pwaU3JMIcd2PFAAIcIwACM495Ve5pK1P9reQFPAQ"
+    ],
+    "stock": [
+      "CAACAgUAAxUAAWovf13HoqpHpdU9pzJWP3Bggw75AAKSIQAC7IiAVYqcnrJHxFPYPAQ"
+    ],
+    "support": [
+      "CAACAgUAAxUAAWovf11Err_WNPddFgc3I_UZ6vd1AAJIIQAC2sGAVeajI1FNHLeAPAQ"
+    ],
+    "trusted": [
+      "CAACAgUAAxUAAWovf10sWB1tkhH7JHiz55S4KE0wAAJ2HQACZ6SAVdqK7uDJemmIPAQ"
+    ],
+    "vip": [
+      "CAACAgUAAxUAAWovf13KqKaTMfFjyRizNS_jAAFkIAACjh0AAv4TgFVRUuBvX2u01TwE"
+    ],
+    "welcome": [
+      "CAACAgUAAxUAAWovf11EsgABZ90xLJeugBysLLovcgACWB8AAoL9eVV_ysk4Y91M3DwE"
+    ]
+  },
+  "stickers": [
+    {
+      "brand": "account",
+      "brandKey": "account",
+      "fileName": "account.webm",
+      "emoji": "👤",
+      "fileId": "CAACAgUAAxUAAWovf12oAAHa4wlyj-Pg1gRw3uXfVQACtB8AAkGAeVVNdIOAHgABgqY8BA",
+      "customEmojiId": "6159094982067101620"
+    },
+    {
+      "brand": "ai",
+      "brandKey": "ai",
+      "fileName": "ai.webm",
+      "emoji": "🤖",
+      "fileId": "CAACAgUAAxUAAWovf11bBvIX1h24SReHPzy5bXqVAAJtGwACIyCBVYfTvjSKakAlPAQ",
+      "customEmojiId": "6161241099915500397"
+    },
+    {
+      "brand": "auto247",
+      "brandKey": "auto247",
+      "fileName": "auto247.webm",
+      "emoji": "⚡",
+      "fileId": "CAACAgUAAxUAAWovf10_pPLudWP95z8Xd8_IzCKcAAJaHgAC-et5Vd34vU1nFWHMPAQ",
+      "customEmojiId": "6159213420085255770"
+    },
+    {
+      "brand": "checkin",
+      "brandKey": "checkin",
+      "fileName": "checkin.webm",
+      "emoji": "📝",
+      "fileId": "CAACAgUAAxUAAWovf110E89V-b6E346Z97ceO8yLAAJjKwACeNh4VfAt43c53AKFPAQ",
+      "customEmojiId": "6158910500336839523"
+    },
+    {
+      "brand": "combo",
+      "brandKey": "combo",
+      "fileName": "combo.webm",
+      "emoji": "🎁",
+      "fileId": "CAACAgUAAxUAAWovf11iDFAGQ7-N97sPIIkmpBfCAALhHwACcXZ5VbEhpUuSJwZPPAQ",
+      "customEmojiId": "6159084193109254113"
+    },
+    {
+      "brand": "contact",
+      "brandKey": "contact",
+      "fileName": "contact.webm",
+      "emoji": "💬",
+      "fileId": "CAACAgUAAxUAAWovf10r4RJ-jhxJIdENW7zgMakWAAJ1GgAC5J2AVSZWJrZn2l9ZPAQ",
+      "customEmojiId": "6161097892820949621"
+    },
+    {
+      "brand": "delivery",
+      "brandKey": "delivery",
+      "fileName": "delivery.webm",
+      "emoji": "📦",
+      "fileId": "CAACAgUAAxUAAWovf11wFfHIIuWhKyLkJ_qtYbvGAAJbIgAC3pR5VUD-iqAI22RePAQ",
+      "customEmojiId": "6159117646609523291"
+    },
+    {
+      "brand": "event",
+      "brandKey": "event",
+      "fileName": "event.webm",
+      "emoji": "🎮",
+      "fileId": "CAACAgUAAxUAAWovf11ykD1PZim7AAGqqReWqlPWdgACFiMAAm5ggFW7wB3_PmB8ojwE",
+      "customEmojiId": "6161030315805516566"
+    },
+    {
+      "brand": "guide",
+      "brandKey": "guide",
+      "fileName": "guide.webm",
+      "emoji": "📜",
+      "fileId": "CAACAgUAAxUAAWovf119b1NfDbuIdGKPzKbjy1pSAALSHAACOJuAVc-yBQHeoYgGPAQ",
+      "customEmojiId": "6161094955063319762"
+    },
+    {
+      "brand": "hot",
+      "brandKey": "hot",
+      "fileName": "hot.webm",
+      "emoji": "🔥",
+      "fileId": "CAACAgUAAxUAAWovf11tQMkY-yz0IOG0VDeWMrhQAAK0HwACtU-BVVfjRndZ5wHHPAQ",
+      "customEmojiId": "6161293404027232180"
+    },
+    {
+      "brand": "instant",
+      "brandKey": "instant",
+      "fileName": "instant.webm",
+      "emoji": "⚡",
+      "fileId": "CAACAgUAAxUAAWovf13I2kAGnJ7vYjmCbYaG8QFFAAIwHAACJh95VXag_MbjJb8iPAQ",
+      "customEmojiId": "6158988213475089456"
+    },
+    {
+      "brand": "kaito",
+      "brandKey": "kaito",
+      "fileName": "kaito.webm",
+      "emoji": "✨",
+      "fileId": "CAACAgUAAxUAAWovf120a5ZgOPnOf0OiVu7_3jAYAAIBHgACTaeBVcI4BtOh9U8mPAQ",
+      "customEmojiId": "6161389714373877249"
+    },
+    {
+      "brand": "logout",
+      "brandKey": "logout",
+      "fileName": "logout.webm",
+      "emoji": "🔌",
+      "fileId": "CAACAgUAAxUAAWovf10_kt76jFUo2EXncwf9KTRLAALnHAACJuiAVZ_uW_DMAiP6PAQ",
+      "customEmojiId": "6161179540149247207"
+    },
+    {
+      "brand": "member",
+      "brandKey": "member",
+      "fileName": "member.webm",
+      "emoji": "👑",
+      "fileId": "CAACAgUAAxUAAWovf10HUASONQwGD6y1AmPGXWR8AAKCHAACxiyAVViFd-IhMZpaPAQ",
+      "customEmojiId": "6160973519157992578"
+    },
+    {
+      "brand": "minigame",
+      "brandKey": "minigame",
+      "fileName": "minigame.webm",
+      "emoji": "🎮",
+      "fileId": "CAACAgUAAxUAAWovf13ai5brG8ANSMWK-2gFqicfAAJTHAAC0-54VRl2zJBpVwABzTwE",
+      "customEmojiId": "6158935080434670675"
+    },
+    {
+      "brand": "mmo",
+      "brandKey": "mmo",
+      "fileName": "mmo.webm",
+      "emoji": "🎯",
+      "fileId": "CAACAgUAAxUAAWovf10vVEmBuu4nUUOGzk6s-YiwAAIvGwACsgWBVXPSAk94VuzmPAQ",
+      "customEmojiId": "6161212027281873711"
+    },
+    {
+      "brand": "new",
+      "brandKey": "new",
+      "fileName": "new.webm",
+      "emoji": "🆕",
+      "fileId": "CAACAgUAAxUAAWovf10Phb9DyqPZpmm5QOwxBNHfAAJ6HQACCux5VQRSvvwm14XuPAQ",
+      "customEmojiId": "6159213493099699578"
+    },
+    {
+      "brand": "news",
+      "brandKey": "news",
+      "fileName": "news.webm",
+      "emoji": "📄",
+      "fileId": "CAACAgUAAxUAAWovf11fBByPTzyyIphWMKLhCzWgAAKlIwADE3lV2ytMS8MVBWE8BA",
+      "customEmojiId": "6158974856126800805"
+    },
+    {
+      "brand": "orders",
+      "brandKey": "orders",
+      "fileName": "orders.webm",
+      "emoji": "📦",
+      "fileId": "CAACAgUAAxUAAWovf13XICdzgBGMlgNAcgqawLHTAALcHgACV-WAVTX483Iz9oOoPAQ",
+      "customEmojiId": "6161176452067761884"
+    },
+    {
+      "brand": "payment",
+      "brandKey": "payment",
+      "fileName": "payment.webm",
+      "emoji": "💳",
+      "fileId": "CAACAgUAAxUAAWovf11LIZs2wafiTZU3J4UjDdVEAAK2IQACKjiAVRfo8VxO4t-7PAQ",
+      "customEmojiId": "6160986043282629046"
+    },
+    {
+      "brand": "policy",
+      "brandKey": "policy",
+      "fileName": "policy.webm",
+      "emoji": "🛡️",
+      "fileId": "CAACAgUAAxUAAWovf10cIRllbYDWlla5TrDfvJ6QAAK5IQACyvOBVaNzxK6Tqs0pPAQ",
+      "customEmojiId": "6161473814128501177"
+    },
+    {
+      "brand": "products",
+      "brandKey": "products",
+      "fileName": "products.webm",
+      "emoji": "🛒",
+      "fileId": "CAACAgUAAxUAAWovf13Yg_cgCJK0Wv5zvfffR82gAAIKIQACT4SAVVHjxzLj5vfqPAQ",
+      "customEmojiId": "6161069765080129802"
+    },
+    {
+      "brand": "refund",
+      "brandKey": "refund",
+      "fileName": "refund.webm",
+      "emoji": "↩️",
+      "fileId": "CAACAgUAAxUAAWovf13Pkdc_0R16siseTPc8pTtrAAKdIwACoQp5VY_xMqNJ4L0wPAQ",
+      "customEmojiId": "6158965652011885469"
+    },
+    {
+      "brand": "review",
+      "brandKey": "review",
+      "fileName": "review.webm",
+      "emoji": "✨",
+      "fileId": "CAACAgUAAxUAAWovf13u2l1yeePZV375nBmEriaIAALnIAACSxR4VcVBPbb4BWb3PAQ",
+      "customEmojiId": "6158694802784264423"
+    },
+    {
+      "brand": "sale",
+      "brandKey": "sale",
+      "fileName": "sale.webm",
+      "emoji": "🎫",
+      "fileId": "CAACAgUAAxUAAWovf11Ex3cSxGZ3llzuWvr7yIFaAALpIgACCel4VXB9_4QsDjRyPAQ",
+      "customEmojiId": "6158928715293139689"
+    },
+    {
+      "brand": "secure",
+      "brandKey": "secure",
+      "fileName": "secure.webm",
+      "emoji": "🛡️",
+      "fileId": "CAACAgUAAxUAAWovf130tyAGG4fCObFjnQKyoXpfAAIbIwAC08qBVRTTC3Sr70X3PAQ",
+      "customEmojiId": "6161428772806468379"
+    },
+    {
+      "brand": "soldout",
+      "brandKey": "soldout",
+      "fileName": "soldout.webm",
+      "emoji": "⚠️",
+      "fileId": "CAACAgUAAxUAAWovf138aclhV-3pwaU3JMIcd2PFAAIcIwACM495Ve5pK1P9reQFPAQ",
+      "customEmojiId": "6159111414611976988"
+    },
+    {
+      "brand": "stock",
+      "brandKey": "stock",
+      "fileName": "stock.webm",
+      "emoji": "📦",
+      "fileId": "CAACAgUAAxUAAWovf13HoqpHpdU9pzJWP3Bggw75AAKSIQAC7IiAVYqcnrJHxFPYPAQ",
+      "customEmojiId": "6161074837436506514"
+    },
+    {
+      "brand": "support",
+      "brandKey": "support",
+      "fileName": "support.webm",
+      "emoji": "🎧",
+      "fileId": "CAACAgUAAxUAAWovf11Err_WNPddFgc3I_UZ6vd1AAJIIQAC2sGAVeajI1FNHLeAPAQ",
+      "customEmojiId": "6161137432289878344"
+    },
+    {
+      "brand": "trusted",
+      "brandKey": "trusted",
+      "fileName": "trusted.webm",
+      "emoji": "🛡️",
+      "fileId": "CAACAgUAAxUAAWovf10sWB1tkhH7JHiz55S4KE0wAAJ2HQACZ6SAVdqK7uDJemmIPAQ",
+      "customEmojiId": "6161105052531432822"
+    },
+    {
+      "brand": "vip",
+      "brandKey": "vip",
+      "fileName": "vip.webm",
+      "emoji": "👑",
+      "fileId": "CAACAgUAAxUAAWovf13KqKaTMfFjyRizNS_jAAFkIAACjh0AAv4TgFVRUuBvX2u01TwE",
+      "customEmojiId": "6160946271885467022"
+    },
+    {
+      "brand": "welcome",
+      "brandKey": "welcome",
+      "fileName": "welcome.webm",
+      "emoji": "👋",
+      "fileId": "CAACAgUAAxUAAWovf11EsgABZ90xLJeugBysLLovcgACWB8AAoL9eVV_ysk4Y91M3DwE",
+      "customEmojiId": "6159232700193447768"
+    }
+  ]
+}

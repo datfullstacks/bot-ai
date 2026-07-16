@@ -1,0 +1,147 @@
+{
+  "packName": "kaito_ai_shop_slogan_marquee_fast_by_kaitokidaibot",
+  "title": "KAITO AI SHOP Slogan Marquee Fast",
+  "stickerType": "custom_emoji",
+  "stickerFormat": "video",
+  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\slogan-emoji",
+  "dryRun": false,
+  "generatedAt": "2026-05-19T21:34:20.774Z",
+  "customEmojiIdsByFile": {
+    "catalog.webm": "6082301379131482217",
+    "checkout.webm": "6080074314034454158",
+    "delivery.webm": "6082311081462602851",
+    "payment.webm": "6082574384432684080",
+    "soldout.webm": "6082490246023356525",
+    "support.webm": "6080389066417775012",
+    "text-shopping-flow.webm": "6082342327349681953",
+    "welcome.webm": "6082523982991465888"
+  },
+  "customEmojiIdsByBrand": {
+    "catalog": [
+      "6082301379131482217"
+    ],
+    "checkout": [
+      "6080074314034454158"
+    ],
+    "delivery": [
+      "6082311081462602851"
+    ],
+    "payment": [
+      "6082574384432684080"
+    ],
+    "soldout": [
+      "6082490246023356525"
+    ],
+    "support": [
+      "6080389066417775012"
+    ],
+    "textshoppingflow": [
+      "6082342327349681953"
+    ],
+    "welcome": [
+      "6082523982991465888"
+    ]
+  },
+  "fileIdsByFile": {
+    "catalog.webm": "CAACAgUAAxUAAWoM11ofOqRjhX3emN0SdplPkMxSAAJpIAAC4axoVOfZkS6ZE5NmOwQ",
+    "checkout.webm": "CAACAgUAAxUAAWoM11ogDuMyW1GoBz4r5VCP2gs0AAKOHgACYMNgVBRUhf29bBKGOwQ",
+    "delivery.webm": "CAACAgUAAxUAAWoM11o3NWK5ImC5BbKlMND7iz3IAAJjHAACtLVoVKXZx5Qqp3haOwQ",
+    "payment.webm": "CAACAgUAAxUAAWoM11oTSZ069bCRlsr_AQgI1gIGAAIwHAACLaVpVAABMN_VPNCjATsE",
+    "soldout.webm": "CAACAgUAAxUAAWoM11pvIlnhdfvdyvOhO_nrDDd3AAJtIAACp1hpVOXxvCKSBSvsOwQ",
+    "support.webm": "CAACAgUAAxUAAWoM11o-GhliLpbhBH-qIojEOeulAAKkIQACpOFhVILRXiqxpViXOwQ",
+    "text-shopping-flow.webm": "CAACAgUAAxUAAWoM11opZ-PiPYDKPtbGIJV8LyJjAAIhHwACH9JoVBvoDrWi1NPyOwQ",
+    "welcome.webm": "CAACAgUAAxUAAWoM11r3P-HSYAnCw7bvvfmPNLOeAAKgHQACVndpVPEWRb15LOYdOwQ"
+  },
+  "fileIdsByBrand": {
+    "catalog": [
+      "CAACAgUAAxUAAWoM11ofOqRjhX3emN0SdplPkMxSAAJpIAAC4axoVOfZkS6ZE5NmOwQ"
+    ],
+    "checkout": [
+      "CAACAgUAAxUAAWoM11ogDuMyW1GoBz4r5VCP2gs0AAKOHgACYMNgVBRUhf29bBKGOwQ"
+    ],
+    "delivery": [
+      "CAACAgUAAxUAAWoM11o3NWK5ImC5BbKlMND7iz3IAAJjHAACtLVoVKXZx5Qqp3haOwQ"
+    ],
+    "payment": [
+      "CAACAgUAAxUAAWoM11oTSZ069bCRlsr_AQgI1gIGAAIwHAACLaVpVAABMN_VPNCjATsE"
+    ],
+    "soldout": [
+      "CAACAgUAAxUAAWoM11pvIlnhdfvdyvOhO_nrDDd3AAJtIAACp1hpVOXxvCKSBSvsOwQ"
+    ],
+    "support": [
+      "CAACAgUAAxUAAWoM11o-GhliLpbhBH-qIojEOeulAAKkIQACpOFhVILRXiqxpViXOwQ"
+    ],
+    "textshoppingflow": [
+      "CAACAgUAAxUAAWoM11opZ-PiPYDKPtbGIJV8LyJjAAIhHwACH9JoVBvoDrWi1NPyOwQ"
+    ],
+    "welcome": [
+      "CAACAgUAAxUAAWoM11r3P-HSYAnCw7bvvfmPNLOeAAKgHQACVndpVPEWRb15LOYdOwQ"
+    ]
+  },
+  "stickers": [
+    {
+      "brand": "catalog",
+      "brandKey": "catalog",
+      "fileName": "catalog.webm",
+      "emoji": "🛍️",
+      "fileId": "CAACAgUAAxUAAWoM11ofOqRjhX3emN0SdplPkMxSAAJpIAAC4axoVOfZkS6ZE5NmOwQ",
+      "customEmojiId": "6082301379131482217"
+    },
+    {
+      "brand": "checkout",
+      "brandKey": "checkout",
+      "fileName": "checkout.webm",
+      "emoji": "💎",
+      "fileId": "CAACAgUAAxUAAWoM11ogDuMyW1GoBz4r5VCP2gs0AAKOHgACYMNgVBRUhf29bBKGOwQ",
+      "customEmojiId": "6080074314034454158"
+    },
+    {
+      "brand": "delivery",
+      "brandKey": "delivery",
+      "fileName": "delivery.webm",
+      "emoji": "📦",
+      "fileId": "CAACAgUAAxUAAWoM11o3NWK5ImC5BbKlMND7iz3IAAJjHAACtLVoVKXZx5Qqp3haOwQ",
+      "customEmojiId": "6082311081462602851"
+    },
+    {
+      "brand": "payment",
+      "brandKey": "payment",
+      "fileName": "payment.webm",
+      "emoji": "💳",
+      "fileId": "CAACAgUAAxUAAWoM11oTSZ069bCRlsr_AQgI1gIGAAIwHAACLaVpVAABMN_VPNCjATsE",
+      "customEmojiId": "6082574384432684080"
+    },
+    {
+      "brand": "soldout",
+      "brandKey": "soldout",
+      "fileName": "soldout.webm",
+      "emoji": "⚠️",
+      "fileId": "CAACAgUAAxUAAWoM11pvIlnhdfvdyvOhO_nrDDd3AAJtIAACp1hpVOXxvCKSBSvsOwQ",
+      "customEmojiId": "6082490246023356525"
+    },
+    {
+      "brand": "support",
+      "brandKey": "support",
+      "fileName": "support.webm",
+      "emoji": "🎧",
+      "fileId": "CAACAgUAAxUAAWoM11o-GhliLpbhBH-qIojEOeulAAKkIQACpOFhVILRXiqxpViXOwQ",
+      "customEmojiId": "6080389066417775012"
+    },
+    {
+      "brand": "text-shopping-flow",
+      "brandKey": "textshoppingflow",
+      "fileName": "text-shopping-flow.webm",
+      "emoji": "✨",
+      "fileId": "CAACAgUAAxUAAWoM11opZ-PiPYDKPtbGIJV8LyJjAAIhHwACH9JoVBvoDrWi1NPyOwQ",
+      "customEmojiId": "6082342327349681953"
+    },
+    {
+      "brand": "welcome",
+      "brandKey": "welcome",
+      "fileName": "welcome.webm",
+      "emoji": "✨",
+      "fileId": "CAACAgUAAxUAAWoM11r3P-HSYAnCw7bvvfmPNLOeAAKgHQACVndpVPEWRb15LOYdOwQ",
+      "customEmojiId": "6082523982991465888"
+    }
+  ]
+}

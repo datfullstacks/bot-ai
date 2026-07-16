@@ -1,0 +1,147 @@
+{
+  "packName": "kaito_ai_shop_news_emoji_by_kaitokidaibot",
+  "title": "KAITO AI SHOP News Emoji",
+  "stickerType": "custom_emoji",
+  "stickerFormat": "animated",
+  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\news-emoji",
+  "dryRun": false,
+  "generatedAt": "2026-06-15T07:33:00.986Z",
+  "customEmojiIdsByFile": {
+    "fast.tgs": "6161314427892146890",
+    "auto247.tgs": "6161144007884807540",
+    "tracking.tgs": "6161274437451652724",
+    "adminchat.tgs": "6160962223394006037",
+    "adminshield.tgs": "6160972338041988765",
+    "adminboom.tgs": "6158887462132262323",
+    "adminfire.tgs": "6161056480746283154",
+    "adminhundred.tgs": "6161437427165568431"
+  },
+  "customEmojiIdsByBrand": {
+    "fast": [
+      "6161314427892146890"
+    ],
+    "auto247": [
+      "6161144007884807540"
+    ],
+    "tracking": [
+      "6161274437451652724"
+    ],
+    "adminchat": [
+      "6160962223394006037"
+    ],
+    "adminshield": [
+      "6160972338041988765"
+    ],
+    "adminboom": [
+      "6158887462132262323"
+    ],
+    "adminfire": [
+      "6161056480746283154"
+    ],
+    "adminhundred": [
+      "6161437427165568431"
+    ]
+  },
+  "fileIdsByFile": {
+    "fast.tgs": "CAACAgUAAxUAAWovqg_pJY_eTGFj3bz2j6uuc7nBAALKIgAC1GKBVbhODKZhk8lMPAQ",
+    "auto247.tgs": "CAACAgUAAxUAAWovp9dczWi4D78ZOJ5Xq9pj54uiAAJ0HQAC1ceAVT7-kIyCSNGOPAQ",
+    "tracking.tgs": "CAACAgUAAxUAAWovp9cRtk0DC4x7TdsHlZY4fWOtAAJ0HgACdT6BVUkLcBxutuCkPAQ",
+    "adminchat.tgs": "CAACAgUAAxUAAWovp9cQqsod9esC-ALlrod75vuZAAIVJAACgCKAVRTzz6F8d9mtPAQ",
+    "adminshield.tgs": "CAACAgUAAxUAAWovqhGlIGCa1yUUsnhlhptKLAvZAAKdJgACsyuAVZn45N7eiLpsPAQ",
+    "adminboom.tgs": "CAACAgUAAxUAAWovqqSnEin7JRAZEoa4wNdrvckaAAKzJQAChMN4VTD4ro3gPROiPAQ",
+    "adminfire.tgs": "CAACAgUAAxUAAWovqqYAASbcAAGnIN0pqzte_mB5x18AApIgAAI6eIBVqocebaKBb_g8BA",
+    "adminhundred.tgs": "CAACAgUAAxUAAWovqqnIXHjtVKYz6WHutuuMskpUAAKvHQACstKBVSzW_xEp4V9JPAQ"
+  },
+  "fileIdsByBrand": {
+    "fast": [
+      "CAACAgUAAxUAAWovqg_pJY_eTGFj3bz2j6uuc7nBAALKIgAC1GKBVbhODKZhk8lMPAQ"
+    ],
+    "auto247": [
+      "CAACAgUAAxUAAWovp9dczWi4D78ZOJ5Xq9pj54uiAAJ0HQAC1ceAVT7-kIyCSNGOPAQ"
+    ],
+    "tracking": [
+      "CAACAgUAAxUAAWovp9cRtk0DC4x7TdsHlZY4fWOtAAJ0HgACdT6BVUkLcBxutuCkPAQ"
+    ],
+    "adminchat": [
+      "CAACAgUAAxUAAWovp9cQqsod9esC-ALlrod75vuZAAIVJAACgCKAVRTzz6F8d9mtPAQ"
+    ],
+    "adminshield": [
+      "CAACAgUAAxUAAWovqhGlIGCa1yUUsnhlhptKLAvZAAKdJgACsyuAVZn45N7eiLpsPAQ"
+    ],
+    "adminboom": [
+      "CAACAgUAAxUAAWovqqSnEin7JRAZEoa4wNdrvckaAAKzJQAChMN4VTD4ro3gPROiPAQ"
+    ],
+    "adminfire": [
+      "CAACAgUAAxUAAWovqqYAASbcAAGnIN0pqzte_mB5x18AApIgAAI6eIBVqocebaKBb_g8BA"
+    ],
+    "adminhundred": [
+      "CAACAgUAAxUAAWovqqnIXHjtVKYz6WHutuuMskpUAAKvHQACstKBVSzW_xEp4V9JPAQ"
+    ]
+  },
+  "stickers": [
+    {
+      "brand": "fast",
+      "brandKey": "fast",
+      "fileName": "fast.tgs",
+      "emoji": "☄️",
+      "fileId": "CAACAgUAAxUAAWovqg_pJY_eTGFj3bz2j6uuc7nBAALKIgAC1GKBVbhODKZhk8lMPAQ",
+      "customEmojiId": "6161314427892146890"
+    },
+    {
+      "brand": "auto247",
+      "brandKey": "auto247",
+      "fileName": "auto247.tgs",
+      "emoji": "🔄",
+      "fileId": "CAACAgUAAxUAAWovp9dczWi4D78ZOJ5Xq9pj54uiAAJ0HQAC1ceAVT7-kIyCSNGOPAQ",
+      "customEmojiId": "6161144007884807540"
+    },
+    {
+      "brand": "tracking",
+      "brandKey": "tracking",
+      "fileName": "tracking.tgs",
+      "emoji": "🔍",
+      "fileId": "CAACAgUAAxUAAWovp9cRtk0DC4x7TdsHlZY4fWOtAAJ0HgACdT6BVUkLcBxutuCkPAQ",
+      "customEmojiId": "6161274437451652724"
+    },
+    {
+      "brand": "adminchat",
+      "brandKey": "adminchat",
+      "fileName": "adminchat.tgs",
+      "emoji": "💬",
+      "fileId": "CAACAgUAAxUAAWovp9cQqsod9esC-ALlrod75vuZAAIVJAACgCKAVRTzz6F8d9mtPAQ",
+      "customEmojiId": "6160962223394006037"
+    },
+    {
+      "brand": "adminshield",
+      "brandKey": "adminshield",
+      "fileName": "adminshield.tgs",
+      "emoji": "🛡",
+      "fileId": "CAACAgUAAxUAAWovqhGlIGCa1yUUsnhlhptKLAvZAAKdJgACsyuAVZn45N7eiLpsPAQ",
+      "customEmojiId": "6160972338041988765"
+    },
+    {
+      "brand": "adminboom",
+      "brandKey": "adminboom",
+      "fileName": "adminboom.tgs",
+      "emoji": "💥",
+      "fileId": "CAACAgUAAxUAAWovqqSnEin7JRAZEoa4wNdrvckaAAKzJQAChMN4VTD4ro3gPROiPAQ",
+      "customEmojiId": "6158887462132262323"
+    },
+    {
+      "brand": "adminfire",
+      "brandKey": "adminfire",
+      "fileName": "adminfire.tgs",
+      "emoji": "🔥",
+      "fileId": "CAACAgUAAxUAAWovqqYAASbcAAGnIN0pqzte_mB5x18AApIgAAI6eIBVqocebaKBb_g8BA",
+      "customEmojiId": "6161056480746283154"
+    },
+    {
+      "brand": "adminhundred",
+      "brandKey": "adminhundred",
+      "fileName": "adminhundred.tgs",
+      "emoji": "💯",
+      "fileId": "CAACAgUAAxUAAWovqqnIXHjtVKYz6WHutuuMskpUAAKvHQACstKBVSzW_xEp4V9JPAQ",
+      "customEmojiId": "6161437427165568431"
+    }
+  ]
+}

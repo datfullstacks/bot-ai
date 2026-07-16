@@ -1,0 +1,16 @@
+node_modules/
+.env
+data/db.json
+data/*.tmp
+data/*.log
+data/*.out
+data/*.err
+data/tmp-*.json
+data/telegram-ui-emoji-[0-9]*.json
+backups/
+*.log
+__pycache__/
+*.pyc
+logs/
+.understand-anything/
+.superpowers/

@@ -1,0 +1,35 @@
+{
+  "packName": "kaito_ai_shop_flame_emoji_by_kaitokidaibot",
+  "title": "KAITO AI SHOP Flame Emoji",
+  "stickerType": "custom_emoji",
+  "stickerFormat": "animated",
+  "source": "C:\\Users\\Dat\\Downloads\\vcodex3\\public\\brand\\flame-emoji",
+  "dryRun": false,
+  "generatedAt": "2026-06-15T07:42:33.949Z",
+  "customEmojiIdsByFile": {
+    "moneyface.tgs": "6161083328586851201"
+  },
+  "customEmojiIdsByBrand": {
+    "moneyface": [
+      "6161083328586851201"
+    ]
+  },
+  "fileIdsByFile": {
+    "moneyface.tgs": "CAACAgUAAxUAAWovrOaRtl_fZgABZwyqOQI9wbpDfgACgSMAAqWQgFV1dK1YotmrRDwE"
+  },
+  "fileIdsByBrand": {
+    "moneyface": [
+      "CAACAgUAAxUAAWovrOaRtl_fZgABZwyqOQI9wbpDfgACgSMAAqWQgFV1dK1YotmrRDwE"
+    ]
+  },
+  "stickers": [
+    {
+      "brand": "moneyface",
+      "brandKey": "moneyface",
+      "fileName": "moneyface.tgs",
+      "emoji": "🤑",
+      "fileId": "CAACAgUAAxUAAWovrOaRtl_fZgABZwyqOQI9wbpDfgACgSMAAqWQgFV1dK1YotmrRDwE",
+      "customEmojiId": "6161083328586851201"
+    }
+  ]
+}
