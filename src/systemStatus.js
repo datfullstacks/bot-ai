@@ -54,6 +54,40 @@ function addOk(items, id, label, detail) {
   items.push(item(id, label, 'ok', detail));
 }
 
+function telegramEmojiReadinessDetail(emojiStatus, loadedPacks, requiredPacks) {
+  if (!emojiStatus.registryReady) {
+    const missingPacks = Object.entries(emojiStatus.packs || {})
+      .filter(([, pack]) => !pack.loaded)
+      .map(([name]) => name);
+    const missingKeys = Object.entries(emojiStatus.packs || {})
+      .filter(([, pack]) => pack.loaded)
+      .flatMap(([name, pack]) => (pack.missingRequiredKeys || []).map((key) => `${name}.${key}`));
+    const parts = [`${loadedPacks}/${requiredPacks} required packs loaded.`];
+    if (missingPacks.length) parts.push(`Missing packs: ${missingPacks.join(', ')}.`);
+    if (missingKeys.length) parts.push(`Missing IDs: ${missingKeys.join(', ')}.`);
+    return parts.join(' ');
+  }
+
+  const liveHealth = emojiStatus.liveHealth || {};
+  if (liveHealth.status === 'missing') {
+    return 'Live Telegram emoji health report is missing. Run telegram:emoji-health with --write-report.';
+  }
+  if (liveHealth.status === 'stale') {
+    const ageHours = Math.round(Number(liveHealth.ageMs || 0) / (60 * 60 * 1000));
+    return `Live Telegram emoji health report is stale (${ageHours}h old).`;
+  }
+  if (liveHealth.status === 'failed') {
+    const missing = liveHealth.missingRequiredPacks?.length
+      ? ` Missing packs in report: ${liveHealth.missingRequiredPacks.join(', ')}.`
+      : '';
+    return `Live Telegram emoji validation failed: ${liveHealth.reason || 'unknown_error'}.${missing}`;
+  }
+  if (liveHealth.status === 'healthy') {
+    return `${loadedPacks}/${requiredPacks} required packs loaded; live Telegram validation passed.`;
+  }
+  return `${loadedPacks}/${requiredPacks} required packs loaded; live validation is not required without a bot token.`;
+}
+
 function appBaseUrl() {
   return config.baseUrl.replace(/\/$/, '');
 }
@@ -304,12 +338,15 @@ function buildChecks(db = null) {
   const emojiStatus = getTelegramEmojiStatus();
   const loadedPacks = Object.values(emojiStatus.packs || {}).filter((pack) => pack.loaded).length;
   const requiredPacks = emojiStatus.requiredPacks?.length || 0;
+  const emojiDetail = telegramEmojiReadinessDetail(emojiStatus, loadedPacks, requiredPacks);
+  const emojiShouldWarn = !emojiStatus.ready
+    && (production || emojiStatus.liveHealth?.required);
   if (!emojiStatus.enabled) {
     checks.push(item('telegram_custom_text_emoji', 'Telegram text custom emoji', 'ok', 'Disabled by TELEGRAM_CUSTOM_TEXT_EMOJI=false.'));
-  } else if (process.env.NODE_ENV === 'production' && !emojiStatus.ready) {
-    addWarning(checks, 'telegram_custom_text_emoji', 'Telegram custom emoji maps incomplete', `${loadedPacks}/${requiredPacks} required packs loaded.`);
+  } else if (emojiShouldWarn) {
+    addWarning(checks, 'telegram_custom_text_emoji', 'Telegram custom emoji readiness incomplete', emojiDetail);
   } else {
-    addOk(checks, 'telegram_custom_text_emoji', 'Telegram custom emoji', `${loadedPacks}/${requiredPacks} required packs loaded.`);
+    addOk(checks, 'telegram_custom_text_emoji', 'Telegram custom emoji', emojiDetail);
   }
 
   return checks;

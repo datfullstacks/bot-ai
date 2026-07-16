@@ -37,12 +37,10 @@ const {
   roboCustomEmojiId,
   roboEmoji,
   sloganCustomEmojiId,
-  sloganEmoji,
   sloganTileCustomEmojiCandidates,
   sloganTileFallbackText,
   sloganTilePlaceholder,
-  uiCustomEmojiId,
-  uiEmoji
+  uiCustomEmojiId
 } = telegramEmoji;
 const {
   answerCallbackQuery,
@@ -73,7 +71,6 @@ export {
 
 const regularStickerMap = loadRegularStickerMap();
 
-const RETRO_FONT_ALT_EMOJI = '\u{1F524}';
 const WELCOME_BRAND_TEXT = 'KAITO KID AI SHOP';
 const FLAME_EMOJI = {
   moneyface: { emoji: '🤑' }
@@ -88,11 +85,107 @@ const NEWS_EMOJI = {
   adminfire: { emoji: '🔥' }
 };
 
+const UI_TEXT_EMOJI = Object.freeze({
+  products: '🛒',
+  catalog: '🛒',
+  topup: '💳',
+  account: '👤',
+  orders: '📦',
+  language: '🌐',
+  support: '🎧',
+  security: '🛡️',
+  'instant-delivery': '⚡',
+  'automation-247': '🔄',
+  quality: '⭐',
+  member: '👑',
+  offers: '🎁',
+  notifications: '📣',
+  promotions: '🎫',
+  reviews: '✨',
+  academy: '🎓',
+  news: '📄',
+  events: '🎮',
+  policy: '🛡️',
+  logout: '🔌',
+  close: '🔌',
+  refresh: '🔄',
+  back: '↩️',
+  ai: '🤖',
+  design: '🎨',
+  work: '💻',
+  social: '🎯'
+});
+
+const SLOGAN_TEXT_EMOJI = Object.freeze({
+  welcome: '✨',
+  catalog: '🛍️',
+  checkout: '💎',
+  payment: '💳',
+  delivery: '📦',
+  support: '🎧',
+  soldout: '⚠️',
+  'text-shopping-flow': '✨'
+});
+
+const BANNER_TEXT_EMOJI = Object.freeze({
+  account: '👤',
+  ai: '🤖',
+  auto247: '⚡',
+  checkin: '📝',
+  combo: '🎁',
+  contact: '💬',
+  delivery: '📦',
+  event: '🎮',
+  guide: '📜',
+  hot: '🔥',
+  instant: '⚡',
+  kaito: '✨',
+  logout: '🔌',
+  member: '👑',
+  minigame: '🎮',
+  mmo: '🎯',
+  new: '🆕',
+  news: '📄',
+  orders: '📦',
+  payment: '💳',
+  policy: '🛡️',
+  products: '🛒',
+  refund: '↩️',
+  review: '✨',
+  sale: '🎫',
+  secure: '🛡️',
+  soldout: '⚠️',
+  stock: '📦',
+  support: '🎧',
+  trusted: '🛡️',
+  vip: '👑',
+  welcome: '👋'
+});
+
+const KNOWN_BRAND_TEXT_EMOJI = new Map([
+  ['chatgpt', '🤖'],
+  ['claude', '🧠'],
+  ['gemini', '✨'],
+  ['perplexity', '🔎'],
+  ['cursor', '🖱️'],
+  ['canva', '🎨'],
+  ['capcut', '🎬'],
+  ['google', '🔎'],
+  ['microsoft', '💻'],
+  ['gmail', '📧'],
+  ['notion', '📝'],
+  ['paypal', '💳'],
+  ['facebook', '📘'],
+  ['telegram', '✈️'],
+  ['tiktok', '🎵'],
+  ['discord', '🎮']
+]);
+
 const CATEGORY_ICONS = new Map([
-  ['AI Accounts', UI_ICONS.ai],
-  ['Design Accounts', UI_ICONS.design],
-  ['Work & Cloud Accounts', UI_ICONS.work],
-  ['Social/MMO Accounts', UI_ICONS.social]
+  ['AI Accounts', UI_TEXT_EMOJI.ai],
+  ['Design Accounts', UI_TEXT_EMOJI.design],
+  ['Work & Cloud Accounts', UI_TEXT_EMOJI.work],
+  ['Social/MMO Accounts', UI_TEXT_EMOJI.social]
 ]);
 
 const FLOW_MOTION_BRANDS = new Map([
@@ -107,13 +200,13 @@ const FLOW_MOTION_BRANDS = new Map([
 ]);
 
 const ORDER_STATUS_LABELS = new Map([
-  ['pending_payment', '⏳ Chờ thanh toán'],
-  ['payment_review', '🟠 Cần kiểm tra'],
-  ['delivered', '✅ Đã giao hàng'],
-  ['cancelled', '⛔ Đã hủy'],
-  ['expired', '⌛ Hết hạn'],
+  ['pending_payment', '💳 Chờ thanh toán'],
+  ['payment_review', '⚠️ Cần kiểm tra'],
+  ['delivered', '📦 Đã giao hàng'],
+  ['cancelled', '↩️ Đã hủy'],
+  ['expired', '⚠️ Hết hạn'],
   ['refunded', '↩️ Đã hoàn tiền'],
-  ['paid', '✅ Đã thanh toán']
+  ['paid', '📝 Đã thanh toán']
 ]);
 
 const TELEGRAM_ALL_MENU_COMMANDS = [
@@ -141,7 +234,7 @@ const TELEGRAM_ALL_MENU_COMMANDS = [
 ];
 
 const TELEGRAM_VISIBLE_COMMAND_ORDER = ['start', 'products', 'orders', 'support', 'account'];
-export const BOT_RESTORED_MESSAGE = 'Bot đã hoạt động trở lại';
+export const BOT_RESTORED_MESSAGE = `${UI_TEXT_EMOJI['automation-247']} Bot đã hoạt động trở lại`;
 
 export const TELEGRAM_MENU_COMMANDS = TELEGRAM_VISIBLE_COMMAND_ORDER
   .map((command) => TELEGRAM_ALL_MENU_COMMANDS.find((item) => item.command === command))
@@ -237,12 +330,32 @@ function welcomeBrandTitle({ retroFont = false } = {}) {
   return `<b>${escapeHtml(WELCOME_BRAND_TEXT)}</b>`;
 }
 
-function sloganTextEmoji(key, fallbackText, fallbackEmoji) {
-  return escapeHtml(fallbackText || fallbackEmoji || key);
+function uiTextEmoji(key, fallbackEmoji = '✨') {
+  return UI_TEXT_EMOJI[key] || fallbackEmoji;
+}
+
+function sloganTextEmoji(key, fallbackEmoji = '✨') {
+  return SLOGAN_TEXT_EMOJI[key] || fallbackEmoji;
+}
+
+function bannerTextEmoji(key, fallbackEmoji = '✨') {
+  return BANNER_TEXT_EMOJI[key] || fallbackEmoji;
 }
 
 function customEmojiCandidate(emoji, customEmojiId) {
   return { emoji, customEmojiId };
+}
+
+function firstCustomEmojiId(...ids) {
+  return ids.map((id) => String(id || '').trim()).find(Boolean) || '';
+}
+
+function uiCustomEmojiCandidate(key) {
+  return customEmojiCandidate(uiTextEmoji(key), uiCustomEmojiId(key));
+}
+
+function sloganCustomEmojiCandidate(key) {
+  return customEmojiCandidate(sloganTextEmoji(key), sloganCustomEmojiId(key));
 }
 
 function flameEmoji(key) {
@@ -268,7 +381,168 @@ function newsEmojiCandidates(key, count = 1) {
 }
 
 function bannerCustomEmojiCandidate(key, emoji) {
-  return customEmojiCandidate(emoji, bannerCustomEmojiId(key));
+  return customEmojiCandidate(emoji || bannerTextEmoji(key), bannerCustomEmojiId(key));
+}
+
+function brandCustomEmojiAlt(brand) {
+  const key = normalizeBrandKey(brand);
+  const sticker = (telegramEmoji.customEmojiMap.stickers || []).find((item) => (
+    normalizeBrandKey(item?.brand || item?.brandKey || '') === key && item?.emoji
+  ));
+  return String(sticker?.emoji || KNOWN_BRAND_TEXT_EMOJI.get(key) || '');
+}
+
+function brandTextEmoji(brand) {
+  return brandCustomEmojiId(brand) && brandCustomEmojiAlt(brand)
+    ? brandCustomEmojiAlt(brand)
+    : bannerTextEmoji('kaito');
+}
+
+function brandTextEmojiCandidate(brand) {
+  const customEmojiId = brandCustomEmojiId(brand);
+  const emoji = brandCustomEmojiAlt(brand);
+  return customEmojiCandidate(
+    customEmojiId && emoji ? emoji : bannerTextEmoji('kaito'),
+    customEmojiId && emoji ? customEmojiId : bannerCustomEmojiId('kaito')
+  );
+}
+
+function defaultTextCustomEmojiCandidates() {
+  const candidates = [
+    sloganCustomEmojiCandidate('catalog'),
+    sloganCustomEmojiCandidate('checkout'),
+    sloganCustomEmojiCandidate('payment'),
+    sloganCustomEmojiCandidate('support'),
+    sloganCustomEmojiCandidate('soldout'),
+    bannerCustomEmojiCandidate('stock'),
+    bannerCustomEmojiCandidate('checkin'),
+    bannerCustomEmojiCandidate('contact'),
+    bannerCustomEmojiCandidate('guide'),
+    bannerCustomEmojiCandidate('refund'),
+    bannerCustomEmojiCandidate('kaito'),
+    customEmojiCandidate(uiTextEmoji('products'), firstCustomEmojiId(
+      gameCustomEmojiId('products'),
+      uiCustomEmojiId('products'),
+      bannerCustomEmojiId('products')
+    )),
+    uiCustomEmojiCandidate('topup'),
+    uiCustomEmojiCandidate('account'),
+    uiCustomEmojiCandidate('orders'),
+    uiCustomEmojiCandidate('language'),
+    uiCustomEmojiCandidate('support'),
+    uiCustomEmojiCandidate('security'),
+    uiCustomEmojiCandidate('instant-delivery'),
+    uiCustomEmojiCandidate('automation-247'),
+    uiCustomEmojiCandidate('quality'),
+    uiCustomEmojiCandidate('member'),
+    uiCustomEmojiCandidate('offers'),
+    uiCustomEmojiCandidate('notifications'),
+    uiCustomEmojiCandidate('promotions'),
+    uiCustomEmojiCandidate('reviews'),
+    uiCustomEmojiCandidate('academy'),
+    uiCustomEmojiCandidate('news'),
+    uiCustomEmojiCandidate('events'),
+    uiCustomEmojiCandidate('policy'),
+    uiCustomEmojiCandidate('logout'),
+    sloganCustomEmojiCandidate('delivery'),
+    bannerCustomEmojiCandidate('hot'),
+    bannerCustomEmojiCandidate('mmo'),
+    bannerCustomEmojiCandidate('new'),
+    newsEmojiCandidate('fast'),
+    newsEmojiCandidate('tracking'),
+    newsEmojiCandidate('adminshield'),
+    newsEmojiCandidate('adminboom'),
+    newsEmojiCandidate('adminfire'),
+    customEmojiCandidate('🧠', brandCustomEmojiId('Claude')),
+    customEmojiCandidate('🔎', brandCustomEmojiId('Google') || brandCustomEmojiId('Perplexity')),
+    customEmojiCandidate('🖱️', brandCustomEmojiId('Cursor')),
+    customEmojiCandidate('🎨', brandCustomEmojiId('Canva')),
+    customEmojiCandidate('🎬', brandCustomEmojiId('CapCut')),
+    customEmojiCandidate('💻', brandCustomEmojiId('Microsoft')),
+    customEmojiCandidate('📧', brandCustomEmojiId('Gmail')),
+    customEmojiCandidate('📘', brandCustomEmojiId('Facebook')),
+    customEmojiCandidate('✈️', brandCustomEmojiId('Telegram')),
+    customEmojiCandidate('🎵', brandCustomEmojiId('TikTok')),
+    customEmojiCandidate(roboEmoji('ok', '👌'), roboCustomEmojiId('ok')),
+    customEmojiCandidate(roboEmoji('please', '🙏'), roboCustomEmojiId('please')),
+    customEmojiCandidate(roboEmoji('party', '🥳'), roboCustomEmojiId('party')),
+    customEmojiCandidate(roboEmoji('money', '🤑'), firstCustomEmojiId(
+      flameCustomEmojiId('moneyface'),
+      roboCustomEmojiId('money')
+    )),
+    customEmojiCandidate(roboEmoji('salute', '🫡'), roboCustomEmojiId('salute')),
+    customEmojiCandidate(roboEmoji('plus', '➕'), roboCustomEmojiId('plus')),
+    customEmojiCandidate(roboEmoji('hundred', '💯'), roboCustomEmojiId('hundred')),
+    customEmojiCandidate(roboEmoji('wave', '👋'), firstCustomEmojiId(
+      roboCustomEmojiId('wave'),
+      bannerCustomEmojiId('welcome')
+    ))
+  ];
+
+  for (const [brand, emoji] of KNOWN_BRAND_TEXT_EMOJI.entries()) {
+    candidates.push(customEmojiCandidate(emoji, brandCustomEmojiId(brand)));
+  }
+  for (const sticker of telegramEmoji.customEmojiMap.stickers || []) {
+    candidates.push(customEmojiCandidate(
+      sticker?.emoji,
+      brandCustomEmojiId(sticker?.brand || sticker?.brandKey)
+    ));
+  }
+
+  const byEmoji = new Map();
+  for (const candidate of candidates) {
+    const emoji = String(candidate?.emoji || '');
+    const customEmojiId = String(candidate?.customEmojiId || '');
+    if (emoji && customEmojiId && !byEmoji.has(emoji)) byEmoji.set(emoji, candidate);
+  }
+  return byEmoji;
+}
+
+function recognizedEmojiCounts(htmlText, emojis) {
+  const text = String(htmlText || '');
+  const tokens = [...new Set(emojis.filter(Boolean))].sort((left, right) => right.length - left.length);
+  const counts = new Map();
+
+  for (let offset = 0; offset < text.length;) {
+    const token = tokens.find((emoji) => text.startsWith(emoji, offset));
+    if (!token) {
+      offset += 1;
+      continue;
+    }
+    counts.set(token, (counts.get(token) || 0) + 1);
+    offset += token.length;
+  }
+  return counts;
+}
+
+function customEmojiCandidatesForText(htmlText, preferredCandidates = []) {
+  const preferred = (preferredCandidates || []).filter((candidate) => (
+    candidate?.emoji && candidate?.customEmojiId
+  ));
+  const defaults = defaultTextCustomEmojiCandidates();
+  const counts = recognizedEmojiCounts(htmlText, [
+    ...defaults.keys(),
+    ...preferred.map((candidate) => String(candidate.emoji || ''))
+  ]);
+  const claimed = new Map();
+  const candidates = [];
+
+  for (const candidate of preferred) {
+    const emoji = String(candidate.emoji || '');
+    const used = claimed.get(emoji) || 0;
+    if (used >= (counts.get(emoji) || 0)) continue;
+    candidates.push(candidate);
+    claimed.set(emoji, used + 1);
+  }
+
+  for (const [emoji, count] of counts.entries()) {
+    const fallback = defaults.get(emoji);
+    if (!fallback) continue;
+    for (let index = claimed.get(emoji) || 0; index < count; index += 1) {
+      candidates.push(fallback);
+    }
+  }
+  return candidates;
 }
 
 function retroBrandCustomEmojiCandidates() {
@@ -284,7 +558,7 @@ function sloganTileText(key, options = {}) {
 }
 
 function customTextPayload(htmlText, candidates) {
-  return buildCustomEmojiEntityPayload(htmlText, candidates, {
+  return buildCustomEmojiEntityPayload(htmlText, customEmojiCandidatesForText(htmlText, candidates), {
     enabled: config.telegram.customTextEmoji
   });
 }
@@ -326,15 +600,12 @@ async function sendCustomTelegramMessage(chatId, htmlText, candidates, options =
   return sendTelegramMessage(chatId, payload.text, payload.options);
 }
 
+async function sendAnimatedTelegramMessage(chatId, htmlText, options = {}) {
+  return sendCustomTelegramMessage(chatId, htmlText, [], options);
+}
+
 async function presentTelegramMessage(chatId, messageId, htmlText, options = {}) {
-  if (messageId) {
-    try {
-      return await editTelegramMessage(chatId, messageId, htmlText, options);
-    } catch (error) {
-      console.warn(`[telegram] edit message failed, sending a new message: ${error.message}`);
-    }
-  }
-  return sendTelegramMessage(chatId, htmlText, options);
+  return presentCustomTelegramMessage(chatId, messageId, htmlText, [], options);
 }
 
 async function presentCustomTelegramMessage(chatId, messageId, htmlText, candidates, options = {}) {
@@ -362,50 +633,66 @@ function startCustomEmojiCandidates() {
     newsEmojiCandidate('adminboom'),
     newsEmojiCandidate('adminfire'),
     customEmojiCandidate(roboEmoji('hundred', '💯'), roboCustomEmojiId('hundred')),
-    customEmojiCandidate('👋', roboCustomEmojiId('wave')),
-    bannerCustomEmojiCandidate('payment', '💳'),
-    bannerCustomEmojiCandidate('delivery', '📦'),
-    bannerCustomEmojiCandidate('products', '🛒'),
-    bannerCustomEmojiCandidate('instant', '⚡'),
-    bannerCustomEmojiCandidate('orders', '📦'),
-    bannerCustomEmojiCandidate('contact', '💬')
+    customEmojiCandidate('👋', roboCustomEmojiId('wave'))
   ];
 }
 
 function catalogCustomEmojiCandidates() {
   return [
-    bannerCustomEmojiCandidate('instant', '⚡'),
-    bannerCustomEmojiCandidate('soldout', '⚠️'),
-    bannerCustomEmojiCandidate('combo', '🎁'),
-    bannerCustomEmojiCandidate('contact', '💬'),
-    bannerCustomEmojiCandidate('review', '✨'),
-    bannerCustomEmojiCandidate('kaito', '✨'),
-    bannerCustomEmojiCandidate('delivery', '📦')
+    customEmojiCandidate(roboEmoji('ok', '👌'), roboCustomEmojiId('ok')),
+    sloganCustomEmojiCandidate('catalog'),
+    uiCustomEmojiCandidate('instant-delivery'),
+    uiCustomEmojiCandidate('automation-247'),
+    sloganCustomEmojiCandidate('soldout'),
+    bannerCustomEmojiCandidate('guide'),
+    bannerCustomEmojiCandidate('combo'),
+    customEmojiCandidate(roboEmoji('please', '🙏'), roboCustomEmojiId('please')),
+    bannerCustomEmojiCandidate('contact'),
+    bannerCustomEmojiCandidate('review'),
+    customEmojiCandidate(roboEmoji('party', '🥳'), roboCustomEmojiId('party')),
+    bannerCustomEmojiCandidate('kaito'),
+    bannerCustomEmojiCandidate('mmo'),
+    bannerCustomEmojiCandidate('stock')
   ];
 }
 
 function supportCustomEmojiCandidates() {
   return [
-    bannerCustomEmojiCandidate('contact', '💬')
+    customEmojiCandidate(roboEmoji('salute', '🫡'), roboCustomEmojiId('salute')),
+    sloganCustomEmojiCandidate('support'),
+    customEmojiCandidate(roboEmoji('please', '🙏'), roboCustomEmojiId('please'))
   ];
 }
 
 function topupCustomEmojiCandidates() {
   return [
-    bannerCustomEmojiCandidate('payment', '💳')
+    flameEmojiCandidate('moneyface'),
+    sloganCustomEmojiCandidate('payment'),
+    customEmojiCandidate(roboEmoji('ok', '👌'), roboCustomEmojiId('ok'))
   ];
 }
 
 function orderCustomEmojiCandidates() {
   return [
-    bannerCustomEmojiCandidate('payment', '💳'),
-    bannerCustomEmojiCandidate('delivery', '📦')
+    customEmojiCandidate(roboEmoji('party', '🥳'), roboCustomEmojiId('party')),
+    sloganCustomEmojiCandidate('payment'),
+    bannerCustomEmojiCandidate('checkin'),
+    bannerCustomEmojiCandidate('guide'),
+    bannerCustomEmojiCandidate('stock'),
+    bannerCustomEmojiCandidate('stock'),
+    flameEmojiCandidate('moneyface'),
+    sloganCustomEmojiCandidate('delivery'),
+    customEmojiCandidate(roboEmoji('ok', '👌'), roboCustomEmojiId('ok'))
   ];
 }
 
 function deliveryCustomEmojiCandidates() {
   return [
-    bannerCustomEmojiCandidate('delivery', '📦')
+    sloganCustomEmojiCandidate('delivery'),
+    uiCustomEmojiCandidate('security'),
+    bannerCustomEmojiCandidate('guide'),
+    bannerCustomEmojiCandidate('stock'),
+    uiCustomEmojiCandidate('security')
   ];
 }
 
@@ -435,20 +722,129 @@ function startImageFilePath() {
   return configuredImageFilePath(config.telegram.startImageFile) || sloganImageFilePath('welcome');
 }
 
+function genericKeyboardCustomEmojiId() {
+  return firstCustomEmojiId(
+    bannerCustomEmojiId('kaito'),
+    gameCustomEmojiId('products'),
+    uiCustomEmojiId('products'),
+    sloganCustomEmojiId('welcome'),
+    brandCustomEmojiId('ChatGPT')
+  );
+}
+
+function categoryKeyboardCustomEmojiId(category) {
+  const label = String(category || '');
+  if (/design|canva|capcut|figma/i.test(label)) return brandCustomEmojiId('Canva');
+  if (/cloud|work|workspace|mail/i.test(label)) return brandCustomEmojiId('Microsoft');
+  if (/social|mmo|telegram|tiktok|discord/i.test(label)) return bannerCustomEmojiId('mmo');
+  if (/ai/i.test(label)) return bannerCustomEmojiId('ai');
+  return sloganCustomEmojiId('catalog');
+}
+
+function orderStatusKeyboardCustomEmojiId(status) {
+  switch (String(status || 'pending_payment')) {
+    case 'pending_payment':
+      return firstCustomEmojiId(sloganCustomEmojiId('payment'), bannerCustomEmojiId('payment'));
+    case 'payment_review':
+      return firstCustomEmojiId(bannerCustomEmojiId('review'), sloganCustomEmojiId('soldout'));
+    case 'delivered':
+      return firstCustomEmojiId(sloganCustomEmojiId('delivery'), bannerCustomEmojiId('delivery'));
+    case 'cancelled':
+    case 'refunded':
+      return bannerCustomEmojiId('refund');
+    case 'expired':
+      return firstCustomEmojiId(bannerCustomEmojiId('soldout'), sloganCustomEmojiId('soldout'));
+    case 'paid':
+      return firstCustomEmojiId(bannerCustomEmojiId('checkin'), sloganCustomEmojiId('checkout'));
+    default:
+      return uiCustomEmojiId('orders');
+  }
+}
+
+function keyboardCustomEmojiId(semantic, preferredCustomEmojiId = '') {
+  const semanticId = (() => {
+    switch (semantic) {
+      case 'products':
+      case 'catalog':
+      case 'buy':
+        return firstCustomEmojiId(
+          gameCustomEmojiId('products'),
+          uiCustomEmojiId('products'),
+          bannerCustomEmojiId('products'),
+          sloganCustomEmojiId('catalog')
+        );
+      case 'topup':
+        return firstCustomEmojiId(uiCustomEmojiId('topup'), bannerCustomEmojiId('payment'));
+      case 'account':
+        return firstCustomEmojiId(uiCustomEmojiId('account'), bannerCustomEmojiId('account'));
+      case 'orders':
+        return firstCustomEmojiId(uiCustomEmojiId('orders'), bannerCustomEmojiId('orders'));
+      case 'language':
+        return uiCustomEmojiId('language');
+      case 'support':
+        return firstCustomEmojiId(uiCustomEmojiId('support'), sloganCustomEmojiId('support'), bannerCustomEmojiId('support'));
+      case 'security':
+        return firstCustomEmojiId(uiCustomEmojiId('security'), bannerCustomEmojiId('secure'));
+      case 'refresh':
+        return firstCustomEmojiId(uiCustomEmojiId('automation-247'), newsCustomEmojiId('auto247'));
+      case 'back':
+      case 'decrease':
+        return bannerCustomEmojiId('refund');
+      case 'quantity':
+        return firstCustomEmojiId(bannerCustomEmojiId('stock'), uiCustomEmojiId('orders'));
+      case 'increase':
+        return firstCustomEmojiId(roboCustomEmojiId('plus'), bannerCustomEmojiId('stock'));
+      case 'confirm':
+        return firstCustomEmojiId(sloganCustomEmojiId('checkout'), bannerCustomEmojiId('checkin'));
+      case 'payment':
+      case 'qr':
+        return firstCustomEmojiId(sloganCustomEmojiId('payment'), bannerCustomEmojiId('payment'), uiCustomEmojiId('topup'));
+      case 'cancel':
+        return firstCustomEmojiId(bannerCustomEmojiId('logout'), bannerCustomEmojiId('refund'), sloganCustomEmojiId('soldout'));
+      case 'keep':
+        return firstCustomEmojiId(bannerCustomEmojiId('trusted'), bannerCustomEmojiId('checkin'), sloganCustomEmojiId('checkout'));
+      case 'delivery':
+        return firstCustomEmojiId(sloganCustomEmojiId('delivery'), bannerCustomEmojiId('delivery'), bannerCustomEmojiId('secure'));
+      default:
+        return '';
+    }
+  })();
+  return firstCustomEmojiId(preferredCustomEmojiId, semanticId, genericKeyboardCustomEmojiId());
+}
+
+function stripLeadingButtonEmoji(value) {
+  const text = String(value || '').trim();
+  const prefixes = [
+    ...Object.values(UI_ICONS),
+    ...Object.values(UI_TEXT_EMOJI),
+    ...Object.values(SLOGAN_TEXT_EMOJI),
+    ...Object.values(BANNER_TEXT_EMOJI),
+    '✅', '❌', '⛔', '⌛', '⏳', '🟠', '🖼', '🔐', '🔑', '🧾', '➖', '➕', '↩'
+  ].filter(Boolean).sort((left, right) => right.length - left.length);
+  const prefix = prefixes.find((emoji) => text.startsWith(`${emoji} `));
+  return prefix ? text.slice(prefix.length).trimStart() : text;
+}
+
+function animatedKeyboardButton(fields, semantic = 'generic', preferredCustomEmojiId = '') {
+  const customEmojiId = keyboardCustomEmojiId(semantic, preferredCustomEmojiId);
+  const text = customEmojiId ? stripLeadingButtonEmoji(fields.text) : String(fields.text || '');
+  return {
+    ...fields,
+    text,
+    ...(customEmojiId ? { icon_custom_emoji_id: customEmojiId } : {})
+  };
+}
+
 function brandKeyboardButton(brand, fields) {
-  const customEmojiId = brandCustomEmojiId(brand);
-  return customEmojiId
-    ? { ...fields, icon_custom_emoji_id: customEmojiId }
-    : fields;
+  return animatedKeyboardButton(fields, 'brand', brandCustomEmojiId(brand));
 }
 
 function uiKeyboardButton(key, label, callbackData) {
-  const customEmojiId = (key === 'products' ? gameCustomEmojiId('products') : '') || uiCustomEmojiId(key);
-  const fallbackIcon = UI_ICONS[key] || '';
-  const text = customEmojiId ? label : `${fallbackIcon} ${label}`.trim();
-  return customEmojiId
-    ? { text, callback_data: callbackData, icon_custom_emoji_id: customEmojiId }
-    : { text, callback_data: callbackData };
+  return animatedKeyboardButton(
+    { text: label, callback_data: callbackData },
+    key,
+    key === 'products' ? gameCustomEmojiId('products') : uiCustomEmojiId(key)
+  );
 }
 
 function knownTelegramChatIds(db) {
@@ -471,7 +867,7 @@ export async function notifyBotRestoredToUsers(message = BOT_RESTORED_MESSAGE) {
 
   for (const chatId of chatIds) {
     try {
-      await sendTelegramMessage(chatId, message);
+      await sendAnimatedTelegramMessage(chatId, message);
       sent += 1;
     } catch (error) {
       failures.push({ chatId, error: error.message });
@@ -570,7 +966,7 @@ async function sendSloganCaption(chatId, stage, caption, options = {}) {
     ? customCaptionOptions(caption, options._customEmojiCandidates, options)
     : { caption, options };
   delete customOptions.options._customEmojiCandidates;
-  if (!imagePath) return sendTelegramMessage(chatId, customOptions.caption, customOptions.options);
+  if (!imagePath) return sendAnimatedTelegramMessage(chatId, customOptions.caption, customOptions.options);
   try {
     return await sendTelegramPhotoFile(chatId, imagePath, {
       parse_mode: 'HTML',
@@ -579,7 +975,7 @@ async function sendSloganCaption(chatId, stage, caption, options = {}) {
     });
   } catch (error) {
     console.warn(`[telegram] slogan image skipped: ${error.message}`);
-    return sendTelegramMessage(chatId, customOptions.caption, customOptions.options);
+    return sendAnimatedTelegramMessage(chatId, customOptions.caption, customOptions.options);
   }
 }
 
@@ -590,15 +986,19 @@ function money(amount, currency = 'VND') {
 function categoryIcon(category) {
   const label = String(category || '');
   if (CATEGORY_ICONS.has(label)) return CATEGORY_ICONS.get(label);
-  if (/ai/i.test(label)) return UI_ICONS.ai;
-  if (/design|canva|capcut/i.test(label)) return UI_ICONS.design;
-  if (/cloud|work|workspace|mail/i.test(label)) return UI_ICONS.work;
-  if (/social|mmo|telegram|tiktok|discord/i.test(label)) return UI_ICONS.social;
-  return UI_ICONS.catalog;
+  if (/design|canva|capcut|figma/i.test(label)) return UI_TEXT_EMOJI.design;
+  if (/cloud|work|workspace|mail/i.test(label)) return UI_TEXT_EMOJI.work;
+  if (/social|mmo|telegram|tiktok|discord/i.test(label)) return UI_TEXT_EMOJI.social;
+  if (/ai/i.test(label)) return UI_TEXT_EMOJI.ai;
+  return SLOGAN_TEXT_EMOJI.catalog;
 }
 
 function categoryLabel(category) {
   return `${categoryIcon(category)} ${category}`;
+}
+
+function categoryTextEmojiCandidate(category) {
+  return customEmojiCandidate(categoryIcon(category), categoryKeyboardCustomEmojiId(category));
 }
 
 export function brandIcon(brand) {
@@ -606,19 +1006,38 @@ export function brandIcon(brand) {
 }
 
 function brandLabel(brand) {
-  return `${brandIcon(brand)} ${brand}`;
+  return `${brandTextEmoji(brand)} ${brand}`;
 }
 
 function brandHtmlLabel(brand) {
-  return `${brandIcon(brand)} ${escapeHtml(brand)}`;
+  return `${brandTextEmoji(brand)} ${escapeHtml(brand)}`;
 }
 
 function brandButtonLabel(brand) {
-  const name = String(brand || 'Other').trim() || 'Other';
-  if (brandCustomEmojiId(name)) return name;
+  return String(brand || 'Other').trim() || 'Other';
+}
 
-  const icon = brandIcon(name);
-  return icon && icon !== '#' ? `${icon} ${name}` : name;
+function brandMenuCustomEmojiCandidates(products, category) {
+  const brands = uniqueSorted(products
+    .map((product) => normalizePublicProduct(product))
+    .filter((product) => product.category === category)
+    .map((product) => product.brand));
+  return [
+    categoryTextEmojiCandidate(category),
+    ...brands.map((brand) => brandTextEmojiCandidate(brand))
+  ];
+}
+
+function brandPackagesCustomEmojiCandidates(category, brand) {
+  return [
+    categoryTextEmojiCandidate(category),
+    brandTextEmojiCandidate(brand)
+  ];
+}
+
+function productCustomEmojiCandidates(product) {
+  const normalized = normalizePublicProduct(product);
+  return [brandTextEmojiCandidate(normalized.brand)];
 }
 
 async function trackTelegramClick(user, action, details = {}) {
@@ -631,7 +1050,7 @@ async function trackTelegramClick(user, action, details = {}) {
 
 export function formatOrderStatus(status = 'pending_payment') {
   const normalized = String(status || 'pending_payment');
-  return ORDER_STATUS_LABELS.get(normalized) || `ℹ️ ${normalized.replaceAll('_', ' ')}`;
+  return ORDER_STATUS_LABELS.get(normalized) || `${uiTextEmoji('news')} ${normalized.replaceAll('_', ' ')}`;
 }
 
 function orderStatusLine(status) {
@@ -642,7 +1061,7 @@ function orderStatusLine(status) {
 
 export function formatStockStatus(product) {
   const available = Number(product?.stock?.available || 0);
-  return available > 0 ? `📦 Còn ${available}` : '⛔ Hết hàng';
+  return available > 0 ? `${bannerTextEmoji('stock')} Còn ${available}` : `${sloganTextEmoji('soldout')} Hết hàng`;
 }
 
 export function startMessage({ retroFontBrand = false, sloganTiles = false } = {}) {
@@ -667,11 +1086,11 @@ function startPhotoCaptionFallbackPayload() {
 }
 
 export function usageMessage() {
-  return `Cú pháp: ${code('/buy sku 1')}`;
+  return `${bannerTextEmoji('guide')} Cú pháp: ${code('/buy sku 1')}`;
 }
 
 export function unknownCommandMessage() {
-  return `Mình chưa hiểu thao tác này. Bấm ${UI_ICONS.products} Sản phẩm hoặc ${UI_ICONS.orders} Đơn hàng bên dưới.`;
+  return `Mình chưa hiểu thao tác này. Bấm ${uiTextEmoji('products')} Sản phẩm hoặc ${uiTextEmoji('orders')} Đơn hàng bên dưới.`;
 }
 
 function decodePart(value) {
@@ -778,13 +1197,13 @@ export function buildCategoryKeyboard(products) {
     const available = normalized
       .filter((product) => product.category === category)
       .reduce((sum, product) => sum + availableStock(product), 0);
-    return {
-      text: `${categoryLabel(category)}${available > 0 ? ` [${available}]` : ' [Hết]'}`,
+    return animatedKeyboardButton({
+      text: `${category}${available > 0 ? ` [${available}]` : ' [Hết]'}`,
       callback_data: `cat:${catalogToken(category)}`
-    };
+    }, 'category', categoryKeyboardCustomEmojiId(category));
   }), 2);
-  rows.push([{ text: `${UI_ICONS.refresh} Làm mới`, callback_data: 'catalog:all' }]);
-  rows.push([{ text: `${UI_ICONS.back} Menu chính`, callback_data: 'start:menu' }]);
+  rows.push([animatedKeyboardButton({ text: 'Làm mới', callback_data: 'catalog:all' }, 'refresh')]);
+  rows.push([animatedKeyboardButton({ text: 'Menu chính', callback_data: 'start:menu' }, 'back')]);
   return { inline_keyboard: rows };
 }
 
@@ -802,7 +1221,7 @@ export function buildBrandKeyboard(products, category) {
     .filter((product) => product.category === category))
     .map((product) => brandChoiceButton(product));
   const rows = chunkButtons(buttons, 2);
-  rows.push([{ text: `${UI_ICONS.back} Tất cả danh mục`, callback_data: 'catalog:all' }]);
+  rows.push([animatedKeyboardButton({ text: 'Tất cả danh mục', callback_data: 'catalog:all' }, 'back')]);
   return { inline_keyboard: rows };
 }
 
@@ -823,16 +1242,19 @@ export function buildPackageKeyboard(products) {
       callback_data: `pkg:${product.id || product.sku}`
     })]);
   const category = normalized[0]?.category;
-  if (category) rows.push([{ text: '↩ Nhãn hàng', callback_data: `cat:${catalogToken(category)}` }]);
+  if (category) rows.push([animatedKeyboardButton(
+    { text: 'Nhãn hàng', callback_data: `cat:${catalogToken(category)}` },
+    'back'
+  )]);
   rows.push([
-    { text: `${UI_ICONS.catalog} Danh mục`, callback_data: 'catalog:all' },
-    { text: `${UI_ICONS.orders} Đơn hàng`, callback_data: 'orders:mine' }
+    animatedKeyboardButton({ text: 'Danh mục', callback_data: 'catalog:all' }, 'catalog'),
+    animatedKeyboardButton({ text: 'Đơn hàng', callback_data: 'orders:mine' }, 'orders')
   ]);
   return { inline_keyboard: rows };
 }
 
 export function productMessage(products) {
-  if (!products.length) return `${UI_ICONS.catalog} Chưa có sản phẩm đang bán.`;
+  if (!products.length) return `${sloganTextEmoji('catalog')} Chưa có sản phẩm đang bán.`;
   const grouped = [];
   const sorted = products
     .map((product) => normalizePublicProduct(product))
@@ -851,16 +1273,16 @@ export function productMessage(products) {
     }
     grouped.push([
       bold(product.name),
-      product.packageType ? `🎁 Gói: ${escapeHtml(product.packageType)}` : '',
-      `🏷️ SKU: ${code(product.sku)}`,
-      `💰 Giá: ${escapeHtml(money(product.price, product.currency))}`,
+      product.packageType ? `${uiTextEmoji('offers')} Gói: ${escapeHtml(product.packageType)}` : '',
+      `${uiTextEmoji('promotions')} SKU: ${code(product.sku)}`,
+      `${sloganTextEmoji('payment')} Giá: ${escapeHtml(money(product.price, product.currency))}`,
       formatStockStatus(product),
-      `🛍️ Mua nhanh: ${code(`/buy ${product.sku} 1`)}`
+      `${sloganTextEmoji('catalog')} Mua nhanh: ${code(`/buy ${product.sku} 1`)}`
     ].filter(Boolean).join('\n'));
   }
 
   return [
-    `${UI_ICONS.catalog} <b>KAITO KID AI SHOP - Gói đang bán</b>`,
+    `${uiTextEmoji('products')} <b>KAITO KID AI SHOP - Gói đang bán</b>`,
     'Chọn theo danh mục, nhãn hiệu rồi bấm nút mua gói còn hàng.',
     ...grouped
   ].join('\n\n');
@@ -872,21 +1294,21 @@ export function categoryMenuMessage(products) {
   const brandCount = catalogBrandEntries(normalized).length;
   const availableCount = normalized.filter((product) => Number(product.stock?.available || 0) > 0).length;
   return [
-    `${roboEmoji('ok', '👌')} ${sloganEmoji('catalog', '🛍️')} <b>Danh mục sản phẩm</b>`,
+    `${roboEmoji('ok', '👌')} ${sloganTextEmoji('catalog')} <b>Danh mục sản phẩm</b>`,
     config.sales.enabled
-      ? `${uiEmoji('instant-delivery', UI_ICONS['instant-delivery'])} ${uiEmoji('automation-247', UI_ICONS['automation-247'])} Thanh toán khớp sẽ được giao tự động 24/7.`
-      : '🔒 Shop đang chuẩn bị tồn kho và thanh toán, chưa mở nhận đơn.',
-    `${sloganEmoji('soldout', '⚠️')} 🧾 Gói hết vui lòng liên hệ admin để đặt thêm 🎁 ${roboEmoji('please', '🙏')}`,
-    `👉 ${supportContactLine()} 💬`,
+      ? `${uiTextEmoji('instant-delivery')} ${uiTextEmoji('automation-247')} Thanh toán khớp sẽ được giao tự động 24/7.`
+      : `${uiTextEmoji('security')} Shop đang chuẩn bị tồn kho và thanh toán, chưa mở nhận đơn.`,
+    `${sloganTextEmoji('soldout')} ${bannerTextEmoji('guide')} Gói hết vui lòng liên hệ admin để đặt thêm ${bannerTextEmoji('combo')} ${roboEmoji('please', '🙏')}`,
+    `${bannerTextEmoji('contact')} ${supportContactLine()}`,
     '',
-    `🔹✨ ${roboEmoji('party', '🥳')} Chọn một danh mục bên dưới ✨🔹`,
-    `🎯 ${categoryCount} danh mục · ${brandCount} nhãn hàng · 📦 ${availableCount} gói còn hàng.`
+    `${bannerTextEmoji('review')} ${roboEmoji('party', '🥳')} Chọn một danh mục bên dưới ${bannerTextEmoji('kaito')}`,
+    `${bannerTextEmoji('mmo')} ${categoryCount} danh mục · ${brandCount} nhãn hàng · ${bannerTextEmoji('stock')} ${availableCount} gói còn hàng.`
   ].join('\n');
 }
 
 function topupMessage() {
   return [
-    `${roboEmoji('money', '🤑')} ${sloganEmoji('payment', '💳')} <b>Đặt gói riêng</b>`,
+    `${roboEmoji('money', '🤑')} ${sloganTextEmoji('payment')} <b>Đặt gói riêng</b>`,
     'Shop thanh toán theo từng đơn để giữ hàng và đối soát chính xác.',
     `${roboEmoji('ok', '👌')} Cần gói chưa có trong danh mục, số lượng lớn hoặc báo giá riêng: ${supportContactLine()}`
   ].join('\n');
@@ -895,7 +1317,7 @@ function topupMessage() {
 function accountMessage(user) {
   const display = user.username ? `@${user.username}` : [user.firstName, user.lastName].filter(Boolean).join(' ') || user.telegramId;
   return [
-    `${UI_ICONS.account} <b>Tài khoản</b>`,
+    `${uiTextEmoji('account')} <b>Tài khoản</b>`,
     `Telegram: ${escapeHtml(display)}`,
     'Trạng thái: BUYER',
     'Mua hàng: Sản phẩm → Danh mục → Nhãn hàng → Gói → Xác nhận → Thanh toán.'
@@ -904,7 +1326,7 @@ function accountMessage(user) {
 
 function languageMessage() {
   return [
-    `${UI_ICONS.language} <b>Ngôn ngữ</b>`,
+    `${uiTextEmoji('language')} <b>Ngôn ngữ</b>`,
     'Ngôn ngữ hiện tại: Tiếng Việt.',
     'Bản tiếng Anh có thể bật thêm khi shop cần bán quốc tế.'
   ].join('\n');
@@ -912,20 +1334,20 @@ function languageMessage() {
 
 function supportMessage() {
   return [
-    `${roboEmoji('salute', '🫡')} ${sloganEmoji('support', '💬')} <b>Hỗ trợ</b>`,
+    `${roboEmoji('salute', '🫡')} ${sloganTextEmoji('support')} <b>Hỗ trợ</b>`,
     `${roboEmoji('please', '🙏')} Cần đặt gói hết hàng, mua số lượng lớn hoặc kiểm tra đơn: ${supportContactLine()}`,
     'Gửi mã đơn hoặc tên gói bạn cần để admin xử lý nhanh hơn.'
   ].join('\n');
 }
 
 function closeMessage() {
-  return `${uiEmoji('logout', UI_ICONS.logout)} Menu đã đóng. Bấm /start để mở lại khi cần mua hàng.`;
+  return `${uiTextEmoji('logout')} Menu đã đóng. Bấm /start để mở lại khi cần mua hàng.`;
 }
 
 function memberMessage(user) {
   const display = user.username ? `@${user.username}` : [user.firstName, user.lastName].filter(Boolean).join(' ') || user.telegramId;
   return [
-    `${uiEmoji('member')} <b>Thành viên</b>`,
+    `${uiTextEmoji('member')} <b>Thành viên</b>`,
     `Telegram: ${escapeHtml(display)}`,
     'Hạng hiện tại: BUYER',
     'Quyền lợi: đặt nhanh, theo dõi đơn, nhận ưu đãi và nhắc hàng mới ngay trong bot.'
@@ -935,62 +1357,62 @@ function memberMessage(user) {
 function menuInfoMessage(key, user) {
   const messages = {
     security: [
-      `${uiEmoji('security')} <b>Bảo mật</b>`,
+      `${uiTextEmoji('security')} <b>Bảo mật</b>`,
       'Thông tin đơn và tài khoản chỉ gửi trong cuộc trò chuyện Telegram này.',
       'Thanh toán dùng đúng nội dung chuyển khoản để bot tự đối soát, tránh gửi nhầm thông tin giao hàng.'
     ],
     'instant-delivery': [
-      `${uiEmoji('instant-delivery')} <b>Giao hàng tức thì</b>`,
+      `${uiTextEmoji('instant-delivery')} <b>Giao hàng tức thì</b>`,
       'Khi thanh toán khớp nội dung và số tiền, bot tự giao tài khoản/key ngay trong chat.',
       'Nếu đơn cần kiểm tra thủ công, trạng thái sẽ chuyển sang cần kiểm tra để admin xử lý.'
     ],
     'automation-247': [
-      `${uiEmoji('automation-247')} <b>Tự động 24/7</b>`,
+      `${uiTextEmoji('automation-247')} <b>Tự động 24/7</b>`,
       'Bot nhận đơn, giữ hàng, kiểm tra thanh toán và giao hàng tự động cả ngoài giờ.',
       'Các case hết hàng hoặc lệch thanh toán sẽ được chuyển sang luồng hỗ trợ.'
     ],
     quality: [
-      `${uiEmoji('quality')} <b>Chất lượng uy tín</b>`,
+      `${uiTextEmoji('quality')} <b>Chất lượng uy tín</b>`,
       'Danh mục ưu tiên gói còn hàng, giá rõ ràng và giao đúng loại sản phẩm đã chọn.',
       `Cần kiểm tra trước khi mua số lượng lớn: ${supportContactLine()}`
     ],
     offers: [
-      `${uiEmoji('offers')} <b>Ưu đãi</b>`,
+      `${uiTextEmoji('offers')} <b>Ưu đãi</b>`,
       'Ưu đãi đang được gắn trực tiếp trong danh mục và các gói nổi bật.',
       'Bấm Sản phẩm để xem các gói còn hàng, giá tốt và slot mới nhất.'
     ],
     notifications: [
-      `${uiEmoji('notifications')} <b>Thông báo</b>`,
+      `${uiTextEmoji('notifications')} <b>Thông báo</b>`,
       'Bot sẽ báo trạng thái đơn: đã tạo, chờ thanh toán, cần kiểm tra hoặc đã giao hàng.',
       'Giữ cuộc trò chuyện này để không bỏ lỡ thông tin giao hàng.'
     ],
     promotions: [
-      `${uiEmoji('promotions')} <b>Khuyến mãi</b>`,
+      `${uiTextEmoji('promotions')} <b>Khuyến mãi</b>`,
       'Các mã/gói khuyến mãi sẽ được đưa vào danh mục khi shop mở chương trình.',
       `Muốn đặt combo riêng: ${supportContactLine()}`
     ],
     reviews: [
-      `${uiEmoji('reviews')} <b>Đánh giá</b>`,
+      `${uiTextEmoji('reviews')} <b>Đánh giá</b>`,
       'Sau khi nhận hàng, bạn có thể gửi feedback hoặc ảnh kết quả cho admin.',
       'Đánh giá tốt sẽ giúp shop ưu tiên thêm gói hot và giữ giá ổn định hơn.'
     ],
     academy: [
-      `${uiEmoji('academy')} <b>Học viện</b>`,
+      `${uiTextEmoji('academy')} <b>Học viện</b>`,
       'Khu hướng dẫn sử dụng tài khoản, bảo quản key và xử lý lỗi đăng nhập.',
       'Các bài hướng dẫn chi tiết sẽ được bổ sung theo từng nhóm sản phẩm.'
     ],
     news: [
-      `${uiEmoji('news')} <b>Tin tức</b>`,
+      `${uiTextEmoji('news')} <b>Tin tức</b>`,
       'Tin hàng mới, thay đổi giá và slot hot sẽ được cập nhật tại đây.',
       'Bấm Sản phẩm để xem tình trạng còn hàng hiện tại.'
     ],
     events: [
-      `${uiEmoji('events')} <b>Sự kiện</b>`,
+      `${uiTextEmoji('events')} <b>Sự kiện</b>`,
       'Sự kiện săn slot, combo hoặc ưu đãi theo mùa sẽ mở khi shop có hàng phù hợp.',
       `Theo dõi bot hoặc liên hệ ${supportHandle()} để giữ suất.`
     ],
     policy: [
-      `${uiEmoji('policy')} <b>Chính sách</b>`,
+      `${uiTextEmoji('policy')} <b>Chính sách</b>`,
       'Mua đúng gói, đúng số lượng và thanh toán đúng nội dung để được giao tự động.',
       'Hàng đã giao cần kiểm tra ngay. Nếu có lỗi, gửi mã đơn cho admin để xử lý.'
     ]
@@ -1095,15 +1517,15 @@ function brandPackagesMessage(products, category, brand) {
   const available = selected.filter((product) => Number(product.stock?.available || 0) > 0).length;
   const priceNotes = officialPriceNoteLines(selected);
   return [
-    bold(`${category} / ${brand}`),
+    `${categoryIcon(category)} ${brandTextEmoji(brand)} ${bold(`${category} / ${brand}`)}`,
     'Chọn gói bằng nút bên dưới. Gói còn hàng được ưu tiên ở trên.',
     available > 0
-      ? 'Bấm Mua ngay để giữ slot và nhận hướng dẫn thanh toán.'
-      : 'Tất cả gói hiện hết hàng. Khi có slot mới, nút Mua ngay sẽ giữ slot cho bạn; hiện hãy bấm Nhãn hàng hoặc Danh mục để chọn lựa khác.',
+      ? `${bannerTextEmoji('stock')} Bấm Mua ngay để giữ slot và nhận hướng dẫn thanh toán.`
+      : `${sloganTextEmoji('soldout')} Tất cả gói hiện hết hàng. Khi có slot mới, nút Mua ngay sẽ giữ slot cho bạn; hiện hãy bấm Nhãn hàng hoặc Danh mục để chọn lựa khác.`,
     '',
     priceNotes.length ? 'Giá hãng tham khảo:' : '',
     ...priceNotes,
-    `Còn hàng: ${available}/${selected.length}`
+    `${bannerTextEmoji('stock')} Còn hàng: ${available}/${selected.length}`
   ].join('\n');
 }
 
@@ -1131,19 +1553,21 @@ export function productDetailMessage(product) {
   const available = availableStock(normalized);
   return [
     `${brandHtmlLabel(normalized.brand)} <b>${escapeHtml(normalized.name)}</b>`,
-    normalized.packageType ? `🎁 Gói: ${escapeHtml(normalized.packageType)}` : '',
+    normalized.packageType ? `${uiTextEmoji('offers')} Gói: ${escapeHtml(normalized.packageType)}` : '',
     '',
-    `📝 Mô tả: ${policyText(normalized.description)}`,
-    `👤 Loại tài khoản: ${policyText(normalized.accountType)}`,
-    `🛡 Bảo hành: ${policyText(normalized.warrantyPolicy)}`,
-    `🔄 Điều kiện đổi lỗi: ${policyText(normalized.replacementPolicy)}`,
-    `📨 Cách giao hàng: ${deliveryModeLabel(normalized.deliveryMode)}`,
+    `${bannerTextEmoji('checkin')} Mô tả: ${policyText(normalized.description)}`,
+    `${uiTextEmoji('account')} Loại tài khoản: ${policyText(normalized.accountType)}`,
+    `${uiTextEmoji('security')} Bảo hành: ${policyText(normalized.warrantyPolicy)}`,
+    `${uiTextEmoji('automation-247')} Điều kiện đổi lỗi: ${policyText(normalized.replacementPolicy)}`,
+    `${sloganTextEmoji('delivery')} Cách giao hàng: ${deliveryModeLabel(normalized.deliveryMode)}`,
     '',
-    `💰 Giá: <b>${escapeHtml(money(normalized.price, normalized.currency))}</b>`,
-    available > 0 ? `📦 Tồn kho: Còn ${available}` : '⛔ Tồn kho: Hết hàng',
+    `${sloganTextEmoji('payment')} Giá: <b>${escapeHtml(money(normalized.price, normalized.currency))}</b>`,
+    available > 0
+      ? `${bannerTextEmoji('stock')} Tồn kho: Còn ${available}`
+      : `${sloganTextEmoji('soldout')} Tồn kho: Hết hàng`,
     config.sales.enabled
       ? 'Bấm Mua gói này để kiểm tra lại số lượng và tổng tiền trước khi tạo đơn.'
-      : '🔒 Shop chưa mở nhận đơn. Bạn vẫn có thể xem thông tin hoặc liên hệ hỗ trợ.'
+      : `${uiTextEmoji('security')} Shop chưa mở nhận đơn. Bạn vẫn có thể xem thông tin hoặc liên hệ hỗ trợ.`
   ].filter(Boolean).join('\n');
 }
 
@@ -1151,19 +1575,19 @@ export function buildProductDetailKeyboard(product) {
   const normalized = normalizePublicProduct(product);
   const rows = [];
   if (config.sales.enabled && availableStock(normalized) > 0) {
-    rows.push([{
-      text: '🛒 Mua gói này',
+    rows.push([animatedKeyboardButton({
+      text: 'Mua gói này',
       callback_data: `buy:${productKey(normalized)}:1`
-    }]);
+    }, 'buy')]);
   }
   const support = supportUrl(`Mình cần tư vấn gói ${normalized.name}`);
-  const actions = [{
-    text: '↩ Các gói khác',
+  const actions = [animatedKeyboardButton({
+    text: 'Các gói khác',
     callback_data: `brand:${catalogToken(normalized.category)}:${catalogToken(normalized.brand)}`
-  }];
-  if (support) actions.push({ text: '💬 Liên hệ hỗ trợ', url: support });
+  }, 'back')];
+  if (support) actions.push(animatedKeyboardButton({ text: 'Liên hệ hỗ trợ', url: support }, 'support'));
   rows.push(actions);
-  rows.push([{ text: `${UI_ICONS.catalog} Danh mục`, callback_data: 'catalog:all' }]);
+  rows.push([animatedKeyboardButton({ text: 'Danh mục', callback_data: 'catalog:all' }, 'catalog')]);
   return { inline_keyboard: rows };
 }
 
@@ -1171,15 +1595,15 @@ export function confirmationMessage(product, quantity = 1) {
   const normalized = normalizePublicProduct(product);
   const qty = normalizeOrderQuantity(quantity);
   return [
-    '🧾 <b>Xác nhận mua</b>',
+    `${sloganTextEmoji('checkout')} <b>Xác nhận mua</b>`,
     '',
-    `📦 Sản phẩm: ${escapeHtml(normalized.name)}`,
-    `🔢 Số lượng: ${qty}`,
-    `💰 Đơn giá: ${escapeHtml(money(normalized.price, normalized.currency))}`,
-    `💳 Tổng tiền: <b>${escapeHtml(money(normalized.price * qty, normalized.currency))}</b>`,
-    `📨 Giao hàng: ${deliveryModeLabel(normalized.deliveryMode)}`,
+    `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(normalized.name)}`,
+    `${bannerTextEmoji('stock')} Số lượng: ${qty}`,
+    `${sloganTextEmoji('payment')} Đơn giá: ${escapeHtml(money(normalized.price, normalized.currency))}`,
+    `${sloganTextEmoji('payment')} Tổng tiền: <b>${escapeHtml(money(normalized.price * qty, normalized.currency))}</b>`,
+    `${sloganTextEmoji('delivery')} Giao hàng: ${deliveryModeLabel(normalized.deliveryMode)}`,
     '',
-    `⏱ Sau khi xác nhận, hàng được giữ trong ${config.orders.ttlMinutes} phút.`,
+    `${uiTextEmoji('automation-247')} Sau khi xác nhận, hàng được giữ trong ${config.orders.ttlMinutes} phút.`,
     'Chưa có đơn hàng hoặc tồn kho nào bị giữ ở bước này.'
   ].join('\n');
 }
@@ -1191,15 +1615,21 @@ export function buildConfirmationKeyboard(product, quantity = 1) {
   const rows = [];
   if (config.orders.maxQuantity > 1) {
     rows.push([
-      { text: '➖', callback_data: `buy:${key}:${Math.max(1, qty - 1)}` },
-      { text: `Số lượng ${qty}`, callback_data: `buy:${key}:${qty}` },
-      { text: '➕', callback_data: `buy:${key}:${Math.min(config.orders.maxQuantity, qty + 1)}` }
+      animatedKeyboardButton(
+        { text: 'Giảm', callback_data: `buy:${key}:${Math.max(1, qty - 1)}` },
+        'decrease'
+      ),
+      animatedKeyboardButton({ text: `Số lượng ${qty}`, callback_data: `buy:${key}:${qty}` }, 'quantity'),
+      animatedKeyboardButton(
+        { text: 'Tăng', callback_data: `buy:${key}:${Math.min(config.orders.maxQuantity, qty + 1)}` },
+        'increase'
+      )
     ]);
   }
-  rows.push([{ text: '✅ Xác nhận mua', callback_data: `confirm:${key}:${qty}` }]);
+  rows.push([animatedKeyboardButton({ text: 'Xác nhận mua', callback_data: `confirm:${key}:${qty}` }, 'confirm')]);
   const support = supportUrl(`Mình cần hỗ trợ trước khi mua ${normalized.name}`);
-  const actions = [{ text: '↩ Xem lại gói', callback_data: `pkg:${key}` }];
-  if (support) actions.push({ text: '💬 Hỗ trợ', url: support });
+  const actions = [animatedKeyboardButton({ text: 'Xem lại gói', callback_data: `pkg:${key}` }, 'back')];
+  if (support) actions.push(animatedKeyboardButton({ text: 'Hỗ trợ', url: support }, 'support'));
   rows.push(actions);
   return { inline_keyboard: rows };
 }
@@ -1207,46 +1637,51 @@ export function buildConfirmationKeyboard(product, quantity = 1) {
 export function buildPaymentKeyboard(order, payment) {
   const rows = [];
   if (order.status === 'pending_payment' && payment?.paymentUrl) {
-    const paymentRow = [{ text: '💳 Thanh toán', url: payment.paymentUrl }];
-    if (payment.qrImageUrl) paymentRow.push({ text: '🖼 Xem QR', url: payment.qrImageUrl });
+    const paymentRow = [animatedKeyboardButton({ text: 'Thanh toán', url: payment.paymentUrl }, 'payment')];
+    if (payment.qrImageUrl) paymentRow.push(animatedKeyboardButton({ text: 'Xem QR', url: payment.qrImageUrl }, 'qr'));
     rows.push(paymentRow);
-    rows.push([{ text: '❌ Hủy đơn', callback_data: `cancel:${order.id}` }]);
+    rows.push([animatedKeyboardButton({ text: 'Hủy đơn', callback_data: `cancel:${order.id}` }, 'cancel')]);
   }
   if (order.status === 'delivered') {
-    rows.push([{ text: '🔐 Xem lại thông tin giao hàng', callback_data: `delivery:${order.id}` }]);
+    rows.push([animatedKeyboardButton(
+      { text: 'Xem lại thông tin giao hàng', callback_data: `delivery:${order.id}` },
+      'delivery'
+    )]);
   }
   const support = supportUrl(`Mình cần hỗ trợ đơn ${order.id}`);
-  const actions = [{ text: '🧾 Đơn của tôi', callback_data: 'orders:mine' }];
-  if (support) actions.push({ text: '💬 Liên hệ hỗ trợ', url: support });
+  const actions = [animatedKeyboardButton({ text: 'Đơn của tôi', callback_data: 'orders:mine' }, 'orders')];
+  if (support) actions.push(animatedKeyboardButton({ text: 'Liên hệ hỗ trợ', url: support }, 'support'));
   rows.push(actions);
-  rows.push([{ text: `${UI_ICONS.catalog} Tiếp tục mua`, callback_data: 'catalog:all' }]);
+  rows.push([animatedKeyboardButton({ text: 'Tiếp tục mua', callback_data: 'catalog:all' }, 'products')]);
   return { inline_keyboard: rows };
 }
 
 export function buildCancelConfirmationKeyboard(order) {
   const support = supportUrl(`Mình cần hỗ trợ hủy đơn ${order.id}`);
   const actions = [
-    { text: '✅ Giữ đơn', callback_data: `order:${order.id}` },
-    { text: '❌ Xác nhận hủy', callback_data: `cancel_yes:${order.id}` }
+    animatedKeyboardButton({ text: 'Giữ đơn', callback_data: `order:${order.id}` }, 'keep'),
+    animatedKeyboardButton({ text: 'Xác nhận hủy', callback_data: `cancel_yes:${order.id}` }, 'cancel')
   ];
   const rows = [actions];
-  if (support) rows.push([{ text: '💬 Liên hệ hỗ trợ', url: support }]);
+  if (support) rows.push([animatedKeyboardButton({ text: 'Liên hệ hỗ trợ', url: support }, 'support')]);
   return { inline_keyboard: rows };
 }
 
 export function orderMessage(order, payment) {
   return [
-    `${roboEmoji('party', '🥳')} ${sloganEmoji('payment', '💳')} ✅ <b>Đơn đã tạo - đã giữ hàng</b>`,
-    `🧾 Mã đơn: ${code(order.id)}`,
-    `📦 Sản phẩm: ${escapeHtml(order.productName)}`,
-    `🔢 Số lượng: ${escapeHtml(order.quantity)}`,
-    `${roboEmoji('money', '🤑')} 💰 Tổng: ${escapeHtml(money(order.total, order.currency))}`,
-    `📨 Giao hàng: ${deliveryModeLabel(order.productSnapshot?.deliveryMode)}`,
+    `${roboEmoji('party', '🥳')} ${sloganTextEmoji('payment')} ${bannerTextEmoji('checkin')} <b>Đơn đã tạo - đã giữ hàng</b>`,
+    `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
+    `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
+    `${bannerTextEmoji('stock')} Số lượng: ${escapeHtml(order.quantity)}`,
+    `${roboEmoji('money', '🤑')} ${sloganTextEmoji('payment')} Tổng: ${escapeHtml(money(order.total, order.currency))}`,
+    `${sloganTextEmoji('delivery')} Giao hàng: ${deliveryModeLabel(order.productSnapshot?.deliveryMode)}`,
     orderStatusLine(order.status),
-    `🏦 Nội dung CK: ${code(payment.reference)}`,
-    payment.bankCode ? `🏛 Ngân hàng: ${escapeHtml(payment.bankCode)}` : '',
-    payment.accountNumber ? `💳 Số tài khoản: ${code(payment.accountNumber)}` : '',
-    order.expiresAt ? `⏱️ Giữ hàng đến: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}` : '',
+    `${sloganTextEmoji('payment')} Nội dung CK: ${code(payment.reference)}`,
+    payment.bankCode ? `${sloganTextEmoji('payment')} Ngân hàng: ${escapeHtml(payment.bankCode)}` : '',
+    payment.accountNumber ? `${sloganTextEmoji('payment')} Số tài khoản: ${code(payment.accountNumber)}` : '',
+    order.expiresAt
+      ? `${uiTextEmoji('automation-247')} Giữ hàng đến: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
+      : '',
     '',
     `${roboEmoji('ok', '👌')} Dùng các nút bên dưới và chuyển đúng số tiền, đúng nội dung để bot giao tự động tại đây.`
   ].filter(Boolean).join('\n');
@@ -1254,11 +1689,11 @@ export function orderMessage(order, payment) {
 
 export function deliveryMessage(order, deliverySecrets) {
   return [
-    `${sloganEmoji('delivery', '📦')} 🔐 <b>Đã giao hàng</b>`,
-    `🧾 Mã đơn: ${code(order.id)}`,
-    `📦 Sản phẩm: ${escapeHtml(order.productName)}`,
+    `${sloganTextEmoji('delivery')} ${uiTextEmoji('security')} <b>Đã giao hàng</b>`,
+    `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
+    `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
     '',
-    '🔑 Thông tin nhận hàng:',
+    `${uiTextEmoji('security')} Thông tin nhận hàng:`,
     ...deliverySecrets.map((secret, index) => code(`${index + 1}. ${secret}`)),
     '',
     'Cần mua thêm gói khác, bấm Xem danh mục trong menu để bot lọc gói còn hàng cho bạn.'
@@ -1290,25 +1725,27 @@ export function deliveryDocumentText(order, deliverySecrets) {
 
 export function deliveryDocumentCaption(order) {
   return [
-    '📦 <b>Đã giao hàng</b>',
-    `🧾 Mã đơn: ${code(order?.id || '')}`,
-    `📦 Sản phẩm: ${escapeHtml(order?.productName || '')}`,
-    '🔐 Thông tin nhận hàng nằm trong tệp TXT đính kèm.'
+    `${sloganTextEmoji('delivery')} <b>Đã giao hàng</b>`,
+    `${bannerTextEmoji('guide')} Mã đơn: ${code(order?.id || '')}`,
+    `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order?.productName || '')}`,
+    `${uiTextEmoji('security')} Thông tin nhận hàng nằm trong tệp TXT đính kèm.`
   ].join('\n');
 }
 
 async function sendDeliveryPayload(chatId, order, deliverySecrets, replyMarkup) {
   if (normalizeDeliveryMode(order?.productSnapshot?.deliveryMode) === 'file') {
     try {
+      const caption = deliveryDocumentCaption(order);
+      const captionPayload = customCaptionOptions(caption, deliveryCustomEmojiCandidates(), {
+        caption,
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup
+      });
       return await sendTelegramTextDocument(
         chatId,
         deliveryDocumentText(order, deliverySecrets),
         deliveryDocumentFilename(order),
-        {
-          caption: deliveryDocumentCaption(order),
-          parse_mode: 'HTML',
-          reply_markup: replyMarkup
-        }
+        captionPayload.options
       );
     } catch (error) {
       console.warn(`[telegram] sendDocument failed; falling back to text (${error?.status || 'unknown status'})`);
@@ -1334,16 +1771,16 @@ async function sendWelcome(chatId) {
 
 function orderDetailMessage(order, payment) {
   return [
-    '🧾 <b>Chi tiết đơn hàng</b>',
+    `${bannerTextEmoji('guide')} <b>Chi tiết đơn hàng</b>`,
     `Mã đơn: ${code(order.id)}`,
-    `📦 Sản phẩm: ${escapeHtml(order.productName)}`,
-    `🔢 Số lượng: ${escapeHtml(order.quantity)}`,
-    `💰 Tổng: ${escapeHtml(money(order.total, order.currency))}`,
-    `📨 Giao hàng: ${deliveryModeLabel(order.productSnapshot?.deliveryMode)}`,
+    `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
+    `${bannerTextEmoji('stock')} Số lượng: ${escapeHtml(order.quantity)}`,
+    `${sloganTextEmoji('payment')} Tổng: ${escapeHtml(money(order.total, order.currency))}`,
+    `${sloganTextEmoji('delivery')} Giao hàng: ${deliveryModeLabel(order.productSnapshot?.deliveryMode)}`,
     orderStatusLine(order.status),
-    payment?.reference ? `🏦 Nội dung CK: ${code(payment.reference)}` : '',
+    payment?.reference ? `${sloganTextEmoji('payment')} Nội dung CK: ${code(payment.reference)}` : '',
     order.expiresAt && order.status === 'pending_payment'
-      ? `⏱ Giữ hàng đến: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
+      ? `${uiTextEmoji('automation-247')} Giữ hàng đến: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
       : ''
   ].filter(Boolean).join('\n');
 }
@@ -1352,13 +1789,13 @@ async function userOrdersView(user) {
   const contexts = await listOrdersForUser(user.id, { limit: 5 });
   if (!contexts.length) {
     return {
-      text: '🧾 Bạn chưa có đơn hàng nào.',
+      text: `${bannerTextEmoji('guide')} Bạn chưa có đơn hàng nào.`,
       reply_markup: buildMainMenuKeyboard()
     };
   }
 
   const text = [
-    '🧾 <b>Đơn hàng gần đây</b>',
+    `${uiTextEmoji('orders')} <b>Đơn hàng gần đây</b>`,
     'Chọn một đơn bên dưới để thanh toán, xem QR, hủy hoặc xem lại thông tin giao hàng.',
     '',
     ...contexts.map(({ order }) => [
@@ -1368,11 +1805,11 @@ async function userOrdersView(user) {
     ].join('\n'))
   ].join('\n\n');
 
-  const rows = contexts.map(({ order }) => [{
-    text: `${formatOrderStatus(order.status)} · ${String(order.productName || '').slice(0, 32)}`,
+  const rows = contexts.map(({ order }) => [animatedKeyboardButton({
+    text: `${formatOrderStatus(order.status).split(' ').slice(1).join(' ')} · ${String(order.productName || '').slice(0, 32)}`,
     callback_data: `order:${order.id}`
-  }]);
-  rows.push([{ text: `${UI_ICONS.catalog} Xem sản phẩm`, callback_data: 'catalog:all' }]);
+  }, 'order-status', orderStatusKeyboardCustomEmojiId(order.status))]);
+  rows.push([animatedKeyboardButton({ text: 'Xem sản phẩm', callback_data: 'catalog:all' }, 'products')]);
   return { text, reply_markup: { inline_keyboard: rows } };
 }
 
@@ -1392,7 +1829,10 @@ async function handleTextMessage(message) {
   const user = await upsertTelegramUser(message.from);
   const baseLimit = await consumeRateLimit(`tg:user:${user.telegramId}`, config.traffic.telegramUserPerMinute);
   if (!baseLimit.allowed) {
-    await sendTelegramMessage(chatId, `⏳ Thao tác quá nhanh. Thử lại sau ${baseLimit.retryAfterSeconds}s.`);
+    await sendAnimatedTelegramMessage(
+      chatId,
+      `${uiTextEmoji('automation-247')} Thao tác quá nhanh. Thử lại sau ${baseLimit.retryAfterSeconds}s.`
+    );
     return;
   }
 
@@ -1403,7 +1843,7 @@ async function handleTextMessage(message) {
       const products = await listProducts();
       const product = findProduct(products, payload.slice(2));
       if (product) {
-        await sendTelegramMessage(chatId, productDetailMessage(product), {
+        await sendCustomTelegramMessage(chatId, productDetailMessage(product), productCustomEmojiCandidates(product), {
           reply_markup: buildProductDetailKeyboard(product)
         });
         return;
@@ -1422,30 +1862,37 @@ async function handleTextMessage(message) {
   if (text.startsWith('/buy')) {
     const buyLimit = await consumeRateLimit(`tg:buy:${user.telegramId}`, config.traffic.telegramBuyPerMinute);
     if (!buyLimit.allowed) {
-      await sendTelegramMessage(chatId, `⏳ Tạo đơn quá nhanh. Thử lại sau ${buyLimit.retryAfterSeconds}s.`);
+      await sendAnimatedTelegramMessage(
+        chatId,
+        `${uiTextEmoji('automation-247')} Tạo đơn quá nhanh. Thử lại sau ${buyLimit.retryAfterSeconds}s.`
+      );
       return;
     }
 
     const [, sku, qtyRaw] = text.split(/\s+/);
     if (!sku) {
-      await sendTelegramMessage(chatId, usageMessage());
+      await sendAnimatedTelegramMessage(chatId, usageMessage());
       return;
     }
 
     const products = await listProducts();
     const product = findProduct(products, sku);
     if (!product) {
-      await sendTelegramMessage(chatId, '⚠️ Không tìm thấy gói sản phẩm này.', { reply_markup: buildMainMenuKeyboard() });
+      await sendAnimatedTelegramMessage(
+        chatId,
+        `${sloganTextEmoji('soldout')} Không tìm thấy gói sản phẩm này.`,
+        { reply_markup: buildMainMenuKeyboard() }
+      );
       return;
     }
     const quantity = normalizeOrderQuantity(qtyRaw || 1);
-    await sendTelegramMessage(chatId, confirmationMessage(product, quantity), {
+    await sendAnimatedTelegramMessage(chatId, confirmationMessage(product, quantity), {
       reply_markup: buildConfirmationKeyboard(product, quantity)
     });
     return;
   }
 
-  await sendTelegramMessage(chatId, unknownCommandMessage(), { reply_markup: buildMainMenuKeyboard() });
+  await sendAnimatedTelegramMessage(chatId, unknownCommandMessage(), { reply_markup: buildMainMenuKeyboard() });
 }
 
 async function handleCallbackQuery(callbackQuery) {
@@ -1501,15 +1948,19 @@ async function handleCallbackQuery(callbackQuery) {
   if (data.startsWith('cat:')) {
     const category = resolveCatalogPart(data.slice('cat:'.length), categories);
     if (!category) {
-      await presentTelegramMessage(chatId, messageId, 'Danh mục không còn tồn tại.', {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Danh mục không còn tồn tại.`, {
         reply_markup: buildCategoryKeyboard(products)
       });
       return;
     }
     await trackTelegramClick(user, 'category', { category });
-    await presentTelegramMessage(chatId, messageId, brandMenuMessage(products, category), {
-      reply_markup: buildBrandKeyboard(products, category)
-    });
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      brandMenuMessage(products, category),
+      brandMenuCustomEmojiCandidates(products, category),
+      { reply_markup: buildBrandKeyboard(products, category) }
+    );
     return;
   }
 
@@ -1522,30 +1973,38 @@ async function handleCallbackQuery(callbackQuery) {
     const brand = resolveCatalogPart(rawBrand, brands);
     const selected = products.filter((product) => product.category === category && product.brand === brand);
     if (!category || !brand || !selected.length) {
-      await presentTelegramMessage(chatId, messageId, 'Nhãn hàng này không còn tồn tại.', {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Nhãn hàng này không còn tồn tại.`, {
         reply_markup: buildCategoryKeyboard(products)
       });
       return;
     }
     await trackTelegramClick(user, 'brand', { category, brand });
-    await presentTelegramMessage(chatId, messageId, brandPackagesMessage(products, category, brand), {
-      reply_markup: buildPackageKeyboard(selected)
-    });
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      brandPackagesMessage(products, category, brand),
+      brandPackagesCustomEmojiCandidates(category, brand),
+      { reply_markup: buildPackageKeyboard(selected) }
+    );
     return;
   }
 
   if (data.startsWith('pkg:')) {
     const product = findProduct(products, data.slice('pkg:'.length));
     if (!product) {
-      await presentTelegramMessage(chatId, messageId, 'Gói sản phẩm này không còn tồn tại.', {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Gói sản phẩm này không còn tồn tại.`, {
         reply_markup: buildCategoryKeyboard(products)
       });
       return;
     }
     await trackTelegramClick(user, 'package', { sku: product.sku });
-    await presentTelegramMessage(chatId, messageId, productDetailMessage(product), {
-      reply_markup: buildProductDetailKeyboard(product)
-    });
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      productDetailMessage(product),
+      productCustomEmojiCandidates(product),
+      { reply_markup: buildProductDetailKeyboard(product) }
+    );
     return;
   }
 
@@ -1553,7 +2012,7 @@ async function handleCallbackQuery(callbackQuery) {
     const [, productId, qtyRaw] = data.split(':');
     const product = findProduct(products, productId);
     if (!product) {
-      await presentTelegramMessage(chatId, messageId, 'Gói sản phẩm này không còn tồn tại.', {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Gói sản phẩm này không còn tồn tại.`, {
         reply_markup: buildCategoryKeyboard(products)
       });
       return;
@@ -1570,7 +2029,7 @@ async function handleCallbackQuery(callbackQuery) {
     const [, productId, qtyRaw] = data.split(':');
     const product = findProduct(products, productId);
     if (!product) {
-      await presentTelegramMessage(chatId, messageId, 'Gói sản phẩm này không còn tồn tại.', {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Gói sản phẩm này không còn tồn tại.`, {
         reply_markup: buildCategoryKeyboard(products)
       });
       return;
@@ -1581,7 +2040,7 @@ async function handleCallbackQuery(callbackQuery) {
       await presentTelegramMessage(
         chatId,
         messageId,
-        `⏳ Tạo đơn quá nhanh. Thử lại sau ${buyLimit.retryAfterSeconds}s.`,
+        `${uiTextEmoji('automation-247')} Tạo đơn quá nhanh. Thử lại sau ${buyLimit.retryAfterSeconds}s.`,
         { reply_markup: buildConfirmationKeyboard(product, quantity) }
       );
       return;
@@ -1600,7 +2059,7 @@ async function handleCallbackQuery(callbackQuery) {
         { reply_markup: buildPaymentKeyboard(checkout.order, checkout.payment) }
       );
     } catch (error) {
-      await presentTelegramMessage(chatId, messageId, `⚠️ ${escapeHtml(customerFacingOrderError(error))}`, {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} ${escapeHtml(customerFacingOrderError(error))}`, {
         reply_markup: buildProductDetailKeyboard(product)
       });
     }
@@ -1614,7 +2073,7 @@ async function handleCallbackQuery(callbackQuery) {
         reply_markup: buildPaymentKeyboard(context.order, context.payment)
       });
     } catch {
-      await presentTelegramMessage(chatId, messageId, 'Không tìm thấy đơn hàng này.', {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Không tìm thấy đơn hàng này.`, {
         reply_markup: (await userOrdersView(user)).reply_markup
       });
     }
@@ -1633,11 +2092,11 @@ async function handleCallbackQuery(callbackQuery) {
       await presentTelegramMessage(
         chatId,
         messageId,
-        `⚠️ <b>Xác nhận hủy đơn</b>\n\n${escapeHtml(context.order.productName)}\nMã đơn: ${code(context.order.id)}\n\nHủy đơn sẽ trả hàng về kho. Khoản chuyển đến sau khi hủy sẽ cần admin kiểm tra thủ công.`,
+        `${sloganTextEmoji('soldout')} <b>Xác nhận hủy đơn</b>\n\n${escapeHtml(context.order.productName)}\nMã đơn: ${code(context.order.id)}\n\nHủy đơn sẽ trả hàng về kho. Khoản chuyển đến sau khi hủy sẽ cần admin kiểm tra thủ công.`,
         { reply_markup: buildCancelConfirmationKeyboard(context.order) }
       );
     } catch {
-      await presentTelegramMessage(chatId, messageId, 'Không tìm thấy đơn hàng này.', {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Không tìm thấy đơn hàng này.`, {
         reply_markup: buildMainMenuKeyboard()
       });
     }
@@ -1651,11 +2110,11 @@ async function handleCallbackQuery(callbackQuery) {
       await presentTelegramMessage(
         chatId,
         messageId,
-        `✅ Đơn ${code(context.order.id)} đã được ${context.order.status === 'expired' ? 'đóng do hết hạn' : 'hủy'} và hàng đã trả về kho.`,
+        `${bannerTextEmoji('checkin')} Đơn ${code(context.order.id)} đã được ${context.order.status === 'expired' ? 'đóng do hết hạn' : 'hủy'} và hàng đã trả về kho.`,
         { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
       );
     } catch (error) {
-      await presentTelegramMessage(chatId, messageId, `⚠️ ${escapeHtml(
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} ${escapeHtml(
         /only pending/i.test(error.message)
           ? 'Đơn đã được thanh toán hoặc chuyển trạng thái nên không thể hủy tự động. Vui lòng liên hệ hỗ trợ.'
           : 'Không thể hủy đơn này.'
@@ -1677,7 +2136,7 @@ async function handleCallbackQuery(callbackQuery) {
         buildPaymentKeyboard(context.order, context.payment)
       );
     } catch {
-      await presentTelegramMessage(chatId, messageId, 'Thông tin giao hàng chưa sẵn sàng.', {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Thông tin giao hàng chưa sẵn sàng.`, {
         reply_markup: buildMainMenuKeyboard()
       });
     }

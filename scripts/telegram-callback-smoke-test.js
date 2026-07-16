@@ -99,8 +99,12 @@ try {
   assert.ok(calls.some((call) => call.url.includes('/answerCallbackQuery')), 'Callback should be answered.');
   const receiptCall = calls.find((call) => call.url.includes('/editMessageText') && call.body.text.includes('Đơn đã tạo'));
   assert.ok(receiptCall, 'Only confirmation should create an order receipt.');
-  assert.ok(receiptCall.body.reply_markup.inline_keyboard.flat().some((button) => button.text === '💳 Thanh toán' && button.url));
-  assert.ok(receiptCall.body.reply_markup.inline_keyboard.flat().some((button) => button.text === '🖼 Xem QR' || button.text === '❌ Hủy đơn'));
+  assert.ok(receiptCall.body.reply_markup.inline_keyboard.flat().some((button) => (
+    button.text === 'Thanh toán' && button.url && button.icon_custom_emoji_id
+  )));
+  assert.ok(receiptCall.body.reply_markup.inline_keyboard.flat().some((button) => (
+    ['Xem QR', 'Hủy đơn'].includes(button.text) && button.icon_custom_emoji_id
+  )));
 
   await telegram.handleTelegramUpdate(confirmUpdate);
   let db = await storage.readStore();

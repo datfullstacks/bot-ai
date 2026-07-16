@@ -86,7 +86,8 @@ export const config = {
     retroFontEmojiMapFile: process.env.TELEGRAM_RETRO_FONT_EMOJI_MAP_FILE || resolve(process.cwd(), 'data', 'telegram-retro-font-emoji-map.json'),
     emojiHealthReportFile: process.env.TELEGRAM_EMOJI_HEALTH_REPORT_FILE || resolve(process.cwd(), 'data', 'telegram-emoji-health-report.json'),
     emojiReleaseReportFile: process.env.TELEGRAM_EMOJI_RELEASE_REPORT_FILE || resolve(process.cwd(), 'data', 'telegram-emoji-release-report.json'),
-    emojiRequiredPacks: process.env.TELEGRAM_EMOJI_REQUIRED_PACKS || 'banner,ui,slogan',
+    emojiRequiredPacks: process.env.TELEGRAM_EMOJI_REQUIRED_PACKS || 'brand,ui,slogan,sloganTile,banner,news,flame,game,robo,retro',
+    emojiHealthMaxAgeHours: Number(process.env.TELEGRAM_EMOJI_HEALTH_MAX_AGE_HOURS || 24),
     stickerMapFile: process.env.TELEGRAM_STICKER_MAP_FILE || resolve(process.cwd(), 'data', 'telegram-shop-sticker-map.json'),
     stickers: {
       start: process.env.TELEGRAM_START_STICKER_ID || '',

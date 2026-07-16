@@ -280,7 +280,7 @@ payment link/QR, or cancelled by their owner to release inventory.
 
 On startup, the app publishes these commands to Telegram with `setMyCommands` for the default scope plus common Telegram client languages, then enables the command menu with `setChatMenuButton`. When a customer messages `/start`, the bot also applies the command menu to that chat so desktop/mobile clients can refresh the menu without typing commands by hand.
 
-Optional sales stickers can be configured with Telegram `file_id` values. The bot sends them before the matching text screen and silently skips blank values:
+The legacy sales-sticker environment variables are retained for compatibility, but the current customer flow does not send them automatically. Setting these values alone will not add a sticker to a screen:
 
 ```text
 TELEGRAM_START_STICKER_ID=
@@ -332,7 +332,7 @@ npm.cmd run telegram:generate-brand-motion
 npm.cmd run telegram:create-custom-emojis -- --format video --source public/brand/motion-emoji --base kaito_ai_shop_brand_motion --title "KAITO AI SHOP Brand Motion" --yes
 ```
 
-The video pack writes the same `data/telegram-custom-emoji-map.json` file, including both `custom_emoji_id` values for button icons and `file_id` values for sending the matching brand sticker in the customer flow.
+The video pack writes the same `data/telegram-custom-emoji-map.json` file. The customer runtime uses its `custom_emoji_id` values for animated brand icons. The map tooling may also record `file_id` values, but custom-emoji packs are not sent as regular sales stickers by the current flow.
 
 For slogan visuals in welcome and status messages, generate both PNG images for Telegram media captions and WEBM files for custom emoji packs:
 
@@ -357,19 +357,42 @@ Then upload those videos as a separate custom emoji pack and write the ids to th
 npm.cmd run telegram:create-custom-emojis -- --format video --source public/brand/slogan-emoji --output data/telegram-slogan-emoji-map.json --base kaito_ai_shop_slogan_motion --title "KAITO AI SHOP Slogan Motion" --yes
 ```
 
-Restart the app after `data/telegram-slogan-emoji-map.json` exists. The bot uses that map to render animated `<tg-emoji>` icons in customer-facing welcome, catalog, payment, delivery, and support messages, while falling back to normal emoji when the pack is not configured.
+Restart the app after `data/telegram-slogan-emoji-map.json` exists. The bot uses that map for animated slogan icons in catalog, checkout, payment, delivery, support, and related customer messages, while falling back to normal emoji when an ID is unavailable.
 
 Custom emoji can also be sent in normal message text and photo captions with Telegram `entities` / `caption_entities`. It is enabled by default:
 
 ```text
 TELEGRAM_CUSTOM_TEXT_EMOJI=true
+TELEGRAM_CUSTOM_EMOJI_MAP_FILE=data/telegram-custom-emoji-map.json
+TELEGRAM_UI_EMOJI_MAP_FILE=data/telegram-ui-emoji-map.json
+TELEGRAM_SLOGAN_EMOJI_MAP_FILE=data/telegram-slogan-emoji-map.json
+TELEGRAM_SLOGAN_TILE_EMOJI_MAP_FILE=data/telegram-slogan-tile-emoji-map.json
 TELEGRAM_BANNER_EMOJI_MAP_FILE=data/telegram-banner-emoji-map.json
-TELEGRAM_EMOJI_REQUIRED_PACKS=banner,ui,slogan
+TELEGRAM_NEWS_EMOJI_MAP_FILE=data/telegram-news-emoji-map.json
+TELEGRAM_FLAME_EMOJI_MAP_FILE=data/telegram-flame-emoji-map.json
+TELEGRAM_GAME_EMOJI_MAP_FILE=data/telegram-game-emoji-map.json
+TELEGRAM_ROBO_EMOJI_MAP_FILE=data/telegram-robo-emoji-map.json
+TELEGRAM_RETRO_FONT_EMOJI_MAP_FILE=data/telegram-retro-font-emoji-map.json
+TELEGRAM_EMOJI_REQUIRED_PACKS=brand,ui,slogan,sloganTile,banner,news,flame,game,robo,retro
 TELEGRAM_EMOJI_HEALTH_REPORT_FILE=data/telegram-emoji-health-report.json
+TELEGRAM_EMOJI_HEALTH_MAX_AGE_HOURS=24
 TELEGRAM_EMOJI_RELEASE_REPORT_FILE=data/telegram-emoji-release-report.json
 ```
 
-When Telegram rejects a custom emoji entity, the transport retries the same message as plain HTML text so customers still receive the fallback emoji. Set `TELEGRAM_CUSTOM_TEXT_EMOJI=false` to strip text/caption custom emoji entities and keep only ordinary fallback emoji.
+The required runtime packs are:
+
+- `brand`: brand and package buttons
+- `ui`: menu and navigation actions
+- `slogan`: customer-flow status icons
+- `sloganTile`: the animated `DAILY UPDATE` line on `/start`
+- `banner`: common sales, payment, delivery, support, and state actions
+- `news`, `flame`, and `game`: animated welcome/menu accents
+- `robo`: reaction and compact action icons
+- `retro`: the animated `KAITO KID AI SHOP` heading
+
+`TELEGRAM_EMOJI_REQUIRED_PACKS` is merged with this runtime baseline, so an old production value such as `banner,ui,slogan` cannot make readiness report a partial setup as ready. Pack names are normalized without losing the camel-case `sloganTile` registry key.
+
+When Telegram rejects a custom emoji entity or inline-button icon, the transport retries without the rejected custom-emoji field so customers still receive the ordinary fallback emoji and a usable keyboard. Set `TELEGRAM_CUSTOM_TEXT_EMOJI=false` to strip text/caption entities and button custom-emoji icons up front.
 
 For the neon menu icon sheet, place the source image at `public/brand/menu-neon/source.png` or pass it directly, then generate tightly cropped PNG sources and Telegram-ready WEBM animations:
 
@@ -384,6 +407,13 @@ npm.cmd run telegram:create-custom-emojis -- --format video --source public/bran
 ```
 
 Restart the app after `data/telegram-ui-emoji-map.json` exists so the Telegram menu buttons can use the animated custom emoji IDs.
+
+Generate the six-part animated `/start` slogan tile and upload it through the release workflow:
+
+```powershell
+npm.cmd run telegram:generate-slogan-tiles
+npm.cmd run telegram:release-emojis -- --packs slogan-tiles --yes
+```
 
 For GiaSieuRe-style KAITO banner emoji, generate the 32 Telegram-ready WEBM tiles and preview sheet, then upload them as a separate video custom emoji pack:
 
@@ -410,6 +440,8 @@ After upload and app restart, probe only the banner/text-entity path in a real T
 npm.cmd run telegram:probe-custom-emojis -- --chat-id 123456789 --only banner
 npm.cmd run telegram:emoji-health -- --chat-id 123456789 --write-report
 ```
+
+When custom emoji is enabled and a bot token is configured, readiness also requires a successful live emoji health report that covers every required pack. Validation checks every configured ID in batches of 200 and verifies its Telegram fallback emoji when the map provides one. The report is tied to a SHA-256 fingerprint of the current bot token and ID/emoji map without storing the token itself, so run `telegram:emoji-health` again after rotating the bot token or changing any emoji map. A missing, mismatched, failed, or stale report is reported as a readiness warning. Local runs without a Telegram token do not require a live report.
 
 ## Payment Provider
 

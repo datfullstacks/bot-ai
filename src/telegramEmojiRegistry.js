@@ -1,4 +1,15 @@
-export const DEFAULT_REQUIRED_EMOJI_PACKS = ['banner', 'ui', 'slogan'];
+export const DEFAULT_REQUIRED_EMOJI_PACKS = [
+  'brand',
+  'ui',
+  'slogan',
+  'sloganTile',
+  'banner',
+  'news',
+  'flame',
+  'game',
+  'robo',
+  'retro'
+];
 
 export const BANNER_EMOJI_REQUIRED_KEYS = [
   'kaito',
@@ -35,13 +46,72 @@ export const BANNER_EMOJI_REQUIRED_KEYS = [
   'logout'
 ];
 
+export const UI_EMOJI_REQUIRED_KEYS = [
+  'products',
+  'topup',
+  'account',
+  'orders',
+  'language',
+  'support',
+  'security',
+  'instant-delivery',
+  'automation-247',
+  'quality',
+  'member',
+  'offers',
+  'notifications',
+  'promotions',
+  'reviews',
+  'academy',
+  'news',
+  'events',
+  'policy',
+  'logout'
+];
+
+export const NEWS_EMOJI_REQUIRED_KEYS = [
+  'fast',
+  'auto247',
+  'tracking',
+  'adminchat',
+  'adminshield',
+  'adminboom',
+  'adminfire'
+];
+
+export const ROBO_EMOJI_REQUIRED_KEYS = [
+  'wave',
+  'please',
+  'party',
+  'money',
+  'ok',
+  'hundred',
+  'salute',
+  'plus'
+];
+
+export const RETRO_EMOJI_REQUIRED_KEYS = ['K', 'A', 'I', 'T', 'O', 'D', 'S', 'H', 'P'];
+
 export const DEFAULT_REQUIRED_KEYS_BY_PACK = {
+  brand: [],
+  ui: UI_EMOJI_REQUIRED_KEYS,
+  sloganTile: ['daily_update'],
   banner: BANNER_EMOJI_REQUIRED_KEYS,
-  ui: ['products', 'topup', 'account', 'orders', 'language', 'support'],
-  slogan: ['welcome', 'catalog', 'payment', 'delivery', 'support', 'soldout']
+  news: NEWS_EMOJI_REQUIRED_KEYS,
+  flame: ['moneyface'],
+  game: ['products'],
+  robo: ROBO_EMOJI_REQUIRED_KEYS,
+  retro: RETRO_EMOJI_REQUIRED_KEYS,
+  slogan: ['welcome', 'catalog', 'checkout', 'payment', 'delivery', 'support', 'soldout']
 };
 
+export const SLOGAN_TILE_REQUIRED_COUNTS = Object.freeze({
+  daily_update: 6
+});
+
 const PACK_NAMES = ['brand', 'ui', 'slogan', 'sloganTile', 'banner', 'news', 'flame', 'game', 'robo', 'retro'];
+const PACK_NAME_BY_NORMALIZED_NAME = new Map(PACK_NAMES.map((name) => [normalizeEmojiKey(name), name]));
+const LEGACY_REQUIRED_PACKS = new Set(['banner', 'ui', 'slogan']);
 
 export function normalizeEmojiKey(value) {
   return String(value || '')
@@ -53,7 +123,16 @@ export function normalizeEmojiKey(value) {
 export function parseRequiredEmojiPacks(value) {
   const text = String(value || '').trim();
   if (!text) return [...DEFAULT_REQUIRED_EMOJI_PACKS];
-  return [...new Set(text.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean))];
+
+  const configuredPacks = [...new Set(text
+    .split(',')
+    .map(canonicalEmojiPackName)
+    .filter(Boolean))];
+  const legacyConfig = configuredPacks.length === LEGACY_REQUIRED_PACKS.size
+    && configuredPacks.every((pack) => LEGACY_REQUIRED_PACKS.has(pack));
+  if (legacyConfig) return [...DEFAULT_REQUIRED_EMOJI_PACKS];
+
+  return [...new Set([...DEFAULT_REQUIRED_EMOJI_PACKS, ...configuredPacks])];
 }
 
 export function buildTelegramEmojiRegistry({ maps = {}, files = {} } = {}) {
@@ -72,7 +151,7 @@ export function buildTelegramEmojiRegistry({ maps = {}, files = {} } = {}) {
 }
 
 export function resolveTelegramCustomEmojiId(registry, { pack, key } = {}) {
-  const packName = String(pack || '').trim().toLowerCase();
+  const packName = canonicalEmojiPackName(pack);
   const rawKey = String(key || '').trim();
   if (!packName || !rawKey) return '';
 
@@ -84,6 +163,13 @@ export function resolveTelegramCustomEmojiId(registry, { pack, key } = {}) {
   }
   if (packName === 'retro') {
     return map.customEmojiIdsByCharacter?.[rawKey.toUpperCase()] || '';
+  }
+  if (packName === 'sloganTile') {
+    const normalized = normalizeEmojiKey(rawKey);
+    const slogan = Object.entries(map.slogans || {})
+      .find(([name]) => normalizeEmojiKey(name) === normalized)?.[1];
+    const sloganTileId = slogan?.tiles?.find((tile) => tile?.customEmojiId)?.customEmojiId;
+    if (sloganTileId) return sloganTileId;
   }
 
   const normalized = normalizeEmojiKey(rawKey);
@@ -106,14 +192,16 @@ export function customEmojiCandidateFromRegistry(registry, { pack, key, fallback
 }
 
 export function summarizeTelegramEmojiRegistry(registry, options = {}) {
-  const requiredPacks = options.requiredPacks || [...DEFAULT_REQUIRED_EMOJI_PACKS];
+  const requiredPacks = [...new Set((options.requiredPacks || DEFAULT_REQUIRED_EMOJI_PACKS)
+    .map(canonicalEmojiPackName)
+    .filter(Boolean))];
   const requiredKeysByPack = options.requiredKeysByPack || DEFAULT_REQUIRED_KEYS_BY_PACK;
   const packs = {};
 
   for (const pack of requiredPacks) {
     const state = registry?.packs?.[pack] || { map: {}, loaded: false, customEmojiIdCount: 0, file: '' };
     const requiredKeys = requiredKeysByPack[pack] || [];
-    const missingRequiredKeys = requiredKeys.filter((key) => !resolveTelegramCustomEmojiId(registry, { pack, key }));
+    const missingRequiredKeys = requiredKeys.filter((key) => !hasRequiredEmojiKey(registry, pack, key));
     packs[pack] = {
       file: state.file || '',
       loaded: Boolean(state.loaded),
@@ -133,10 +221,34 @@ export function summarizeTelegramEmojiRegistry(registry, options = {}) {
 
 export function collectCustomEmojiIdsFromRegistry(registry, packs = PACK_NAMES) {
   const ids = [];
-  for (const pack of packs) {
+  for (const rawPack of packs) {
+    const pack = canonicalEmojiPackName(rawPack);
     ids.push(...collectCustomEmojiIdsFromMap(registry?.packs?.[pack]?.map || {}));
   }
   return [...new Set(ids.filter(Boolean))];
+}
+
+function canonicalEmojiPackName(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return PACK_NAME_BY_NORMALIZED_NAME.get(normalizeEmojiKey(text)) || text.toLowerCase();
+}
+
+function hasRequiredEmojiKey(registry, pack, key) {
+  if (pack !== 'sloganTile') {
+    return Boolean(resolveTelegramCustomEmojiId(registry, { pack, key }));
+  }
+
+  const map = registry?.packs?.sloganTile?.map || {};
+  const normalized = normalizeEmojiKey(key);
+  const slogan = Object.entries(map.slogans || {})
+    .find(([name]) => normalizeEmojiKey(name) === normalized)?.[1];
+  const requiredCount = Object.entries(SLOGAN_TILE_REQUIRED_COUNTS)
+    .find(([name]) => normalizeEmojiKey(name) === normalized)?.[1] || 1;
+  const availableCount = (slogan?.tiles || [])
+    .filter((tile) => Boolean(tile?.customEmojiId))
+    .length;
+  return availableCount >= requiredCount;
 }
 
 function mapHasCustomEmojiIds(map) {

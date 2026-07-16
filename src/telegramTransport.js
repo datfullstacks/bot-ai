@@ -17,6 +17,9 @@ function sanitizeTelegramOptions(options = {}, field = '') {
   if (!config.telegram.customTextEmoji) {
     delete sanitized.entities;
     delete sanitized.caption_entities;
+    if (sanitized.reply_markup) {
+      sanitized.reply_markup = stripButtonCustomEmojiIcons(sanitized.reply_markup);
+    }
   }
   delete sanitized._fallback_text;
   delete sanitized._fallback_caption;
@@ -55,17 +58,17 @@ export async function sendTelegramMessage(chatId, text, options = {}) {
     disable_web_page_preview: true,
     ...options
   }, 'text');
-  const payload = hasRejectedCustomEmojiEntity(sanitized.entities, 'entities')
-    ? fallbackMessagePayload(sanitized, options)
-    : sanitized;
-
-  try {
-    return await telegramJson('sendMessage', payload);
-  } catch (error) {
-    if (!shouldRetryWithoutCustomEmoji(error, payload, 'entities')) throw error;
-    rememberRejectedCustomEmojiIds(payload.entities, 'entities');
-    return telegramJson('sendMessage', fallbackMessagePayload(payload, options));
-  }
+  const payload = applyKnownCustomEmojiFallbacks(
+    sanitized,
+    'entities',
+    (current) => fallbackMessagePayload(current, options)
+  );
+  return telegramJsonWithCustomEmojiFallback(
+    'sendMessage',
+    payload,
+    'entities',
+    (current) => fallbackMessagePayload(current, options)
+  );
 }
 
 export async function editTelegramMessage(chatId, messageId, text, options = {}) {
@@ -77,77 +80,99 @@ export async function editTelegramMessage(chatId, messageId, text, options = {})
     disable_web_page_preview: true,
     ...options
   }, 'text');
-  const payload = hasRejectedCustomEmojiEntity(sanitized.entities, 'entities')
-    ? fallbackMessagePayload(sanitized, options)
-    : sanitized;
+  const payload = applyKnownCustomEmojiFallbacks(
+    sanitized,
+    'entities',
+    (current) => fallbackMessagePayload(current, options)
+  );
 
   try {
-    return await telegramJson('editMessageText', payload);
+    return await telegramJsonWithCustomEmojiFallback(
+      'editMessageText',
+      payload,
+      'entities',
+      (current) => fallbackMessagePayload(current, options)
+    );
   } catch (error) {
     if (/message is not modified/i.test(`${error.message || ''} ${error.body || ''}`)) {
       return { ok: true, notModified: true };
     }
-    if (!shouldRetryWithoutCustomEmoji(error, payload, 'entities')) throw error;
-    rememberRejectedCustomEmojiIds(payload.entities, 'entities');
-    return telegramJson('editMessageText', fallbackMessagePayload(payload, options));
+    throw error;
   }
 }
 
 export async function sendTelegramAnimation(chatId, animation, options = {}) {
-  return telegramJson('sendAnimation', sanitizeTelegramOptions({
+  const sanitized = sanitizeTelegramOptions({
     chat_id: chatId,
     animation,
     parse_mode: 'HTML',
     ...options
-  }, 'caption'));
+  }, 'caption');
+  const payload = applyKnownCustomEmojiFallbacks(
+    sanitized,
+    'caption_entities',
+    (current) => fallbackPhotoOptions(current, options)
+  );
+  return telegramJsonWithCustomEmojiFallback(
+    'sendAnimation',
+    payload,
+    'caption_entities',
+    (current) => fallbackPhotoOptions(current, options)
+  );
 }
 
 export async function sendTelegramPhotoUrl(chatId, photoUrl, options = {}) {
   if (!config.telegram.token || !photoUrl) return { skipped: true };
-  return telegramJson('sendPhoto', sanitizeTelegramOptions({
+  const sanitized = sanitizeTelegramOptions({
     chat_id: chatId,
     photo: photoUrl,
     parse_mode: 'HTML',
     ...options
-  }, 'caption'));
+  }, 'caption');
+  const payload = applyKnownCustomEmojiFallbacks(
+    sanitized,
+    'caption_entities',
+    (current) => fallbackPhotoOptions(current, options)
+  );
+  return telegramJsonWithCustomEmojiFallback(
+    'sendPhoto',
+    payload,
+    'caption_entities',
+    (current) => fallbackPhotoOptions(current, options)
+  );
 }
 
 export async function sendTelegramPhotoFile(chatId, photoPath, options = {}) {
   if (!config.telegram.token || !photoPath) return { skipped: true };
   const photoBytes = readFileSync(photoPath);
   const sanitized = sanitizeTelegramOptions(options, 'caption');
-  const initialOptions = hasRejectedCustomEmojiEntity(sanitized.caption_entities, 'caption_entities')
-    ? fallbackPhotoOptions(sanitized, options)
-    : sanitized;
-  const form = buildTelegramPhotoForm(chatId, photoPath, photoBytes, initialOptions);
+  let currentOptions = applyKnownCustomEmojiFallbacks(
+    sanitized,
+    'caption_entities',
+    (current) => fallbackPhotoOptions(current, options)
+  );
 
-  const response = await fetch(apiUrl('sendPhoto'), {
-    method: 'POST',
-    body: form
-  });
+  while (true) {
+    const form = buildTelegramPhotoForm(chatId, photoPath, photoBytes, currentOptions);
+    const response = await fetch(apiUrl('sendPhoto'), {
+      method: 'POST',
+      body: form
+    });
+    if (response.ok) return response.json();
 
-  if (!response.ok) {
     const body = await response.text();
     const error = new Error(`Telegram sendPhoto failed: ${response.status} ${body}`);
     error.status = response.status;
     error.body = body;
-    if (!shouldRetryWithoutCustomEmoji(error, initialOptions, 'caption_entities')) throw error;
-    rememberRejectedCustomEmojiIds(initialOptions.caption_entities, 'caption_entities');
-    const fallbackForm = buildTelegramPhotoForm(chatId, photoPath, photoBytes, fallbackPhotoOptions(initialOptions, options));
-    const fallbackResponse = await fetch(apiUrl('sendPhoto'), {
-      method: 'POST',
-      body: fallbackForm
-    });
-    if (!fallbackResponse.ok) {
-      const fallbackBody = await fallbackResponse.text();
-      const fallbackError = new Error(`Telegram sendPhoto failed: ${fallbackResponse.status} ${fallbackBody}`);
-      fallbackError.status = fallbackResponse.status;
-      fallbackError.body = fallbackBody;
-      throw fallbackError;
-    }
-    return fallbackResponse.json();
+    const fallback = nextCustomEmojiFallback(
+      error,
+      currentOptions,
+      'caption_entities',
+      (current) => fallbackPhotoOptions(current, options)
+    );
+    if (!fallback) throw error;
+    currentOptions = fallback;
   }
-  return response.json();
 }
 
 export async function sendTelegramTextDocument(chatId, text, filename, options = {}) {
@@ -156,47 +181,36 @@ export async function sendTelegramTextDocument(chatId, text, filename, options =
   const documentBytes = Buffer.from(String(text ?? ''), 'utf8');
   const safeFilename = safeTelegramTextFilename(filename);
   const sanitized = sanitizeTelegramOptions(options, 'caption');
-  const initialOptions = hasRejectedCustomEmojiEntity(sanitized.caption_entities, 'caption_entities')
-    ? fallbackPhotoOptions(sanitized, options)
-    : sanitized;
-  const form = buildTelegramTextDocumentForm(
-    chatId,
-    safeFilename,
-    documentBytes,
-    initialOptions
+  let currentOptions = applyKnownCustomEmojiFallbacks(
+    sanitized,
+    'caption_entities',
+    (current) => fallbackPhotoOptions(current, options)
   );
 
-  const response = await fetch(apiUrl('sendDocument'), {
-    method: 'POST',
-    body: form
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    const retryError = { status: response.status, body };
-    if (!shouldRetryWithoutCustomEmoji(retryError, initialOptions, 'caption_entities')) {
-      throw telegramDocumentError(response.status);
-    }
-
-    rememberRejectedCustomEmojiIds(initialOptions.caption_entities, 'caption_entities');
-    const fallbackForm = buildTelegramTextDocumentForm(
+  while (true) {
+    const form = buildTelegramTextDocumentForm(
       chatId,
       safeFilename,
       documentBytes,
-      fallbackPhotoOptions(initialOptions, options)
+      currentOptions
     );
-    const fallbackResponse = await fetch(apiUrl('sendDocument'), {
+    const response = await fetch(apiUrl('sendDocument'), {
       method: 'POST',
-      body: fallbackForm
+      body: form
     });
-    if (!fallbackResponse.ok) {
-      await fallbackResponse.text();
-      throw telegramDocumentError(fallbackResponse.status);
-    }
-    return fallbackResponse.json();
-  }
+    if (response.ok) return response.json();
 
-  return response.json();
+    const body = await response.text();
+    const retryError = { status: response.status, body };
+    const fallback = nextCustomEmojiFallback(
+      retryError,
+      currentOptions,
+      'caption_entities',
+      (current) => fallbackPhotoOptions(current, options)
+    );
+    if (!fallback) throw telegramDocumentError(response.status);
+    currentOptions = fallback;
+  }
 }
 
 function buildTelegramPhotoForm(chatId, photoPath, photoBytes, options = {}) {
@@ -250,11 +264,21 @@ function telegramDocumentError(status) {
 
 export async function sendTelegramSticker(chatId, sticker, options = {}) {
   if (!config.telegram.token || !sticker) return { skipped: true };
-  return telegramJson('sendSticker', {
-    chat_id: chatId,
-    sticker,
-    ...options
-  });
+  const payload = applyKnownCustomEmojiFallbacks(
+    sanitizeTelegramOptions({
+      chat_id: chatId,
+      sticker,
+      ...options
+    }),
+    '',
+    (current) => current
+  );
+  return telegramJsonWithCustomEmojiFallback(
+    'sendSticker',
+    payload,
+    '',
+    (current) => current
+  );
 }
 
 export async function answerCallbackQuery(callbackQueryId, text = '') {
@@ -271,9 +295,24 @@ export function telegramUpdatesUrl(offset) {
 }
 
 function shouldRetryWithoutCustomEmoji(error, payload, entityField) {
-  if (!config.telegram.customTextEmoji || !Array.isArray(payload?.[entityField]) || !payload[entityField].length) return false;
+  if (
+    !config.telegram.customTextEmoji
+    || !Array.isArray(payload?.[entityField])
+    || !payload[entityField].some((entity) => entity?.type === 'custom_emoji')
+  ) return false;
   const details = `${error?.message || ''} ${error?.body || ''}`;
   return /ENTITY_TEXT_INVALID|CUSTOM_EMOJI_INVALID|DOCUMENT_INVALID/i.test(details);
+}
+
+function shouldRetryWithoutButtonCustomEmoji(error, payload) {
+  if (!config.telegram.customTextEmoji || !hasButtonCustomEmojiIcons(payload?.reply_markup)) return false;
+  const details = `${error?.message || ''} ${error?.body || ''}`;
+  return /CUSTOM[\s_-]*EMOJI|EMOJI[\s_-]*CUSTOM|ICON_CUSTOM_EMOJI_ID|BUTTON_TYPE_INVALID|DOCUMENT_INVALID/i.test(details);
+}
+
+function isButtonCustomEmojiError(error) {
+  const details = `${error?.message || ''} ${error?.body || ''}`;
+  return /BUTTON[^\r\n]*CUSTOM[\s_-]*EMOJI|CUSTOM[\s_-]*EMOJI[^\r\n]*BUTTON|ICON_CUSTOM_EMOJI_ID|BUTTON_TYPE_INVALID/i.test(details);
 }
 
 function hasRejectedCustomEmojiEntity(entities = [], scope = '') {
@@ -281,16 +320,129 @@ function hasRejectedCustomEmojiEntity(entities = [], scope = '') {
     && entities.some((entity) => entity?.type === 'custom_emoji' && rejectedCustomEmojiIds.has(rejectedCustomEmojiKey(entity.custom_emoji_id, scope)));
 }
 
-function rememberRejectedCustomEmojiIds(entities = [], scope = '') {
-  for (const entity of entities || []) {
-    if (entity?.type === 'custom_emoji' && entity.custom_emoji_id) {
-      rejectedCustomEmojiIds.add(rejectedCustomEmojiKey(entity.custom_emoji_id, scope));
-    }
-  }
+function rememberRejectedCustomEmojiIds(error, entities = [], scope = '') {
+  const candidateIds = (entities || [])
+    .filter((entity) => entity?.type === 'custom_emoji')
+    .map((entity) => entity.custom_emoji_id);
+  rememberMentionedCustomEmojiIds(error, candidateIds, scope);
 }
 
 function rejectedCustomEmojiKey(customEmojiId, scope) {
   return `${scope}:${customEmojiId}`;
+}
+
+function hasButtonCustomEmojiIcons(value) {
+  if (Array.isArray(value)) return value.some(hasButtonCustomEmojiIcons);
+  if (!value || typeof value !== 'object') return false;
+  if (Object.prototype.hasOwnProperty.call(value, 'icon_custom_emoji_id')) return true;
+  return Object.values(value).some(hasButtonCustomEmojiIcons);
+}
+
+function hasRejectedButtonCustomEmoji(replyMarkup) {
+  return collectButtonCustomEmojiIds(replyMarkup)
+    .some((customEmojiId) => rejectedCustomEmojiIds.has(rejectedCustomEmojiKey(customEmojiId, 'reply_markup')));
+}
+
+function rememberRejectedButtonCustomEmojiIds(error, replyMarkup) {
+  rememberMentionedCustomEmojiIds(
+    error,
+    collectButtonCustomEmojiIds(replyMarkup),
+    'reply_markup'
+  );
+}
+
+function rememberMentionedCustomEmojiIds(error, candidateIds, scope) {
+  const details = `${error?.message || ''} ${error?.body || ''}`;
+  const uniqueIds = new Set(
+    (candidateIds || [])
+      .map((customEmojiId) => String(customEmojiId || '').trim())
+      .filter(Boolean)
+  );
+  for (const customEmojiId of uniqueIds) {
+    if (errorMentionsCustomEmojiId(details, customEmojiId)) {
+      rejectedCustomEmojiIds.add(rejectedCustomEmojiKey(customEmojiId, scope));
+    }
+  }
+}
+
+function errorMentionsCustomEmojiId(details, customEmojiId) {
+  const escapedId = customEmojiId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^A-Za-z0-9_-])${escapedId}($|[^A-Za-z0-9_-])`).test(details);
+}
+
+function collectButtonCustomEmojiIds(value, ids = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectButtonCustomEmojiIds(item, ids);
+    return ids;
+  }
+  if (!value || typeof value !== 'object') return ids;
+  if (value.icon_custom_emoji_id) ids.push(String(value.icon_custom_emoji_id));
+  for (const nested of Object.values(value)) collectButtonCustomEmojiIds(nested, ids);
+  return ids;
+}
+
+function stripButtonCustomEmojiIcons(value) {
+  if (Array.isArray(value)) return value.map(stripButtonCustomEmojiIcons);
+  if (!value || typeof value !== 'object') return value;
+
+  const stripped = {};
+  for (const [key, nested] of Object.entries(value)) {
+    if (key === 'icon_custom_emoji_id') continue;
+    stripped[key] = stripButtonCustomEmojiIcons(nested);
+  }
+  return stripped;
+}
+
+function fallbackButtonPayload(payload) {
+  return {
+    ...payload,
+    reply_markup: stripButtonCustomEmojiIcons(payload.reply_markup)
+  };
+}
+
+function applyKnownCustomEmojiFallbacks(payload, entityField, fallbackEntityPayload) {
+  let fallback = payload;
+  if (hasRejectedCustomEmojiEntity(fallback?.[entityField], entityField)) {
+    fallback = fallbackEntityPayload(fallback);
+  }
+  if (hasRejectedButtonCustomEmoji(fallback?.reply_markup)) {
+    fallback = fallbackButtonPayload(fallback);
+  }
+  return fallback;
+}
+
+function nextCustomEmojiFallback(error, payload, entityField, fallbackEntityPayload) {
+  if (isButtonCustomEmojiError(error) && shouldRetryWithoutButtonCustomEmoji(error, payload)) {
+    rememberRejectedButtonCustomEmojiIds(error, payload.reply_markup);
+    return fallbackButtonPayload(payload);
+  }
+  if (shouldRetryWithoutCustomEmoji(error, payload, entityField)) {
+    rememberRejectedCustomEmojiIds(error, payload[entityField], entityField);
+    return fallbackEntityPayload(payload);
+  }
+  if (shouldRetryWithoutButtonCustomEmoji(error, payload)) {
+    rememberRejectedButtonCustomEmojiIds(error, payload.reply_markup);
+    return fallbackButtonPayload(payload);
+  }
+  return null;
+}
+
+async function telegramJsonWithCustomEmojiFallback(method, payload, entityField, fallbackEntityPayload) {
+  let currentPayload = payload;
+  while (true) {
+    try {
+      return await telegramJson(method, currentPayload);
+    } catch (error) {
+      const fallback = nextCustomEmojiFallback(
+        error,
+        currentPayload,
+        entityField,
+        fallbackEntityPayload
+      );
+      if (!fallback) throw error;
+      currentPayload = fallback;
+    }
+  }
 }
 
 function fallbackMessagePayload(payload, options = {}) {
