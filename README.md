@@ -167,7 +167,59 @@ SEPAY_WEBHOOK_ACCOUNT_NUMBERS=<expected-webhook-account-number>
 ```
 
 The `Postgres` and `Redis` names in the reference variables must match the
-actual Railway service names. Do not set `PORT`; Railway injects it.
+actual Railway service names. Do not set `PORT` on the `bot-ai` service;
+Railway injects it.
+
+### Automatic ChatGPT and Canva Seat fulfillment
+
+The bot calls the two API services over Railway private networking. It never
+calls `canva-member-worker` directly. Set a stable target port on each API
+service so the bot can address it privately:
+
+```text
+# gpt-member-service
+PORT=3002
+
+# canva-member-api
+PORT=3012
+```
+
+Then add these variables to `bot-ai`:
+
+```text
+GPT_MEMBER_SERVICE_ENABLED=true
+GPT_MEMBER_SERVICE_URL=http://${{gpt-member-service.RAILWAY_PRIVATE_DOMAIN}}:${{gpt-member-service.PORT}}/api/v1
+GPT_MEMBER_SERVICE_API_KEY=<raw-gsk-key-with-members:add>
+GPT_MEMBER_ACCOUNT_REF=<Mongo-id-workspace-UUID-or-admin-email>
+GPT_MEMBER_SKUS=chatgpt-business-seat-1m
+
+CANVA_MEMBER_SERVICE_ENABLED=true
+CANVA_MEMBER_SERVICE_URL=http://${{canva-member-api.RAILWAY_PRIVATE_DOMAIN}}:${{canva-member-api.PORT}}/api/v1
+CANVA_MEMBER_SERVICE_API_KEY=<raw-gsk-key-with-members:add>
+CANVA_MEMBER_ACCOUNT_REF=<registered-Canva-account-id-or-login-email>
+CANVA_MEMBER_SKUS=canva-pro-1m,canva-pro-6m
+```
+
+Use a new least-privilege `gsk_...` key and copy its raw value when it is
+created; a stored API-key hash cannot be converted back to the raw key. GPT
+and Canva account references are explicit so an order cannot be assigned to
+an unintended admin account.
+
+Each active order pins a fingerprint of its provider, private service URL,
+API key and target account. Changing any of those values while an order is
+still awaiting fulfillment pauses that order in `verification_required`
+instead of risking an invitation to a different account. Finish, verify or
+clean up active operations before rotating these variables.
+
+The member APIs return durable asynchronous operations. The bot stores the
+operation id, polls until `succeeded`, and only then marks the order delivered.
+Network timeouts reuse the same idempotency generation; terminal or partial
+failures stay in `awaiting_fulfillment` for an admin retry. Claude Seat remains
+manual until a Claude member service is configured in code.
+
+The current automation adds members but does not yet schedule removal when a
+1-month or 6-month Seat expires. Track expiry/removal manually until a separate
+Seat lifecycle worker is added.
 
 Generate separate values for `AUTH_SECRET`, `TELEGRAM_WEBHOOK_SECRET`,
 `SEPAY_WEBHOOK_SECRET`, and `INVENTORY_ENCRYPTION_KEY`:

@@ -10,7 +10,10 @@ process.env.DATA_FILE = dataFile;
 process.env.BASE_URL = 'http://localhost:3000';
 process.env.DATABASE_URL = '';
 process.env.REDIS_URL = '';
-process.env.PAYMENT_PROVIDER = 'mock';
+process.env.PAYMENT_PROVIDER = 'sepay';
+process.env.SEPAY_ACCOUNT_NUMBER = '1234567890';
+process.env.SEPAY_BANK_CODE = 'MBBank';
+process.env.SEPAY_PAYMENT_PREFIX = 'KAITO';
 process.env.SALES_ENABLED = 'true';
 process.env.TELEGRAM_BOT_TOKEN = '123:test';
 process.env.TELEGRAM_POLLING = 'false';
@@ -26,6 +29,7 @@ const telegram = await import('../src/telegram.js');
 const calls = [];
 let releaseChatMenuRequest;
 let blockChatMenuRequest = true;
+let forcePaymentQrFailure = false;
 globalThis.fetch = async (url, options) => {
   const call = { url: String(url), body: parseTelegramBody(options.body) };
   calls.push(call);
@@ -35,6 +39,9 @@ globalThis.fetch = async (url, options) => {
     });
   }
   if (call.url.includes('/sendPhoto')) {
+    if (forcePaymentQrFailure && String(call.body.photo).includes('qr.sepay.vn/img')) {
+      return telegramFailure(500, 'Payment QR test failure');
+    }
     return telegramSuccess({
       ok: true,
       result: {
@@ -143,12 +150,53 @@ try {
   assert.ok(calls.some((call) => call.url.includes('/answerCallbackQuery')), 'Callback should be answered.');
   const receiptCall = calls.find((call) => call.url.includes('/editMessageText') && call.body.text.includes('Đơn đã tạo'));
   assert.ok(receiptCall, 'Only confirmation should create an order receipt.');
-  assert.ok(receiptCall.body.reply_markup.inline_keyboard.flat().some((button) => (
-    button.text === 'Thanh toán' && button.url && button.icon_custom_emoji_id
-  )));
-  assert.ok(receiptCall.body.reply_markup.inline_keyboard.flat().some((button) => (
-    ['Xem QR', 'Hủy đơn'].includes(button.text) && button.icon_custom_emoji_id
-  )));
+  const receiptButtons = receiptCall.body.reply_markup.inline_keyboard.flat();
+  assert.equal(receiptButtons.some((button) => ['Thanh toán', 'Xem QR'].includes(button.text)), false);
+  assert.ok(receiptButtons.some((button) => button.text === 'Hủy đơn' && button.icon_custom_emoji_id));
+  const paymentQrCall = calls.find((call) => (
+    call.url.includes('/sendPhoto')
+    && String(call.body.photo).includes('qr.sepay.vn/img')
+    && String(call.body.caption).includes('Quét QR để thanh toán')
+  ));
+  assert.ok(paymentQrCall, 'A confirmed order should immediately send its payment QR image.');
+  assert.match(String(paymentQrCall.body.photo), /amount=99000/);
+  assertEveryCaptionEmojiAnimated(paymentQrCall, 'automatic payment QR');
+  forcePaymentQrFailure = true;
+  const failedQrSend = await telegram.sendPaymentQrImage(91001, {
+    id: 'ord_qr_failure',
+    status: 'pending_payment',
+    total: 99000,
+    currency: 'VND'
+  }, {
+    reference: 'KAITOQRFAILURE',
+    qrImageUrl: 'https://qr.sepay.vn/img?amount=99000&des=KAITOQRFAILURE'
+  });
+  forcePaymentQrFailure = false;
+  assert.equal(failedQrSend.skipped, true, 'A QR transport error must not reject an already-created order.');
+  assert.equal(failedQrSend.reason, 'payment_qr_send_failed');
+  assert.equal(failedQrSend.notificationSent, true);
+  assert.ok(calls.some((call) => (
+    call.url.includes('/sendMessage') && String(call.body.text).includes('Chưa tải được QR thanh toán')
+  )), 'A QR transport error should tell the customer to use the manual bank details.');
+
+  const createdOrderId = (await storage.readStore()).orders[0].id;
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_reopen_pending_order',
+      data: `order:${createdOrderId}`,
+      message: { chat: { id: 91001 }, message_id: 55 },
+      from: { id: 91001, username: 'callback-buyer', first_name: 'Callback' }
+    }
+  });
+  assert.ok(calls.some((call) => (
+    call.url.includes('/sendPhoto') && String(call.body.photo).includes('qr.sepay.vn/img')
+  )), 'Opening a pending order should display its QR again without a QR button.');
+  const reopenedOrder = calls.find((call) => (
+    call.url.includes('/editMessageText') && String(call.body.text).includes('Chi tiết đơn hàng')
+  ));
+  assert.match(String(reopenedOrder?.body.text), /MBBank/);
+  assert.match(String(reopenedOrder?.body.text), /1234567890/);
 
   await telegram.handleTelegramUpdate(confirmUpdate);
   let db = await storage.readStore();
@@ -348,6 +396,17 @@ try {
     call.url.includes('/editMessageText') && call.body.text.includes('Đơn đã tạo - chờ thanh toán')
   ));
   assert.ok(seatReceipt, 'Seat confirmation should create the payment receipt.');
+  assert.equal(
+    seatReceipt.body.reply_markup.inline_keyboard.flat().some((button) => ['Thanh toán', 'Xem QR'].includes(button.text)),
+    false,
+    'Seat receipt should not repeat payment and QR link buttons.'
+  );
+  const seatQrCall = calls.find((call) => (
+    call.url.includes('/sendPhoto')
+    && String(call.body.photo).includes('qr.sepay.vn/img')
+    && String(call.body.photo).includes('amount=800000')
+  ));
+  assert.ok(seatQrCall, 'Seat confirmation should immediately send the full-order QR image.');
 
   db = await storage.readStore();
   assert.equal(db.orders.length, 2);
@@ -388,6 +447,29 @@ function telegramSuccess(payload = { ok: true }) {
     ok: true,
     async json() {
       return payload;
+    }
+  };
+}
+
+function assertEveryCaptionEmojiAnimated(call, label) {
+  const caption = String(call?.body?.caption || '');
+  const customEntities = (call?.body?.caption_entities || [])
+    .filter((entity) => entity.type === 'custom_emoji');
+  const segments = new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(caption);
+  for (const segment of segments) {
+    if (!/\p{Extended_Pictographic}/u.test(segment.segment)) continue;
+    assert.ok(customEntities.some((entity) => (
+      entity.offset === segment.index && entity.length === segment.segment.length
+    )), `${label} emoji "${segment.segment}" should be animated.`);
+  }
+}
+
+function telegramFailure(status, description) {
+  return {
+    ok: false,
+    status,
+    async text() {
+      return JSON.stringify({ ok: false, description });
     }
   };
 }

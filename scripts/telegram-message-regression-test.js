@@ -420,6 +420,7 @@ const {
   TELEGRAM_MENU_LANGUAGE_CODES,
   bannerCustomEmojiId,
   orderMessage,
+  paymentQrCaption,
   productDetailMessage,
   productMessage,
   seatAwaitingFulfillmentMessage,
@@ -728,7 +729,7 @@ try {
   assert.ok(categoryKeyboard.inline_keyboard[0][0].text.includes('AI Accounts'));
   assert.ok(categoryKeyboard.inline_keyboard[0][0].text.includes('[3]'));
   assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('Design Accounts'));
-  assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('[Hết]'));
+  assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('[Seat]'));
   assert.ok(categoryKeyboard.inline_keyboard[0].every((button) => button.callback_data.startsWith('cat:')));
   assert.equal(categoryKeyboard.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_chatgpt_file');
   assert.equal(categoryKeyboard.inline_keyboard[0][1].icon_custom_emoji_id, 'ce_canva_motion');
@@ -752,10 +753,10 @@ try {
 
   const soldOutCatalogKeyboard = buildCategoryKeyboard([{
     category: 'Design Accounts',
-    brand: 'Canva',
-    sku: 'canva-pro-1m',
+    brand: 'CapCut',
+    sku: 'capcut-pro-1m',
     packageType: 'Pro 1M',
-    name: 'Canva Pro',
+    name: 'CapCut Pro',
     price: 49000,
     currency: 'VND',
     stock: { available: 0 }
@@ -1040,16 +1041,9 @@ try {
     paymentUrl: 'https://pay.local/',
     qrImageUrl: 'https://qr.local/'
   });
-  assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => (
-    button.text === 'Thanh toán'
-    && button.url === 'https://pay.local/'
-    && button.icon_custom_emoji_id === newsEmojiIds.dollar
-  )));
-  assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => (
-    button.text === 'Xem QR'
-    && button.url === 'https://qr.local/'
-    && button.icon_custom_emoji_id === newsEmojiIds.link
-  )));
+  assert.equal(paymentKeyboard.inline_keyboard.flat().some((button) => (
+    ['Thanh toán', 'Xem QR'].includes(button.text)
+  )), false, 'Payment and QR links should be replaced by an immediately sent QR image.');
   assert.ok(paymentKeyboard.inline_keyboard.flat().some((button) => (
     button.callback_data === 'cancel:ord_1'
     && button.icon_custom_emoji_id === newsEmojiIds.cross
@@ -1065,6 +1059,18 @@ try {
     && button.icon_custom_emoji_id === newsEmojiIds.adminchat
   )), 'Payment support URL should use the News admin-chat emoji.');
   assertAllKeyboardButtonsAnimated(paymentKeyboard, 'payment keyboard');
+  const qrCaption = paymentQrCaption({
+    id: 'ord<qr>',
+    total: 400000,
+    currency: 'VND'
+  }, {
+    reference: 'KAITO<QR>'
+  });
+  assert.match(qrCaption, /Quét QR để thanh toán/);
+  assert.match(qrCaption, /400\.000 VND/);
+  assert.match(qrCaption, /ord&lt;qr&gt;/);
+  assert.match(qrCaption, /KAITO&lt;QR&gt;/);
+  assertNoUnsupportedHtml(qrCaption);
   const deliveredOrderKeyboard = buildPaymentKeyboard({ id: 'ord_1', status: 'delivered' }, {});
   assert.ok(deliveredOrderKeyboard.inline_keyboard.flat().some((button) => (
     button.text === 'Xem lại thông tin giao hàng'

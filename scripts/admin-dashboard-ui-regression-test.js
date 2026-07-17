@@ -80,6 +80,27 @@ assert.ok(js.includes("actionButton('complete-seat'"), 'Awaiting seat orders sho
 assert.ok(js.includes("actionButton('mark-refunded'"), 'Awaiting seat orders should expose Refund.');
 assert.ok(js.includes('Resend Seat Notice'), 'Delivered Seat orders should expose a recoverable Telegram resend action.');
 assert.ok(js.includes("api(`/api/orders/${id}/complete-fulfillment`"), 'Complete Seat should call the fulfillment completion endpoint.');
+assert.ok(js.includes("actionButton('retry-fulfillment'"), 'Automatic Seat orders should expose a retry action.');
+assert.ok(js.includes("api(`/api/orders/${id}/retry-fulfillment`"), 'Retry Auto should call the asynchronous fulfillment retry endpoint.');
+assert.ok(server.includes("routeParams('/api/orders/:id/retry-fulfillment'"), 'Server should expose the automatic Seat retry endpoint.');
+assert.ok(server.includes('await requestSeatFulfillmentRetry(params.id'), 'Retry Auto should persist a durable retry request before returning 202.');
+assert.ok(server.includes('startSeatFulfillmentAutomation'), 'Server should resume pending automatic Seat operations after restart.');
+assert.ok(js.includes('automaticFulfillmentProvider'), 'Admin automation actions should use the backend SKU mapping instead of hardcoded SKUs.');
+assert.ok(js.includes("actionButton('refund-after-cleanup'"), 'Failed external operations should require cleanup before refund.');
+assert.ok(js.includes('confirmExternalCleanup: true'), 'Confirmed cleanup should be sent explicitly to the refund guard.');
+assert.ok(js.includes("['failed', 'blocked'].includes(automation.status)"), 'Retry Auto should be limited to recoverable terminal states.');
+assert.ok(js.includes("automation.status === 'retrying'"), 'Retry Now should be available for a scheduled retry.');
+assert.ok(js.includes("automation.status === 'verification_required'"), 'Unknown external outcomes should require verification.');
+assert.ok(
+  js.includes("if (automation.status === 'verification_required') return 'cleanup_required';"),
+  'Unknown external outcomes must require cleanup confirmation before refund, even without an operation id.'
+);
+assert.ok(js.includes("actionButton('complete-after-verification'"), 'External operations should expose a verification-gated manual completion action.');
+assert.ok(js.includes("confirmation !== 'VERIFIED'"), 'Manual completion after an external operation should require explicit verification.');
+assert.ok(js.includes('confirmExternalVerification: true'), 'Verified manual completion should send an explicit server-side confirmation.');
+for (const field of ['automation.attempt', 'automation.retryCount', 'automation.nextRetryAt', 'automation.error?.message']) {
+  assert.ok(js.includes(field), `Automation diagnostics should render ${field}.`);
+}
 assert.ok(server.includes("isSeatEmailFulfillment(delivery.order?.productSnapshot)"), 'Seat completion notices should be resendable without inventory secrets.');
 assert.ok(catalogSeed.includes('fulfillmentMode: product.fulfillmentMode'), 'Catalog seed should synchronize fulfillment mode.');
 

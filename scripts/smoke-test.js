@@ -90,6 +90,17 @@ try {
   assert.equal(status.storage.driver, usePostgres ? 'postgres' : 'json');
   assert.ok(status.counts.products >= 1, 'demo product should be seeded');
 
+  const defaultCanvaSeat = (await shop.listProducts({ includeInactive: true }))
+    .find((product) => product.sku === 'canva-pro-1m');
+  assert.equal(defaultCanvaSeat.fulfillmentMode, 'seat_email');
+  assert.equal(defaultCanvaSeat.catalogManagedSeatVersion, 1);
+  await shop.updateProduct('smoke-admin', defaultCanvaSeat.id, { fulfillmentMode: 'inventory' });
+  await storage.initStore();
+  const canvaAfterRestart = (await shop.listProducts({ includeInactive: true }))
+    .find((product) => product.sku === 'canva-pro-1m');
+  assert.equal(canvaAfterRestart.fulfillmentMode, 'inventory', 'A later admin choice must survive restart after the one-time Seat migration.');
+  await shop.updateProduct('smoke-admin', defaultCanvaSeat.id, { fulfillmentMode: 'seat_email' });
+
   const actorId = 'smoke-admin';
   const user = await shop.upsertTelegramUser({
     id: `700001${process.pid}`,
@@ -292,7 +303,76 @@ try {
   assert.equal(duplicateSeatPayment.duplicate, true);
   assert.equal(duplicateSeatPayment.order.status, 'awaiting_fulfillment');
 
-  const completedSeat = await shop.completeSeatFulfillment(actorId, seatCheckout.order.id, {
+  const automatedSeat = await shop.updateSeatFulfillmentAutomation('member-service:smoke', seatCheckout.order.id, {
+    provider: 'chatgpt',
+    status: 'processing',
+    attempt: 1,
+    idempotencyKey: 'seat-chatgpt-smoke-g0',
+    operationId: 'op_smoke_automation',
+    error: null
+  });
+  assert.equal(automatedSeat.fulfillment.automation.provider, 'chatgpt');
+  assert.equal(automatedSeat.fulfillment.automation.status, 'processing');
+  assert.equal(automatedSeat.fulfillment.automation.operationId, 'op_smoke_automation');
+
+  await assert.rejects(
+    () => shop.completeSeatFulfillment(actorId, seatCheckout.order.id, { note: 'Too early' }),
+    /Automatic Seat fulfillment is still active/
+  );
+  const chatgptIntegration = config.memberFulfillment.integrations.chatgpt;
+  const originalChatgptEnabled = chatgptIntegration.enabled;
+  const originalChatgptSkus = chatgptIntegration.skus;
+  chatgptIntegration.enabled = true;
+  chatgptIntegration.skus = [...originalChatgptSkus, seatProduct.sku];
+  try {
+    await assert.rejects(
+      () => shop.markOrderRefunded(actorId, seatCheckout.order.id, { note: 'Unsafe refund' }),
+      /may already be running/
+    );
+  } finally {
+    chatgptIntegration.enabled = originalChatgptEnabled;
+    chatgptIntegration.skus = originalChatgptSkus;
+  }
+
+  const succeededAutomation = await shop.updateSeatFulfillmentAutomation(
+    'member-service:smoke',
+    seatCheckout.order.id,
+    {
+      provider: 'chatgpt',
+      status: 'succeeded',
+      attempt: 1,
+      retryCount: 0,
+      idempotencyKey: 'seat-chatgpt-smoke-g0',
+      operationId: 'op_smoke_automation',
+      error: null
+    }
+  );
+  assert.equal(succeededAutomation.fulfillment.automation.status, 'succeeded');
+  const protectedSucceededAutomation = await shop.updateSeatFulfillmentAutomation(
+    'member-service:smoke',
+    seatCheckout.order.id,
+    {
+      status: 'failed',
+      attempt: 2,
+      retryCount: 1,
+      operationId: 'op_smoke_late_failure',
+      error: { code: 'LATE_FAILURE', message: 'Must not replace success', retryable: false }
+    }
+  );
+  assert.equal(
+    protectedSucceededAutomation.fulfillment.automation.status,
+    'succeeded',
+    'A succeeded automation result must not be downgraded by a later stale update.'
+  );
+  assert.equal(protectedSucceededAutomation.fulfillment.automation.attempt, 1);
+  assert.equal(protectedSucceededAutomation.fulfillment.automation.operationId, 'op_smoke_automation');
+  assert.equal(protectedSucceededAutomation.fulfillment.automation.error, null);
+  await assert.rejects(
+    () => shop.completeSeatFulfillment(actorId, seatCheckout.order.id, { note: 'Success still belongs to automation' }),
+    /Automatic Seat fulfillment is still active/
+  );
+
+  const completedSeat = await shop.completeSeatFulfillment('member-service:smoke', seatCheckout.order.id, {
     note: 'Smoke invitations sent'
   });
   assert.equal(completedSeat.order.status, 'delivered');
@@ -302,8 +382,102 @@ try {
     completedSeat.order.fulfillment.recipients.map((recipient) => recipient.status),
     ['invited', 'invited']
   );
+  assert.equal(completedSeat.order.fulfillment.automation.operationId, 'op_smoke_automation');
+  assert.equal(completedSeat.order.fulfillment.automation.status, 'succeeded');
   assert.deepEqual((await shop.getDeliveryForOrder(seatCheckout.order.id)).deliverySecrets, []);
   assert.equal((await shop.completeSeatFulfillment(actorId, seatCheckout.order.id)).duplicate, true);
+
+  for (const cleanupStatus of ['failed', 'blocked', 'verification_required']) {
+    const cleanupCheckout = await shop.createOrderForUser(user, seatProduct.sku, 1, {
+      recipientEmails: [`cleanup-${cleanupStatus.replaceAll('_', '-')}@example.com`],
+      idempotencyKey: `smoke-seat-cleanup-${cleanupStatus}-${runId}`
+    });
+    await shop.applyPaymentEvent(
+      paidEvent(
+        `evt_smoke_seat_cleanup_${cleanupStatus}_${runId}`,
+        cleanupCheckout.order,
+        cleanupCheckout.payment
+      )
+    );
+    await shop.updateSeatFulfillmentAutomation('member-service:smoke', cleanupCheckout.order.id, {
+      provider: 'chatgpt',
+      status: cleanupStatus,
+      attempt: 1,
+      operationId: `op_smoke_cleanup_${cleanupStatus}`,
+      error: { code: 'MEMBER_OPERATION_FAILED', message: 'Smoke cleanup required', retryable: false }
+    });
+    await assert.rejects(
+      () => shop.completeSeatFulfillment(actorId, cleanupCheckout.order.id, { note: 'Not verified yet' }),
+      /Automatic Seat fulfillment is still active/
+    );
+    await assert.rejects(
+      () => shop.markOrderRefunded(actorId, cleanupCheckout.order.id, {
+        note: `Missing cleanup confirmation for ${cleanupStatus}`
+      }),
+      /verify or remove the external invitation/
+    );
+    const cleanupRefund = await shop.markOrderRefunded(actorId, cleanupCheckout.order.id, {
+      note: `External invitation removed for ${cleanupStatus}`,
+      confirmExternalCleanup: true
+    });
+    assert.equal(cleanupRefund.order.status, 'refunded');
+  }
+
+  const unknownSubmissionCheckout = await shop.createOrderForUser(user, seatProduct.sku, 1, {
+    recipientEmails: ['unknown-submission@example.com'],
+    idempotencyKey: `smoke-seat-unknown-submission-${runId}`
+  });
+  await shop.applyPaymentEvent(
+    paidEvent(
+      `evt_smoke_seat_unknown_submission_${runId}`,
+      unknownSubmissionCheckout.order,
+      unknownSubmissionCheckout.payment
+    )
+  );
+  await shop.updateSeatFulfillmentAutomation('member-service:smoke', unknownSubmissionCheckout.order.id, {
+    provider: 'chatgpt',
+    status: 'verification_required',
+    attempt: 1,
+    operationId: '',
+    error: { code: 'MEMBER_OUTCOME_UNKNOWN', message: 'Submission outcome is unknown', retryable: false }
+  });
+  await assert.rejects(
+    () => shop.completeSeatFulfillment(actorId, unknownSubmissionCheckout.order.id, {
+      note: 'Unknown outcome must be verified before manual completion'
+    }),
+    /Automatic Seat fulfillment is still active/
+  );
+  await assert.rejects(
+    () => shop.markOrderRefunded(actorId, unknownSubmissionCheckout.order.id, {
+      note: 'Unknown outcome without cleanup'
+    }),
+    /verify or remove the external invitation/
+  );
+  const unknownSubmissionRefund = await shop.markOrderRefunded(actorId, unknownSubmissionCheckout.order.id, {
+    note: 'External service checked before refund',
+    confirmExternalCleanup: true
+  });
+  assert.equal(unknownSubmissionRefund.order.status, 'refunded');
+
+  const verifiedCheckout = await shop.createOrderForUser(user, seatProduct.sku, 1, {
+    recipientEmails: ['verified-external@example.com'],
+    idempotencyKey: `smoke-seat-verified-external-${runId}`
+  });
+  await shop.applyPaymentEvent(
+    paidEvent(`evt_smoke_seat_verified_external_${runId}`, verifiedCheckout.order, verifiedCheckout.payment)
+  );
+  await shop.updateSeatFulfillmentAutomation('member-service:smoke', verifiedCheckout.order.id, {
+    provider: 'chatgpt',
+    status: 'verification_required',
+    attempt: 1,
+    operationId: '',
+    error: { code: 'MEMBER_OUTCOME_UNKNOWN', message: 'External verification required', retryable: false }
+  });
+  const verifiedCompletion = await shop.completeSeatFulfillment(actorId, verifiedCheckout.order.id, {
+    note: 'External invitation verified',
+    confirmExternalVerification: true
+  });
+  assert.equal(verifiedCompletion.order.status, 'delivered');
 
   const summary = await shop.getDashboardSummary();
   assert.ok(summary.deliveredOrders >= 2, 'summary should count delivered smoke orders');

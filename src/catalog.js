@@ -3,7 +3,9 @@ const FULFILLMENT_MODES = new Set(['inventory', 'seat_email']);
 const LEGACY_SEAT_EMAIL_SKUS = new Set([
   'chatgpt-business-seat-1m',
   'claude-business-seat-1x-1m',
-  'claude-business-seat-6-5x-1m'
+  'claude-business-seat-6-5x-1m',
+  'canva-pro-1m',
+  'canva-pro-6m'
 ]);
 
 export function isDeliveryMode(value) {
@@ -165,26 +167,36 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     sku: 'canva-pro-1m',
     category: 'Design Accounts',
     brand: 'Canva',
-    packageType: 'Pro 1M',
-    name: 'Canva Pro - 1 tháng',
-    description: 'Gói Canva Pro 1 tháng cho thiết kế, content và social media.',
+    packageType: 'Nonprofit Seat 1M',
+    name: 'Canva Pro Seat (Nonprofit) - 1 tháng',
+    description: 'Seat Canva Pro trong team nonprofit do shop quản lý; khách gửi email để nhận lời mời sau thanh toán.',
     price: 49000,
     currency: 'VND',
     sortOrder: 110,
-    officialPriceNote: 'Canva Pro: pricing varies by region'
+    officialPriceNote: 'Quyền lợi nonprofit do Canva quyết định; đây là seat trong team do shop quản lý.',
+    accountType: 'Seat thành viên Canva Pro trong team nonprofit; không phải tài khoản Canva riêng.',
+    warrantyPolicy: 'Bảo hành quyền truy cập team trong 1 tháng kể từ khi bàn giao.',
+    replacementPolicy: 'Gửi lại lời mời khi lỗi do team của shop; không áp dụng khi khách tự rời team, đổi email hoặc vi phạm chính sách Canva.',
+    fulfillmentMode: 'seat_email',
+    deliveryMode: 'text'
   },
   {
     sku: 'canva-pro-6m',
     category: 'Design Accounts',
     brand: 'Canva',
-    packageType: 'Pro 6M',
-    name: 'Canva Pro - 6 tháng',
-    description: 'Gói Canva Pro 6 tháng, phù hợp khách dùng lâu dài.',
+    packageType: 'Nonprofit Seat 6M',
+    name: 'Canva Pro Seat (Nonprofit) - 6 tháng',
+    description: 'Seat Canva Pro 6 tháng trong team nonprofit do shop quản lý; khách gửi email để nhận lời mời sau thanh toán.',
     price: 249000,
     currency: 'VND',
     sortOrder: 120,
     hot: true,
-    officialPriceNote: 'Canva Pro: pricing varies by region'
+    officialPriceNote: 'Quyền lợi nonprofit do Canva quyết định; đây là seat trong team do shop quản lý.',
+    accountType: 'Seat thành viên Canva Pro trong team nonprofit; không phải tài khoản Canva riêng.',
+    warrantyPolicy: 'Bảo hành quyền truy cập team trong 6 tháng kể từ khi bàn giao.',
+    replacementPolicy: 'Gửi lại lời mời khi lỗi do team của shop; không áp dụng khi khách tự rời team, đổi email hoặc vi phạm chính sách Canva.',
+    fulfillmentMode: 'seat_email',
+    deliveryMode: 'text'
   },
   {
     sku: 'capcut-pro-1m',

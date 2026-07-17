@@ -32,8 +32,46 @@ import { paymentProviders } from './payments.js';
 import { configureTelegramMenu, handleTelegramUpdate, notifyBotRestoredToUsers, notifyDelivery, startTelegramPolling } from './telegram.js';
 import { assertRateLimit, classifyHttpLimit, clientIp } from './rateLimit.js';
 import { getReadiness, getSystemStatus } from './systemStatus.js';
+import {
+  processSeatFulfillment,
+  requestSeatFulfillmentRetry,
+  startSeatFulfillmentAutomation
+} from './seatFulfillmentAutomation.js';
 
 const publicDir = resolve(process.cwd(), 'public');
+
+async function notifyAutomaticSeatDelivery(order) {
+  if (!order?.id) return;
+  await notifyDelivery(order.id).catch((error) => {
+    console.error('[telegram] automatic Seat delivery notification failed:', error.message);
+  });
+}
+
+function scheduleSeatFulfillment(orderId, { force = false } = {}) {
+  if (!orderId) return;
+  setImmediate(() => {
+    processSeatFulfillment(orderId, {
+      force,
+      onDelivered: notifyAutomaticSeatDelivery
+    }).then((result) => {
+      if (result?.ok === false) {
+        console.error(
+          `[member-fulfillment] order ${orderId} remains awaiting: ${result.error?.code || 'unknown_error'}`
+        );
+      }
+    }).catch((error) => {
+      console.error(
+        `[member-fulfillment] order ${orderId} scheduling failed: ${String(error?.message || error).slice(0, 300)}`
+      );
+    });
+  });
+}
+
+async function notifyPaymentAndScheduleSeat(orderId) {
+  if (!orderId) return;
+  await notifyDelivery(orderId).catch((error) => console.error('[telegram] notify failed:', error.message));
+  scheduleSeatFulfillment(orderId);
+}
 
 function send(res, status, body, headers = {}) {
   const payload = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
@@ -205,9 +243,7 @@ async function handleApi(req, res, url) {
     });
     const result = await applyPaymentEvent(event);
     sendJson(res, 200, { ok: true, result });
-    if (result.order?.id && !result.duplicate) {
-      setImmediate(() => notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message)));
-    }
+    if (result.order?.id && !result.duplicate) setImmediate(() => notifyPaymentAndScheduleSeat(result.order.id));
     return;
   }
 
@@ -220,9 +256,7 @@ async function handleApi(req, res, url) {
     });
     const result = await applyPaymentEvent(event, 'sepay-webhook');
     sendJson(res, 200, { success: true });
-    if (result.order?.id && !result.duplicate) {
-      setImmediate(() => notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message)));
-    }
+    if (result.order?.id && !result.duplicate) setImmediate(() => notifyPaymentAndScheduleSeat(result.order.id));
     return;
   }
 
@@ -284,7 +318,7 @@ async function handleApi(req, res, url) {
   params = routeParams('/api/orders/:id/mark-paid', pathname);
   if (params && req.method === 'POST') {
     const result = await markOrderPaidManually(admin.id, params.id);
-    if (result.order?.id) await notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message));
+    if (result.order?.id) await notifyPaymentAndScheduleSeat(result.order.id);
     return sendJson(res, 200, result);
   }
 
@@ -297,7 +331,7 @@ async function handleApi(req, res, url) {
   if (params && req.method === 'POST') {
     const { body } = await readJson(req);
     const result = await approveReviewDelivery(admin.id, params.id, body);
-    if (result.order?.id) await notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message));
+    if (result.order?.id) await notifyPaymentAndScheduleSeat(result.order.id);
     return sendJson(res, 200, result);
   }
 
@@ -309,6 +343,18 @@ async function handleApi(req, res, url) {
       await notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message));
     }
     return sendJson(res, 200, result);
+  }
+
+  params = routeParams('/api/orders/:id/retry-fulfillment', pathname);
+  if (params && req.method === 'POST') {
+    const retry = await requestSeatFulfillmentRetry(params.id, { actorId: admin.id });
+    scheduleSeatFulfillment(params.id);
+    return sendJson(res, 202, {
+      ok: true,
+      queued: true,
+      orderId: params.id,
+      provider: retry.provider
+    });
   }
 
   params = routeParams('/api/orders/:id/refund', pathname);
@@ -517,6 +563,7 @@ async function requestHandler(req, res) {
 await initStore();
 configureTelegramMenu().catch((error) => console.error('[telegram] menu setup failed:', error.message));
 setInterval(() => expireOrders().catch((error) => console.error('[orders] expire failed:', error.message)), 60_000);
+startSeatFulfillmentAutomation({ onDelivered: notifyAutomaticSeatDelivery });
 startTelegramPolling();
 
 createServer(requestHandler).listen(config.port, '0.0.0.0', () => {

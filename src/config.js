@@ -28,6 +28,38 @@ loadDotEnv();
 
 const generatedSecret = randomBytes(32).toString('hex');
 
+function commaSeparated(value, fallback = '') {
+  return String(value ?? fallback)
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function enabled(value, fallback = false) {
+  if (value === undefined || value === null || String(value).trim() === '') return fallback;
+  return String(value).trim().toLowerCase() === 'true';
+}
+
+export function boundedInteger(value, fallback, { name = 'value', min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  if (value === undefined || value === null || String(value).trim() === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}`);
+  }
+  return parsed;
+}
+
+function boundedEnv(name, fallback, bounds) {
+  return boundedInteger(process.env[name], fallback, { name, ...bounds });
+}
+
+const gptMemberServiceUrl = String(
+  process.env.GPT_MEMBER_SERVICE_URL || process.env.GPT_MEMBER_SERVICE_BASE_URL || ''
+).trim();
+const canvaMemberServiceUrl = String(
+  process.env.CANVA_MEMBER_SERVICE_URL || process.env.CANVA_MEMBER_SERVICE_BASE_URL || ''
+).trim();
+
 export const config = {
   port: Number(process.env.PORT || 3000),
   baseUrl: process.env.BASE_URL || 'http://localhost:3000',
@@ -112,6 +144,38 @@ export const config = {
     maxQuantity: Number(process.env.MAX_ORDER_QUANTITY || 20),
     maxPendingPerUser: Number(process.env.MAX_PENDING_ORDERS_PER_USER || 3)
   },
+  memberFulfillment: {
+    sweepIntervalMs: boundedEnv('MEMBER_FULFILLMENT_SWEEP_MS', 30_000, { min: 10_000, max: 3_600_000 }),
+    concurrency: boundedEnv('MEMBER_FULFILLMENT_CONCURRENCY', 2, { min: 1, max: 10 }),
+    retryBaseMs: boundedEnv('MEMBER_FULFILLMENT_RETRY_BASE_MS', 30_000, { min: 1_000, max: 900_000 }),
+    maxRetries: boundedEnv('MEMBER_FULFILLMENT_MAX_RETRIES', 8, { min: 0, max: 50 }),
+    integrations: {
+      chatgpt: {
+        enabled: enabled(process.env.GPT_MEMBER_SERVICE_ENABLED, Boolean(gptMemberServiceUrl)),
+        serviceUrl: gptMemberServiceUrl,
+        apiKey: String(process.env.GPT_MEMBER_SERVICE_API_KEY || '').trim(),
+        accountRef: String(
+          process.env.GPT_MEMBER_ACCOUNT_REF || process.env.GPT_MEMBER_SERVICE_ACCOUNT_REF || ''
+        ).trim(),
+        skus: commaSeparated(process.env.GPT_MEMBER_SKUS, 'chatgpt-business-seat-1m'),
+        requestTimeoutMs: boundedEnv('GPT_MEMBER_REQUEST_TIMEOUT_MS', 10_000, { min: 1_000, max: 120_000 }),
+        operationTimeoutMs: boundedEnv('GPT_MEMBER_OPERATION_TIMEOUT_MS', 180_000, { min: 1_000, max: 1_800_000 }),
+        pollIntervalMs: boundedEnv('GPT_MEMBER_POLL_INTERVAL_MS', 1_500, { min: 100, max: 60_000 })
+      },
+      canva: {
+        enabled: enabled(process.env.CANVA_MEMBER_SERVICE_ENABLED, Boolean(canvaMemberServiceUrl)),
+        serviceUrl: canvaMemberServiceUrl,
+        apiKey: String(process.env.CANVA_MEMBER_SERVICE_API_KEY || '').trim(),
+        accountRef: String(
+          process.env.CANVA_MEMBER_ACCOUNT_REF || process.env.CANVA_MEMBER_SERVICE_ACCOUNT_REF || ''
+        ).trim(),
+        skus: commaSeparated(process.env.CANVA_MEMBER_SKUS, 'canva-pro-1m,canva-pro-6m'),
+        requestTimeoutMs: boundedEnv('CANVA_MEMBER_REQUEST_TIMEOUT_MS', 10_000, { min: 1_000, max: 120_000 }),
+        operationTimeoutMs: boundedEnv('CANVA_MEMBER_OPERATION_TIMEOUT_MS', 600_000, { min: 1_000, max: 1_800_000 }),
+        pollIntervalMs: boundedEnv('CANVA_MEMBER_POLL_INTERVAL_MS', 2_000, { min: 100, max: 60_000 })
+      }
+    }
+  },
   traffic: {
     maxBodyBytes: Number(process.env.MAX_BODY_BYTES || 1024 * 1024),
     authPerMinute: Number(process.env.RATE_LIMIT_AUTH_PER_MINUTE || 12),
@@ -140,6 +204,32 @@ export const config = {
       .filter(Boolean)
   }
 };
+
+export function assertMemberSkuRouting(integrations = config.memberFulfillment.integrations) {
+  const owners = new Map();
+  for (const [provider, integration] of Object.entries(integrations || {})) {
+    if (!Array.isArray(integration.skus) || integration.skus.length === 0) {
+      throw new Error(`${provider.toUpperCase()}_MEMBER_SKUS must contain at least one SKU`);
+    }
+    const seen = new Set();
+    for (const sku of integration.skus) {
+      if (!/^[a-z0-9][a-z0-9._-]{0,127}$/.test(sku)) {
+        throw new Error(`${provider.toUpperCase()}_MEMBER_SKUS contains an invalid SKU`);
+      }
+      if (seen.has(sku)) {
+        throw new Error(`${provider.toUpperCase()}_MEMBER_SKUS contains duplicate SKU ${sku}`);
+      }
+      seen.add(sku);
+      if (owners.has(sku)) {
+        throw new Error(`Member SKU ${sku} is routed to both ${owners.get(sku)} and ${provider}`);
+      }
+      owners.set(sku, provider);
+    }
+  }
+  return true;
+}
+
+assertMemberSkuRouting();
 
 export function nowIso() {
   return new Date().toISOString();

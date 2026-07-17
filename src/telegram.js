@@ -2013,12 +2013,9 @@ export function buildConfirmationKeyboard(product, quantity = 1) {
   return { inline_keyboard: rows };
 }
 
-export function buildPaymentKeyboard(order, payment) {
+export function buildPaymentKeyboard(order, _payment) {
   const rows = [];
-  if (order.status === 'pending_payment' && payment?.paymentUrl) {
-    const paymentRow = [animatedKeyboardButton({ text: 'Thanh toán', url: payment.paymentUrl }, 'payment')];
-    if (payment.qrImageUrl) paymentRow.push(animatedKeyboardButton({ text: 'Xem QR', url: payment.qrImageUrl }, 'qr'));
-    rows.push(paymentRow);
+  if (order.status === 'pending_payment') {
     rows.push([animatedKeyboardButton({ text: 'Hủy đơn', callback_data: `cancel:${order.id}` }, 'cancel')]);
   }
   if (order.status === 'delivered' && !isSeatEmailFulfillment(order.productSnapshot)) {
@@ -2049,6 +2046,11 @@ export function buildCancelConfirmationKeyboard(order) {
 export function orderMessage(order, payment) {
   const seatEmail = isSeatEmailFulfillment(order.productSnapshot);
   const recipients = orderRecipientEmails(order);
+  const qrInstruction = payment?.qrImageUrl
+    ? (seatEmail
+        ? `${roboEmoji('ok', '👌')} QR thanh toán được gửi ngay bên dưới. Khi khớp thanh toán, đơn chuyển sang chờ cấp Seat theo email trên.`
+        : `${roboEmoji('ok', '👌')} Quét QR được gửi ngay bên dưới và chuyển đúng số tiền, đúng nội dung để bot giao tự động tại đây.`)
+    : `${roboEmoji('ok', '👌')} QR chưa sẵn sàng; hãy chuyển khoản thủ công bằng đúng ngân hàng, số tài khoản, số tiền và nội dung ở trên.`;
   return [
     `${newsEmoji('search')} ${sloganTextEmoji('payment')} ${bannerTextEmoji('checkin')} <b>${seatEmail ? 'Đơn đã tạo - chờ thanh toán' : 'Đơn đã tạo - đã giữ hàng'}</b>`,
     `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
@@ -2068,10 +2070,52 @@ export function orderMessage(order, payment) {
       ? `${uiTextEmoji('automation-247')} ${seatEmail ? 'Thanh toán trước' : 'Giữ hàng đến'}: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
       : '',
     '',
-    seatEmail
-      ? `${roboEmoji('ok', '👌')} Chuyển đúng số tiền và nội dung. Khi khớp thanh toán, đơn chuyển sang chờ cấp Seat theo email trên.`
-      : `${roboEmoji('ok', '👌')} Dùng các nút bên dưới và chuyển đúng số tiền, đúng nội dung để bot giao tự động tại đây.`
+    qrInstruction
   ].filter(Boolean).join('\n');
+}
+
+export function paymentQrCaption(order, payment) {
+  return [
+    `${sloganTextEmoji('payment')} <b>Quét QR để thanh toán</b>`,
+    `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
+    `${roboEmoji('money', '🤑')} Số tiền: <b>${escapeHtml(money(order.total, order.currency))}</b>`,
+    `${sloganTextEmoji('payment')} Nội dung CK: ${code(payment.reference)}`,
+    `${newsEmoji('check')} QR đã điền sẵn số tiền và nội dung chuyển khoản.`
+  ].join('\n');
+}
+
+export async function sendPaymentQrImage(chatId, order, payment) {
+  if (order?.status !== 'pending_payment' || !payment?.qrImageUrl) {
+    return { skipped: true, reason: 'payment_qr_unavailable' };
+  }
+
+  const caption = paymentQrCaption(order, payment);
+  const customCaption = customCaptionOptions(caption, orderCustomEmojiCandidates());
+  try {
+    return await sendTelegramPhotoUrl(chatId, payment.qrImageUrl, {
+      ...customCaption.options,
+      caption: customCaption.caption
+    });
+  } catch (error) {
+    console.warn(`[telegram] payment QR image skipped for order ${order.id}: ${error.message}`);
+    let notificationSent = false;
+    try {
+      await sendCustomTelegramMessage(
+        chatId,
+        `${newsEmoji('warning')} <b>Chưa tải được QR thanh toán</b>\nHãy chuyển khoản thủ công bằng thông tin trong đơn phía trên, hoặc mở lại đơn để bot thử gửi QR lần nữa.`,
+        [newsEmojiCandidate('warning')]
+      );
+      notificationSent = true;
+    } catch (notificationError) {
+      console.warn(`[telegram] payment QR fallback notice skipped for order ${order.id}: ${notificationError.message}`);
+    }
+    return {
+      skipped: true,
+      reason: 'payment_qr_send_failed',
+      error: error.message,
+      notificationSent
+    };
+  }
 }
 
 export function seatAwaitingFulfillmentMessage(order) {
@@ -2209,6 +2253,8 @@ function orderDetailMessage(order, payment) {
     ] : []),
     orderStatusLine(order.status),
     payment?.reference ? `${sloganTextEmoji('payment')} Nội dung CK: ${code(payment.reference)}` : '',
+    payment?.bankCode ? `${sloganTextEmoji('payment')} Ngân hàng: ${escapeHtml(payment.bankCode)}` : '',
+    payment?.accountNumber ? `${sloganTextEmoji('payment')} Số tài khoản: ${code(payment.accountNumber)}` : '',
     order.expiresAt && order.status === 'pending_payment'
       ? `${uiTextEmoji('automation-247')} ${seatEmail ? 'Thanh toán trước' : 'Giữ hàng đến'}: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
       : ''
@@ -2226,7 +2272,7 @@ async function userOrdersView(user) {
 
   const text = [
     `${newsEmoji('search')} <b>Đơn hàng gần đây</b>`,
-    'Chọn một đơn bên dưới để thanh toán, xem QR, hủy hoặc xem lại thông tin giao hàng.',
+    'Chọn một đơn bên dưới để bot hiển thị lại QR, hủy đơn hoặc xem thông tin giao hàng.',
     '',
     ...contexts.map(({ order }) => [
       bold(order.productName),
@@ -2757,6 +2803,7 @@ async function handleCallbackQuery(callbackQuery) {
         orderCustomEmojiCandidates(),
         { reply_markup: buildPaymentKeyboard(checkout.order, checkout.payment) }
       );
+      await sendPaymentQrImage(chatId, checkout.order, checkout.payment);
     } catch (error) {
       const message = error?.code?.startsWith('seat_email_')
         ? seatEmailInputError(error)
@@ -2801,6 +2848,7 @@ async function handleCallbackQuery(callbackQuery) {
         orderCustomEmojiCandidates(),
         { reply_markup: buildPaymentKeyboard(checkout.order, checkout.payment) }
       );
+      await sendPaymentQrImage(chatId, checkout.order, checkout.payment);
     } catch (error) {
       await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} ${escapeHtml(customerFacingOrderError(error))}`, {
         reply_markup: buildProductDetailKeyboard(product)
@@ -2819,6 +2867,7 @@ async function handleCallbackQuery(callbackQuery) {
         [newsEmojiCandidate('search')],
         { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
       );
+      await sendPaymentQrImage(chatId, context.order, context.payment);
     } catch {
       await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Không tìm thấy đơn hàng này.`, {
         reply_markup: (await userOrdersView(user)).reply_markup

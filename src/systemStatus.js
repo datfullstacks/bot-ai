@@ -42,6 +42,40 @@ function masked(value) {
   return `${text.slice(0, 4)}...${text.slice(-4)}`;
 }
 
+function memberServiceUrlReady(value) {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return false;
+    if (url.protocol === 'https:') return true;
+    return url.protocol === 'http:' && url.hostname.toLowerCase().endsWith('.railway.internal');
+  } catch {
+    return false;
+  }
+}
+
+function memberIntegrationReady(integration = {}) {
+  return Boolean(
+    integration.enabled
+    && memberServiceUrlReady(integration.serviceUrl)
+    && integration.apiKey
+    && integration.accountRef
+  );
+}
+
+function memberFulfillmentSummary() {
+  return Object.fromEntries(Object.entries(config.memberFulfillment.integrations).map(([provider, integration]) => [
+    provider,
+    {
+      enabled: integration.enabled,
+      configured: memberIntegrationReady(integration),
+      serviceUrlConfigured: Boolean(integration.serviceUrl),
+      accountRefConfigured: Boolean(integration.accountRef),
+      apiKeyConfigured: Boolean(integration.apiKey),
+      skus: integration.skus
+    }
+  ]));
+}
+
 function item(id, label, status, detail = '') {
   return { id, label, status, detail };
 }
@@ -299,6 +333,35 @@ function buildChecks(db = null) {
     }
   }
 
+  if (db) {
+    for (const [provider, integration] of Object.entries(config.memberFulfillment.integrations)) {
+      const activeSkus = db.products
+        .filter((product) => (
+          product.active !== false
+          && isSeatEmailFulfillment(product)
+          && integration.skus.includes(String(product.sku || '').toLowerCase())
+        ))
+        .map((product) => product.sku);
+      if (!activeSkus.length) continue;
+      const label = provider === 'chatgpt' ? 'ChatGPT member service' : 'Canva member API';
+      if (memberIntegrationReady(integration)) {
+        addOk(
+          checks,
+          `member_service_${provider}`,
+          label,
+          `${activeSkus.length} automatic Seat SKU(s) configured; live API connectivity is checked during fulfillment.`
+        );
+      } else {
+        addWarning(
+          checks,
+          `member_service_${provider}`,
+          `${label} is not fully configured`,
+          `Set enabled, private/HTTPS URL, API key and account reference for: ${activeSkus.join(', ')}.`
+        );
+      }
+    }
+  }
+
   if (!supportedPaymentProviders.has(config.payment.provider)) {
     addWarning(checks, 'payment_provider', 'Payment provider is unknown', `Configured value: ${config.payment.provider}`);
   } else if (config.payment.provider === 'mock') {
@@ -419,6 +482,7 @@ export async function getSystemStatus() {
       maxQuantity: config.orders.maxQuantity,
       maxPendingPerUser: config.orders.maxPendingPerUser
     },
+    memberFulfillment: memberFulfillmentSummary(),
     sales: {
       enabled: config.sales.enabled,
       inventoryEncryptionConfigured: inventoryEncryptionStatus().valid,
@@ -492,6 +556,7 @@ export async function getReadiness() {
       sepayWebhookUrl: `${webhookBase}/api/public/payments/sepay-webhook`,
       mockWebhookUrl: `${webhookBase}/api/public/payments/mock-webhook`
     },
+    memberFulfillment: memberFulfillmentSummary(),
     paymentProvider: provider,
     sepay: {
       enabled: sepayEnabled,

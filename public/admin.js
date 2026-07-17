@@ -137,6 +137,73 @@ function isSeatEmailOrder(order = {}) {
   });
 }
 
+function automaticSeatProvider(order = {}) {
+  return String(
+    order.automaticFulfillmentProvider
+    || order.fulfillment?.automation?.provider
+    || ''
+  ).trim().toLowerCase();
+}
+
+function automationDateTime(value) {
+  const timestamp = Date.parse(String(value || ''));
+  return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : String(value || '');
+}
+
+function renderFulfillmentAutomation(order = {}) {
+  const automation = order.fulfillment?.automation;
+  const provider = automaticSeatProvider(order);
+  if (!automation && !provider) return '';
+  if (!automation) return `<span class="meta">${escapeHtml(provider)} auto: waiting to start</span>`;
+  const parts = [
+    `${automation.provider || provider || 'member'}: ${automation.status || 'unknown'}`,
+    Number.isFinite(Number(automation.attempt)) ? `attempt ${Number(automation.attempt)}` : '',
+    Number.isFinite(Number(automation.retryCount)) ? `retries ${Number(automation.retryCount)}` : '',
+    automation.operationId ? `op ${automation.operationId}` : '',
+    automation.nextRetryAt ? `next ${automationDateTime(automation.nextRetryAt)}` : '',
+    automation.error?.code ? `error ${automation.error.code}` : '',
+    automation.error?.message ? automation.error.message : ''
+  ].filter(Boolean);
+  return `<span class="meta">${escapeHtml(parts.join(' · '))}</span>`;
+}
+
+function automaticSeatRetryLabel(order = {}) {
+  if (!automaticSeatProvider(order)) return '';
+  const automation = order.fulfillment?.automation;
+  if (!automation) return 'Start Auto';
+  if (automation.status === 'retrying') return 'Retry Now';
+  if (automation.status === 'verification_required') return 'Retry / Verify Auto';
+  if (['failed', 'blocked'].includes(automation.status)) return 'Retry Auto';
+  return '';
+}
+
+function automaticSeatRefundMode(order = {}) {
+  if (!automaticSeatProvider(order)) return true;
+  const automation = order.fulfillment?.automation;
+  if (!automation) return 'blocked';
+  if (automation.status === 'verification_required') return 'cleanup_required';
+  if (
+    automation.operationId
+    && ['failed', 'blocked'].includes(automation.status)
+  ) return 'cleanup_required';
+  if (automation.operationId) return 'blocked';
+  return ['failed', 'blocked'].includes(automation.status) ? 'safe' : 'blocked';
+}
+
+function automaticSeatManualMode(order = {}) {
+  if (!automaticSeatProvider(order)) return 'safe';
+  const automation = order.fulfillment?.automation;
+  if (!automation) return 'blocked';
+  if (
+    automation.status === 'verification_required'
+    || (automation.operationId && ['failed', 'blocked'].includes(automation.status))
+  ) {
+    return 'verification_required';
+  }
+  if (automation.operationId) return 'blocked';
+  return ['failed', 'blocked'].includes(automation.status) ? 'safe' : 'blocked';
+}
+
 function orderRecipientRows(order = {}) {
   const source = order.fulfillment?.recipients
     || order.recipientEmails
@@ -408,8 +475,24 @@ function renderOrderActions(order) {
     actions.push(actionButton('mark-refunded', order.id, 'Mark Refunded', 'small danger', icon('rotate-ccw')));
   }
   if (order.status === 'awaiting_fulfillment') {
-    actions.push(actionButton('complete-seat', order.id, 'Complete Seat', 'small', icon('mail-check')));
-    actions.push(actionButton('mark-refunded', order.id, 'Refund', 'small danger', icon('rotate-ccw')));
+    const retryLabel = automaticSeatRetryLabel(order);
+    if (retryLabel) {
+      actions.push(actionButton('retry-fulfillment', order.id, retryLabel, 'small', icon('refresh-cw')));
+    }
+    const manualMode = automaticSeatManualMode(order);
+    if (manualMode === 'safe') {
+      actions.push(actionButton('complete-seat', order.id, 'Complete Manually', 'small secondary', icon('mail-check')));
+    }
+    if (manualMode === 'verification_required') {
+      actions.push(actionButton('complete-after-verification', order.id, 'Complete After Verification', 'small secondary', icon('shield-check')));
+    }
+    const refundMode = automaticSeatRefundMode(order);
+    if (refundMode === true || refundMode === 'safe') {
+      actions.push(actionButton('mark-refunded', order.id, 'Refund', 'small danger', icon('rotate-ccw')));
+    }
+    if (refundMode === 'cleanup_required') {
+      actions.push(actionButton('refund-after-cleanup', order.id, 'Refund After Cleanup', 'small danger', icon('shield-alert')));
+    }
   }
   if (order.status === 'delivered') {
     if (!seatEmail) {
@@ -450,7 +533,7 @@ function renderOrderTable(orders) {
               <td>${escapeHtml(order.telegramId || order.userId)}</td>
               <td>${renderOrderRecipients(order)}</td>
               <td>${escapeHtml(money(order.total, order.currency))}<span>qty ${escapeHtml(order.quantity)}</span></td>
-              <td>${renderStatusPill(order.status)}</td>
+              <td>${renderStatusPill(order.status)}${renderFulfillmentAutomation(order)}</td>
               <td>${renderOrderActions(order) || '<span class="meta">No actions</span>'}</td>
             </tr>
           `).join('')}
@@ -758,6 +841,18 @@ document.addEventListener('click', async (event) => {
       toast('Order marked refunded');
     }
 
+    if (action === 'refund-after-cleanup') {
+      const confirmation = window.prompt('Remove/cancel the external member invitation first, then type CLEANED to refund.', '');
+      if (confirmation !== 'CLEANED') return;
+      const note = window.prompt('Refund note', 'External invitation removed before refund');
+      if (note === null) return;
+      await api(`/api/orders/${id}/refund`, {
+        method: 'POST',
+        body: JSON.stringify({ note, confirmExternalCleanup: true })
+      });
+      toast('Order marked refunded after external cleanup confirmation');
+    }
+
     if (action === 'complete-seat') {
       const note = window.prompt('Seat fulfillment note (optional)', 'Invitations sent');
       if (note === null) return;
@@ -766,6 +861,23 @@ document.addEventListener('click', async (event) => {
         body: JSON.stringify({ note })
       });
       toast('Seat fulfillment completed');
+    }
+
+    if (action === 'complete-after-verification') {
+      const confirmation = window.prompt('Verify every recipient in the external member service, then type VERIFIED to complete.', '');
+      if (confirmation !== 'VERIFIED') return;
+      const note = window.prompt('Verification note', 'External invitations verified before manual completion');
+      if (note === null) return;
+      await api(`/api/orders/${id}/complete-fulfillment`, {
+        method: 'POST',
+        body: JSON.stringify({ note, confirmExternalVerification: true })
+      });
+      toast('Seat fulfillment completed after external verification');
+    }
+
+    if (action === 'retry-fulfillment') {
+      await api(`/api/orders/${id}/retry-fulfillment`, { method: 'POST' });
+      toast('Automatic Seat fulfillment queued');
     }
 
     if (action === 'show-delivery') {

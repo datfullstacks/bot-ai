@@ -33,6 +33,33 @@ function isSeatOrder(order = {}) {
     .some((value) => String(value || '').trim().toLowerCase() === 'seat_email');
 }
 
+function automaticSeatProvider(order = {}) {
+  const pinnedProvider = String(order.fulfillment?.automation?.provider || '').trim().toLowerCase();
+  if (config.memberFulfillment?.integrations?.[pinnedProvider]) return pinnedProvider;
+  const sku = String(order.productSku || '').trim().toLowerCase();
+  return Object.entries(config.memberFulfillment?.integrations || {})
+    .find(([, integration]) => integration.skus.includes(sku))?.[0] || '';
+}
+
+function automaticSeatIntegration(order = {}) {
+  const provider = automaticSeatProvider(order);
+  return Boolean(provider && config.memberFulfillment.integrations[provider]?.enabled);
+}
+
+function automaticSeatRefundUnsafe(order = {}, input = {}) {
+  const automation = order.fulfillment?.automation;
+  if (automation?.status === 'verification_required') {
+    return input.confirmExternalCleanup !== true;
+  }
+  if (['processing', 'retrying', 'succeeded'].includes(automation?.status)) return true;
+  if (automation?.operationId) {
+    const cleanupCanBeConfirmed = ['failed', 'blocked', 'verification_required'].includes(automation.status);
+    return !(cleanupCanBeConfirmed && input.confirmExternalCleanup === true);
+  }
+  if (['failed', 'blocked'].includes(automation?.status)) return false;
+  return automaticSeatIntegration(order);
+}
+
 function sanitizeInventoryItem(item) {
   const { secret, secretFingerprint, ...safe } = item;
   return { ...safe, secretPreview: inventorySecretPreview(item) };
@@ -41,6 +68,7 @@ function sanitizeInventoryItem(item) {
 export function publicOrder(order) {
   return {
     ...order,
+    automaticFulfillmentProvider: automaticSeatProvider(order),
     deliverySecrets: undefined
   };
 }
@@ -806,6 +834,24 @@ export async function completeSeatFulfillment(actorId, orderId, input = {}) {
     if (!recipients.length) {
       throw Object.assign(new Error('Seat order has no fulfillment recipients'), { statusCode: 409 });
     }
+    const automation = order.fulfillment?.automation;
+    const automationStatus = automation?.status;
+    const memberServiceActor = String(actorId || '').startsWith('member-service:');
+    const externalVerificationRequired = automationStatus === 'verification_required'
+      || Boolean(automation?.operationId && ['failed', 'blocked'].includes(automationStatus));
+    const externalVerificationConfirmed = input.confirmExternalVerification === true;
+    const automaticManualBlocked = [
+      'processing',
+      'retrying',
+      'retry_requested',
+      'succeeded'
+    ].includes(automationStatus)
+      || (automation?.operationId && !['failed', 'blocked', 'verification_required'].includes(automationStatus))
+      || (externalVerificationRequired && !externalVerificationConfirmed)
+      || (automaticSeatIntegration(order) && !['failed', 'blocked', 'verification_required'].includes(automationStatus));
+    if (!memberServiceActor && automaticManualBlocked) {
+      throw Object.assign(new Error('Automatic Seat fulfillment is still active; wait for it to finish before manual completion'), { statusCode: 409 });
+    }
 
     const completedAt = nowIso();
     const note = String(input.note || '').trim();
@@ -824,13 +870,69 @@ export async function completeSeatFulfillment(actorId, orderId, input = {}) {
     order.deliveredAt = completedAt;
     setOrderStatus(db, order, 'delivered', actorId, 'seat_fulfillment_completed', {
       count: recipients.length,
-      note
+      note,
+      externalVerificationConfirmed: !memberServiceActor && externalVerificationRequired && externalVerificationConfirmed
     });
     addAudit(db, actorId, 'order.fulfillment.complete', 'order', order.id, {
       count: recipients.length,
-      note
+      note,
+      externalVerificationConfirmed: !memberServiceActor && externalVerificationRequired && externalVerificationConfirmed
     });
     return { order: publicOrder(order), fulfilled: recipients.length };
+  });
+}
+
+export async function updateSeatFulfillmentAutomation(actorId, orderId, input = {}) {
+  return withWrite(async (db) => {
+    const order = db.orders.find((item) => item.id === orderId);
+    if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    if (!isSeatOrder(order)) {
+      throw Object.assign(new Error('Only seat-email orders use automation state'), { statusCode: 409 });
+    }
+    if (order.status !== 'awaiting_fulfillment') {
+      throw Object.assign(new Error('Only orders awaiting fulfillment can update automation state'), { statusCode: 409 });
+    }
+
+    const current = order.fulfillment?.automation || {};
+    if (current.status === 'succeeded' && input.status && input.status !== 'succeeded') {
+      return publicOrder(order);
+    }
+    const automation = { ...current };
+    const stringFields = ['provider', 'status', 'operationId', 'idempotencyKey', 'targetFingerprint'];
+    for (const key of stringFields) {
+      if (input[key] !== undefined) automation[key] = String(input[key] || '').trim().slice(0, 160);
+    }
+    if (input.attempt !== undefined) {
+      automation.attempt = Math.max(1, Math.min(100, Number.parseInt(input.attempt, 10) || 1));
+    }
+    if (input.retryCount !== undefined) {
+      automation.retryCount = Math.max(0, Math.min(100, Number.parseInt(input.retryCount, 10) || 0));
+    }
+    for (const key of ['startedAt', 'updatedAt', 'nextRetryAt', 'completedAt']) {
+      if (input[key] !== undefined) automation[key] = input[key] ? String(input[key]) : null;
+    }
+    if (input.error !== undefined) {
+      automation.error = input.error ? {
+        code: String(input.error.code || 'MEMBER_FULFILLMENT_FAILED').slice(0, 120),
+        message: String(input.error.message || 'Member fulfillment failed').slice(0, 500),
+        retryable: Boolean(input.error.retryable)
+      } : null;
+    }
+    automation.updatedAt = nowIso();
+    order.fulfillment = {
+      ...order.fulfillment,
+      mode: 'seat_email',
+      automation
+    };
+    order.updatedAt = nowIso();
+    addAudit(db, actorId, `order.fulfillment.automation.${automation.status || 'updated'}`, 'order', order.id, {
+      provider: automation.provider || '',
+      operationId: automation.operationId || '',
+      attempt: automation.attempt || 0,
+      retryCount: automation.retryCount || 0,
+      errorCode: automation.error?.code || ''
+    });
+    return publicOrder(order);
   });
 }
 
@@ -840,6 +942,9 @@ export async function markOrderRefunded(actorId, orderId, input = {}) {
     if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
     if (!['payment_review', 'awaiting_fulfillment'].includes(order.status)) {
       throw Object.assign(new Error('Only review or awaiting-fulfillment orders can be marked refunded'), { statusCode: 409 });
+    }
+    if (order.status === 'awaiting_fulfillment' && automaticSeatRefundUnsafe(order, input)) {
+      throw Object.assign(new Error('Automatic Seat fulfillment may already be running; verify or remove the external invitation before refunding'), { statusCode: 409 });
     }
 
     const payment = findPaymentForOrder(db, order);

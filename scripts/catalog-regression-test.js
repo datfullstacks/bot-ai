@@ -92,6 +92,13 @@ assert.match(
   /shop tier.*not an official Anthropic plan name/i
 );
 
+for (const sku of ['canva-pro-1m', 'canva-pro-6m']) {
+  const product = bySku.get(sku);
+  assert.equal(product.fulfillmentMode, 'seat_email', `${sku} should collect the customer email for Canva invite.`);
+  assert.match(product.name, /Nonprofit/i, `${sku} should identify the nonprofit Seat.`);
+  assert.match(product.accountType, /Seat/i, `${sku} should describe a Canva team Seat.`);
+}
+
 const defaultBrands = new Set(DEFAULT_CATALOG_PRODUCTS.map((product) => product.brand));
 for (const brand of ['Gmail', 'PayPal', 'Cursor', 'TikTok', 'Facebook', 'Figma']) {
   assert.ok(defaultBrands.has(brand), `Missing default catalog brand ${brand}`);

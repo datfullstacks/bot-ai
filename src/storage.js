@@ -78,6 +78,57 @@ export async function initStore() {
         createdAt
       });
     }
+
+    const seatCatalog = DEFAULT_CATALOG_PRODUCTS.filter((product) => product.fulfillmentMode === 'seat_email');
+    let addedSeatProducts = 0;
+    let upgradedSeatProducts = 0;
+    for (const catalogProduct of seatCatalog) {
+      const product = db.products.find((item) => item.sku === catalogProduct.sku);
+      if (!product) {
+        const createdAt = nowIso();
+        db.products.push({
+          id: makeId('prd'),
+          ...catalogProduct,
+          catalogManagedSeatVersion: 1,
+          createdAt,
+          updatedAt: createdAt
+        });
+        addedSeatProducts += 1;
+        continue;
+      }
+      if (Number(product.catalogManagedSeatVersion || 0) >= 1) continue;
+      if (product.fulfillmentMode !== 'seat_email') {
+        for (const key of [
+          'name',
+          'description',
+          'category',
+          'brand',
+          'packageType',
+          'officialPriceNote',
+          'accountType',
+          'warrantyPolicy',
+          'replacementPolicy',
+          'fulfillmentMode',
+          'deliveryMode'
+        ]) {
+          product[key] = catalogProduct[key];
+        }
+        upgradedSeatProducts += 1;
+      }
+      product.catalogManagedSeatVersion = 1;
+      product.updatedAt = nowIso();
+    }
+    if (addedSeatProducts || upgradedSeatProducts) {
+      db.auditLogs.unshift({
+        id: makeId('aud'),
+        actorId: 'system',
+        action: 'catalog.seat_email.upgrade',
+        entityType: 'product',
+        entityId: 'default-seat-catalog',
+        details: { addedSeatProducts, upgradedSeatProducts },
+        createdAt: nowIso()
+      });
+    }
   });
 }
 
