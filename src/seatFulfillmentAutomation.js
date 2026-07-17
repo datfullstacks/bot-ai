@@ -248,8 +248,10 @@ export async function processSeatFulfillment(orderId, options = {}) {
     const automation = order.fulfillment?.automation || {};
     const targetFingerprint = memberIntegrationTargetFingerprint(provider, integration);
     const storedTargetFingerprint = String(automation.targetFingerprint || '').trim();
+    const failedBeforeSubmission = automation.status === 'failed' && !automation.operationId;
     const unpinnedExternalRisk = Boolean(
       !storedTargetFingerprint
+      && !failedBeforeSubmission
       && (
         automation.operationId
         || automation.idempotencyKey
@@ -266,7 +268,7 @@ export async function processSeatFulfillment(orderId, options = {}) {
       );
       return { skipped: true, reason: 'integration_target_unpinned', provider, order };
     }
-    if (storedTargetFingerprint && storedTargetFingerprint !== targetFingerprint) {
+    if (!failedBeforeSubmission && storedTargetFingerprint && storedTargetFingerprint !== targetFingerprint) {
       await storeVerificationRequired(
         order,
         provider,
@@ -442,7 +444,26 @@ export async function requestSeatFulfillmentRetry(orderId, options = {}) {
       { statusCode: 409 }
     );
   }
-  const newGeneration = sameProvider && status === 'failed';
+  const confirmedTargetChange = Boolean(
+    sameProvider
+    && status === 'verification_required'
+    && automation.error?.code === 'integration_target_changed'
+    && !automation.operationId
+    && options.confirmTargetChange === true
+  );
+  if (
+    sameProvider
+    && status === 'verification_required'
+    && automation.error?.code === 'integration_target_changed'
+    && !automation.operationId
+    && !confirmedTargetChange
+  ) {
+    throw Object.assign(
+      new Error('Confirm the member-service target change before starting a new fulfillment attempt'),
+      { statusCode: 409, code: 'TARGET_CHANGE_CONFIRMATION_REQUIRED' }
+    );
+  }
+  const newGeneration = sameProvider && (status === 'failed' || confirmedTargetChange);
   const attempt = newGeneration
     ? Math.min(100, Math.max(1, Number.parseInt(automation.attempt, 10) || 1) + 1)
     : sameProvider

@@ -82,6 +82,9 @@ assert.ok(js.includes('Resend Seat Notice'), 'Delivered Seat orders should expos
 assert.ok(js.includes("api(`/api/orders/${id}/complete-fulfillment`"), 'Complete Seat should call the fulfillment completion endpoint.');
 assert.ok(js.includes("actionButton('retry-fulfillment'"), 'Automatic Seat orders should expose a retry action.');
 assert.ok(js.includes("api(`/api/orders/${id}/retry-fulfillment`"), 'Retry Auto should call the asynchronous fulfillment retry endpoint.');
+assert.ok(js.includes("'confirm-retarget-fulfillment'"), 'Target changes without an operation should expose an explicit confirmation action.');
+assert.ok(js.includes("confirmation !== 'RETARGET'"), 'Retargeting must require an explicit operator confirmation.');
+assert.ok(js.includes('confirmTargetChange: true'), 'Confirmed target changes should be sent explicitly to the server guard.');
 assert.ok(server.includes("routeParams('/api/orders/:id/retry-fulfillment'"), 'Server should expose the automatic Seat retry endpoint.');
 assert.ok(server.includes('await requestSeatFulfillmentRetry(params.id'), 'Retry Auto should persist a durable retry request before returning 202.');
 assert.ok(server.includes('startSeatFulfillmentAutomation'), 'Server should resume pending automatic Seat operations after restart.');

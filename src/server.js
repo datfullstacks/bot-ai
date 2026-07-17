@@ -347,7 +347,11 @@ async function handleApi(req, res, url) {
 
   params = routeParams('/api/orders/:id/retry-fulfillment', pathname);
   if (params && req.method === 'POST') {
-    const retry = await requestSeatFulfillmentRetry(params.id, { actorId: admin.id });
+    const { body } = await readJson(req);
+    const retry = await requestSeatFulfillmentRetry(params.id, {
+      actorId: admin.id,
+      confirmTargetChange: body.confirmTargetChange === true
+    });
     scheduleSeatFulfillment(params.id);
     return sendJson(res, 202, {
       ok: true,

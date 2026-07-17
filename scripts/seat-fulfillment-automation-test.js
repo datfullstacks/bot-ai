@@ -496,12 +496,71 @@ assert.throws(
   assert.ok(order.fulfillment.automation.targetFingerprint);
 
   memberSettings.integrations.chatgpt.apiKey = 'gsk_chatgpt_fixed';
+  memberSettings.integrations.chatgpt.accountRef = 'fixed-admin@example.com';
+  const restartSweep = await processSeatFulfillment(order.id, { dependencies: test.dependencies });
+  assert.equal(restartSweep.reason, 'not_due');
+  assert.equal(
+    order.fulfillment.automation.status,
+    'failed',
+    'A definitive pre-submission failure must remain retryable when Railway restarts with a corrected target.'
+  );
   await requestSeatFulfillmentRetry(order.id, { dependencies: test.dependencies });
   assert.equal(order.fulfillment.automation.targetFingerprint, '');
   const recovered = await processSeatFulfillment(order.id, { dependencies: test.dependencies });
   assert.equal(recovered.ok, true);
   assert.equal(order.status, 'delivered');
   assert.equal(submitCalls, 2);
+}
+
+{
+  const order = seatOrder({ id: 'ord_confirm_retarget_after_restart' });
+  const originalSettings = settings();
+  order.fulfillment.automation = {
+    provider: 'chatgpt',
+    status: 'verification_required',
+    attempt: 1,
+    retryCount: 1,
+    operationId: '',
+    idempotencyKey: 'seat-chatgpt-old-target-g1',
+    targetFingerprint: targetFingerprint('chatgpt', originalSettings),
+    error: {
+      code: 'integration_target_changed',
+      message: 'Member service target changed while this order was active',
+      retryable: false
+    }
+  };
+  const changedSettings = settings();
+  changedSettings.integrations.chatgpt.accountRef = 'corrected-admin@example.com';
+  const test = harness(order, changedSettings, () => ({
+    async submitOperation() {
+      return {
+        operationId: 'op_retarget_success',
+        status: 'succeeded',
+        terminal: true,
+        succeeded: true,
+        result: { invited: ['buyer@example.com'], duplicateDetails: [] }
+      };
+    },
+    async pollOperation() { throw new Error('not reached'); }
+  }));
+
+  await assert.rejects(
+    requestSeatFulfillmentRetry(order.id, { dependencies: test.dependencies }),
+    (error) => error.statusCode === 409 && error.code === 'TARGET_CHANGE_CONFIRMATION_REQUIRED'
+  );
+  assert.equal(order.fulfillment.automation.status, 'verification_required');
+
+  await requestSeatFulfillmentRetry(order.id, {
+    dependencies: test.dependencies,
+    confirmTargetChange: true
+  });
+  assert.equal(order.fulfillment.automation.status, 'retry_requested');
+  assert.equal(order.fulfillment.automation.attempt, 2);
+  assert.equal(order.fulfillment.automation.idempotencyKey, '');
+  assert.equal(order.fulfillment.automation.targetFingerprint, '');
+  const recovered = await processSeatFulfillment(order.id, { dependencies: test.dependencies });
+  assert.equal(recovered.ok, true);
+  assert.equal(order.status, 'delivered');
 }
 
 {

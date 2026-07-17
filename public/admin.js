@@ -477,7 +477,22 @@ function renderOrderActions(order) {
   if (order.status === 'awaiting_fulfillment') {
     const retryLabel = automaticSeatRetryLabel(order);
     if (retryLabel) {
-      actions.push(actionButton('retry-fulfillment', order.id, retryLabel, 'small', icon('refresh-cw')));
+      const targetChangedWithoutOperation = Boolean(
+        order.fulfillment?.automation?.status === 'verification_required'
+        && order.fulfillment?.automation?.error?.code === 'integration_target_changed'
+        && !order.fulfillment?.automation?.operationId
+      );
+      if (targetChangedWithoutOperation) {
+        actions.push(actionButton(
+          'confirm-retarget-fulfillment',
+          order.id,
+          'Confirm Target & Retry',
+          'small',
+          icon('refresh-cw')
+        ));
+      } else {
+        actions.push(actionButton('retry-fulfillment', order.id, retryLabel, 'small', icon('refresh-cw')));
+      }
     }
     const manualMode = automaticSeatManualMode(order);
     if (manualMode === 'safe') {
@@ -878,6 +893,19 @@ document.addEventListener('click', async (event) => {
     if (action === 'retry-fulfillment') {
       await api(`/api/orders/${id}/retry-fulfillment`, { method: 'POST' });
       toast('Automatic Seat fulfillment queued');
+    }
+
+    if (action === 'confirm-retarget-fulfillment') {
+      const confirmation = window.prompt(
+        'Confirm no invitation was created on the old target, then type RETARGET to start a new attempt.',
+        ''
+      );
+      if (confirmation !== 'RETARGET') return;
+      await api(`/api/orders/${id}/retry-fulfillment`, {
+        method: 'POST',
+        body: JSON.stringify({ confirmTargetChange: true })
+      });
+      toast('New automatic Seat fulfillment attempt queued');
     }
 
     if (action === 'show-delivery') {
