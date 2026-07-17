@@ -16,7 +16,11 @@ for (const id of [
   'productStatusFilter',
   'orderStatusFilter',
   'systemStorageBadge',
-  'telegramStatusBadge'
+  'telegramStatusBadge',
+  'seatGuardConnection',
+  'seatGuardMembers',
+  'seatGuardInvitations',
+  'seatGuardEntitlements'
 ]) {
   assert.ok(html.includes(`id="${id}"`), `Admin HTML should include #${id}.`);
 }
@@ -25,6 +29,9 @@ assert.ok(html.includes('lucide'), 'Admin HTML should load the Lucide icon bundl
 assert.ok(html.includes('data-lucide="layout-dashboard"'), 'Admin nav should include Lucide nav icons.');
 assert.ok(html.includes('data-lucide="refresh-cw"'), 'Refresh button should include a Lucide icon.');
 assert.ok(html.includes('data-lucide="log-out"'), 'Logout button should include a Lucide icon.');
+assert.ok(html.includes('data-tab="seatGuard"'), 'Admin nav should expose the Seat Guard tab.');
+assert.ok(html.includes('id="seatGuardTab"'), 'Admin HTML should include the Seat Guard panel.');
+assert.ok(html.includes('data-lucide="shield-check"'), 'Seat Guard nav should include a shield icon.');
 
 for (const fn of [
   'renderProductFilters',
@@ -34,6 +41,13 @@ for (const fn of [
   'renderOrderTable',
   'renderOrderRecipients',
   'renderStatusPill',
+  'renderSeatGuard',
+  'renderSeatGuardSummary',
+  'renderSeatGuardMembers',
+  'renderSeatGuardInvitations',
+  'renderSeatGuardEntitlements',
+  'pollSeatGuardOperation',
+  'runSeatGuardAction',
   'refreshIcons'
 ]) {
   assert.ok(js.includes(`function ${fn}`), `Admin JS should define ${fn}.`);
@@ -47,6 +61,19 @@ assert.ok(js.includes("icon('shopping-cart'"), 'Order action buttons should rend
 assert.ok(js.includes("state.productSearch"), 'Admin JS should track product search state.');
 assert.ok(js.includes("state.productBrand"), 'Admin JS should track product brand filter.');
 assert.ok(js.includes("state.orderStatus"), 'Admin JS should track order status filter.');
+assert.ok(js.includes("state.seatGuard"), 'Admin JS should retain the latest Seat Guard snapshot.');
+assert.ok(js.includes("api('/api/seat-guard')"), 'Seat Guard should load the backend reconciliation snapshot.');
+assert.ok(js.includes("if (state.tab === 'seatGuard') await renderSeatGuard()"), 'Refreshing the active Seat Guard tab should reload its snapshot.');
+assert.ok(js.includes("seat-guard-remove-member"), 'Removable members should expose a guarded remove action.');
+assert.ok(js.includes("seat-guard-cancel-invitation"), 'Cancelable invitations should expose a guarded cancel action.');
+assert.ok(js.includes('confirmation = `${verb} ${email}`'), 'Destructive Seat Guard actions should build an exact email-bound confirmation.');
+assert.ok(js.includes('entered !== confirmation'), 'Seat Guard should reject an incorrect typed confirmation.');
+assert.ok(js.includes('expectedEmail: email, confirmation'), 'Seat Guard mutations should send the expected email and confirmation.');
+assert.ok(js.includes('actionRequestId'), 'Seat Guard mutations should preserve an explicit idempotency generation.');
+assert.ok(js.includes('/api/seat-guard/operations/${encodeURIComponent(operationId)}'), 'Seat Guard should poll the returned operation until terminal.');
+assert.ok(js.includes('seatGuardRiskSorted'), 'Seat Guard should sort dangerous access rows first.');
+assert.ok(html.includes('id="seatGuardMemberSearch"'), 'Seat Guard should support searching large member workspaces.');
+assert.ok(html.includes('id="seatGuardInviteRiskCount"'), 'Seat Guard should surface risky invitations in its summary.');
 assert.ok(js.includes("filteredProducts()"), 'Product rendering should use filteredProducts().');
 assert.ok(js.includes('data-product-editor'), 'Product cards should include an inline product editor form.');
 assert.ok(js.includes("actionButton('import-stock'"), 'Inventory-managed product cards should include a quick stock import action.');
@@ -73,6 +100,7 @@ assert.ok(js.includes("return !isSeatEmailProduct(catalogProduct)"), 'Low-stock 
 assert.ok(html.includes('value="awaiting_fulfillment"'), 'Order filter should expose awaiting fulfillment status.');
 assert.ok(html.includes('id="statAwaitingSeat"'), 'Overview should expose the paid Seat fulfillment queue count.');
 assert.ok(html.includes('name="recipientEmails"'), 'Dev order form should accept Seat emails one per line.');
+assert.ok(html.includes('name="seatTermMonths"'), 'Product form should configure the Seat entitlement term.');
 assert.ok(server.includes('recipientEmails: body.recipientEmails'), 'Dev order API should forward Seat recipient emails.');
 assert.ok(js.includes('order.fulfillment?.recipients'), 'Order table should read recipient emails from fulfillment data.');
 assert.ok(js.includes('&status=${encodeURIComponent(state.orderStatus)}'), 'Order status filters should query the server before pagination.');
@@ -86,6 +114,11 @@ assert.ok(js.includes("'confirm-retarget-fulfillment'"), 'Target changes without
 assert.ok(js.includes("confirmation !== 'RETARGET'"), 'Retargeting must require an explicit operator confirmation.');
 assert.ok(js.includes('confirmTargetChange: true'), 'Confirmed target changes should be sent explicitly to the server guard.');
 assert.ok(server.includes("routeParams('/api/orders/:id/retry-fulfillment'"), 'Server should expose the automatic Seat retry endpoint.');
+assert.ok(server.includes("pathname === '/api/seat-guard'"), 'Server should expose the authenticated Seat Guard snapshot endpoint.');
+assert.ok(server.includes("routeParams('/api/seat-guard/members/:memberId/remove'"), 'Server should expose guarded member removal.');
+assert.ok(server.includes("routeParams('/api/seat-guard/invitations/:invitationId/cancel'"), 'Server should expose guarded invitation cancellation.');
+assert.ok(server.includes("'seat_guard.member.remove_queued'"), 'Seat member removal should be written to the audit log.');
+assert.ok(server.includes("'seat_guard.invitation.cancel_queued'"), 'Seat invitation cancellation should be written to the audit log.');
 assert.ok(server.includes('await requestSeatFulfillmentRetry(params.id'), 'Retry Auto should persist a durable retry request before returning 202.');
 assert.ok(server.includes('startSeatFulfillmentAutomation'), 'Server should resume pending automatic Seat operations after restart.');
 assert.ok(js.includes('automaticFulfillmentProvider'), 'Admin automation actions should use the backend SKU mapping instead of hardcoded SKUs.');
@@ -121,7 +154,11 @@ for (const selector of [
   '.icon-button',
   '.brand-logo',
   '.seat-fulfillment-strip',
-  '.recipient-list'
+  '.recipient-list',
+  '.seat-guard-stats',
+  '.seat-guard-connection',
+  '.seat-guard-table',
+  '.seat-guard-reference-list'
 ]) {
   assert.ok(css.includes(selector), `Admin CSS should style ${selector}.`);
 }

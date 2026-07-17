@@ -190,8 +190,12 @@ Then add these variables to `bot-ai`:
 GPT_MEMBER_SERVICE_ENABLED=true
 GPT_MEMBER_SERVICE_URL=http://${{gpt-member-service.RAILWAY_PRIVATE_DOMAIN}}:${{gpt-member-service.PORT}}/api/v1
 GPT_MEMBER_SERVICE_API_KEY=<raw-gsk-key-with-members:add>
+GPT_SEAT_GUARD_API_KEY=<separate-raw-gsk-key-with-accounts:read,members:remove>
 GPT_MEMBER_ACCOUNT_REF=<Mongo-id-workspace-UUID-or-admin-email>
 GPT_MEMBER_SKUS=chatgpt-business-seat-1m
+GPT_SEAT_PROTECTED_EMAILS=<owner-or-staff-emails-comma-separated>
+GPT_SEAT_DEFAULT_TERM_MONTHS=1
+GPT_SEAT_GUARD_MAX_RESPONSE_BYTES=2097152
 
 CANVA_MEMBER_SERVICE_ENABLED=true
 CANVA_MEMBER_SERVICE_URL=http://${{canva-member-api.RAILWAY_PRIVATE_DOMAIN}}:${{canva-member-api.PORT}}/api/v1
@@ -217,9 +221,30 @@ Network timeouts reuse the same idempotency generation; terminal or partial
 failures stay in `awaiting_fulfillment` for an admin retry. Claude Seat remains
 manual until a Claude member service is configured in code.
 
-The current automation adds members but does not yet schedule removal when a
-1-month or 6-month Seat expires. Track expiry/removal manually until a separate
-Seat lifecycle worker is added.
+The admin dashboard includes **Seat Guard** for the configured ChatGPT target.
+It reads live members and pending invitations, compares them with paid Seat
+orders, and highlights unauthorized, expired, unverified allow-list, or
+needs-review entries. The member-service `allowedMembers` list is operational
+state, not proof of payment: entries found only there are shown as **unverified
+allow-list** and can be reviewed manually. Owner/admin roles and
+`GPT_SEAT_PROTECTED_EMAILS` are never offered for removal. Removing a member or
+cancelling an invitation requires an exact email confirmation, uses an
+idempotent action generation, and is written to the bot audit log.
+
+Seat time starts at `deliveredAt` (or the fulfillment completion timestamp).
+Missing delivery timestamps fail closed to **needs review** rather than using
+the earlier payment time. Repeated delivered orders for the same email extend
+the previous entitlement, while paid orders still awaiting fulfillment remain
+authorized. New Seat products should set `seatTermMonths`; legacy orders fall
+back to the duration encoded in the SKU/package and then
+`GPT_SEAT_DEFAULT_TERM_MONTHS`. Orders whose saved integration target cannot be
+matched to the current ChatGPT target also fail closed to **needs review**.
+
+Seat Guard intentionally starts in review/manual-removal mode. Do not enable
+automatic removal until every older or externally managed legitimate member is
+represented by an order or `GPT_SEAT_PROTECTED_EMAILS`. Review upstream-only
+allow-list entries explicitly. Claude lifecycle management remains manual until
+a Claude member service is configured in code.
 
 Generate separate values for `AUTH_SECRET`, `TELEGRAM_WEBHOOK_SECRET`,
 `SEPAY_WEBHOOK_SECRET`, and `INVENTORY_ENCRYPTION_KEY`:

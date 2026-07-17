@@ -37,6 +37,12 @@ import {
   requestSeatFulfillmentRetry,
   startSeatFulfillmentAutomation
 } from './seatFulfillmentAutomation.js';
+import {
+  cancelSeatGuardInvitation,
+  getSeatGuardOperation,
+  getSeatGuardSnapshot,
+  removeSeatGuardMember
+} from './seatGuard.js';
 
 const publicDir = resolve(process.cwd(), 'public');
 
@@ -278,6 +284,41 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, await getSystemStatus());
   }
 
+  if (req.method === 'GET' && pathname === '/api/seat-guard') {
+    return sendJson(res, 200, await getSeatGuardSnapshot(), { 'cache-control': 'no-store' });
+  }
+
+  let params = routeParams('/api/seat-guard/operations/:operationId', pathname);
+  if (params && req.method === 'GET') {
+    return sendJson(res, 200, await getSeatGuardOperation(params.operationId), { 'cache-control': 'no-store' });
+  }
+
+  params = routeParams('/api/seat-guard/members/:memberId/remove', pathname);
+  if (params && req.method === 'POST') {
+    const { body } = await readJson(req);
+    const result = await removeSeatGuardMember(params.memberId, body);
+    await recordAudit(admin.id, 'seat_guard.member.remove_queued', 'chatgpt_member', params.memberId, {
+      email: result.member.email,
+      classification: result.member.classification,
+      operationId: result.operationId,
+      actionRequestId: result.actionRequestId
+    });
+    return sendJson(res, 202, result, { 'cache-control': 'no-store' });
+  }
+
+  params = routeParams('/api/seat-guard/invitations/:invitationId/cancel', pathname);
+  if (params && req.method === 'POST') {
+    const { body } = await readJson(req);
+    const result = await cancelSeatGuardInvitation(params.invitationId, body);
+    await recordAudit(admin.id, 'seat_guard.invitation.cancel_queued', 'chatgpt_invitation', params.invitationId, {
+      email: result.invitation.email,
+      classification: result.invitation.classification,
+      operationId: result.operationId,
+      actionRequestId: result.actionRequestId
+    });
+    return sendJson(res, 202, result, { 'cache-control': 'no-store' });
+  }
+
   if (req.method === 'GET' && pathname === '/api/products') {
     return sendJson(res, 200, await listProducts({ includeInactive: true }));
   }
@@ -287,7 +328,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 201, await createProduct(admin.id, body));
   }
 
-  let params = routeParams('/api/products/:id', pathname);
+  params = routeParams('/api/products/:id', pathname);
   if (params && req.method === 'PATCH') {
     const { body } = await readJson(req);
     return sendJson(res, 200, await updateProduct(admin.id, params.id, body));

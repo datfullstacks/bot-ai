@@ -6,7 +6,10 @@ const state = {
   productSearch: '',
   productBrand: 'all',
   productStatus: 'all',
-  orderStatus: 'all'
+  orderStatus: 'all',
+  seatGuard: null,
+  seatGuardMemberSearch: '',
+  seatGuardInvitationSearch: ''
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -69,7 +72,11 @@ async function api(path, options = {}) {
     ...options
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Request failed: ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(body.error || `Request failed: ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   return body;
 }
 
@@ -82,6 +89,7 @@ function setTab(tab) {
     overview: ['Overview', 'Operational snapshot'],
     products: ['Products', 'Create and manage sellable items'],
     inventory: ['Inventory', 'Import account/code stock'],
+    seatGuard: ['Seat Guard', 'Reconcile paid Seat access with workspace members'],
     orders: ['Orders', 'Track checkout and delivery'],
     payments: ['Payments', 'Provider events and payment sessions'],
     audit: ['Audit', 'Admin and system activity'],
@@ -230,6 +238,331 @@ function renderOrderRecipients(order) {
   `).join('')}</div>`;
 }
 
+function seatGuardValues(value) {
+  if (Array.isArray(value)) return value.filter((entry) => entry !== undefined && entry !== null && entry !== '');
+  if (value === undefined || value === null || value === '') return [];
+  return [value];
+}
+
+function seatGuardCount(value) {
+  const count = Number(value || 0);
+  return Number.isFinite(count) ? Math.max(0, count) : 0;
+}
+
+function seatGuardDate(value) {
+  if (!value) return '-';
+  const timestamp = Date.parse(String(value));
+  return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : String(value);
+}
+
+function seatGuardAccountLabel(account) {
+  if (!account) return 'No account reported';
+  if (typeof account === 'string') return account;
+  const values = [
+    account.name,
+    account.email,
+    account.workspaceName,
+    account.workspaceId,
+    account.accountRef,
+    account.id
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  return [...new Set(values)].join(' · ') || 'Configured account';
+}
+
+function seatGuardPermissionsLabel(permissions) {
+  if (Array.isArray(permissions)) return permissions.join(', ') || 'none reported';
+  if (permissions && typeof permissions === 'object') {
+    const values = Object.entries(permissions)
+      .filter(([, enabled]) => Boolean(enabled))
+      .map(([permission]) => permission);
+    return values.join(', ') || 'none reported';
+  }
+  return String(permissions || 'none reported');
+}
+
+function seatGuardClassification(item = {}) {
+  return String(item.classification || item.state || item.status || 'unknown').trim().toLowerCase();
+}
+
+function seatGuardRiskSorted(items = []) {
+  const priority = {
+    unauthorized: 0,
+    expired: 1,
+    review: 2,
+    manual_allowed: 3,
+    valid_order: 4,
+    protected: 5
+  };
+  return items.slice().sort((left, right) => {
+    const risk = (priority[seatGuardClassification(left)] ?? 9) - (priority[seatGuardClassification(right)] ?? 9);
+    if (risk) return risk;
+    return String(left.email || left.name || '').localeCompare(String(right.email || right.name || ''));
+  });
+}
+
+function seatGuardFiltered(items = [], query = '') {
+  const needle = String(query || '').trim().toLowerCase();
+  const sorted = seatGuardRiskSorted(items);
+  if (!needle) return sorted;
+  return sorted.filter((item) => [
+    item.email,
+    item.name,
+    item.role,
+    item.status,
+    seatGuardClassification(item),
+    ...(Array.isArray(item.orderIds) ? item.orderIds : [])
+  ].some((value) => String(value || '').toLowerCase().includes(needle)));
+}
+
+function renderSeatGuardReferences(values, empty = '-') {
+  const entries = seatGuardValues(values).map((value) => String(value || '').trim()).filter(Boolean);
+  if (!entries.length) return `<span class="meta">${escapeHtml(empty)}</span>`;
+  return `<div class="seat-guard-reference-list">${entries.map((value) => `<span>${escapeHtml(value)}</span>`).join('')}</div>`;
+}
+
+function renderSeatGuardIdentity(item = {}) {
+  const email = String(item.email || '').trim();
+  const name = String(item.name || '').trim();
+  return `<strong>${escapeHtml(name || email || 'Unknown member')}</strong>${name && email ? `<span>${escapeHtml(email)}</span>` : ''}`;
+}
+
+function seatGuardAction(action, item, label, iconName) {
+  return `<button class="small danger icon-button" data-action="${escapeHtml(action)}" data-id="${escapeHtml(item.actionRef || item.id || '')}" data-email="${escapeHtml(item.email || '')}">${icon(iconName)}<span>${escapeHtml(label)}</span></button>`;
+}
+
+function renderSeatGuardMembers(items = [], capabilities = {}) {
+  items = seatGuardFiltered(items, state.seatGuardMemberSearch);
+  if (!items.length) return '<p class="meta empty-state">No workspace members were returned.</p>';
+  return `
+    <div class="table-wrap">
+      <table class="data-table seat-guard-table">
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Role</th>
+            <th>Workspace status</th>
+            <th>Classification</th>
+            <th>Seat expires</th>
+            <th>Orders</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((item) => {
+            const classification = seatGuardClassification(item);
+            const canRemove = Boolean(capabilities.canRemove && item.removable);
+            return `
+              <tr>
+                <td>${renderSeatGuardIdentity(item)}</td>
+                <td>${escapeHtml(item.role || '-')}</td>
+                <td>${renderStatusPill(item.status || 'unknown')}</td>
+                <td>${renderStatusPill(classification, classification.replaceAll('_', ' '))}</td>
+                <td>${escapeHtml(seatGuardDate(item.expiresAt))}</td>
+                <td>${renderSeatGuardReferences(item.orderIds, 'No matching order')}</td>
+                <td>${canRemove
+                  ? seatGuardAction('seat-guard-remove-member', item, classification === 'manual_allowed' ? 'Remove unverified' : 'Remove member', 'user-minus')
+                  : '<span class="meta">Protected or read only</span>'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderSeatGuardInvitations(items = [], capabilities = {}) {
+  items = seatGuardFiltered(items, state.seatGuardInvitationSearch);
+  if (!items.length) return '<p class="meta empty-state">No pending invitations were returned.</p>';
+  return `
+    <div class="table-wrap">
+      <table class="data-table seat-guard-table">
+        <thead>
+          <tr>
+            <th>Invitee</th>
+            <th>Status</th>
+            <th>Classification</th>
+            <th>Seat expires</th>
+            <th>Orders</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((item) => {
+            const classification = seatGuardClassification(item);
+            const canCancel = Boolean(capabilities.canRemove && item.cancelable);
+            return `
+              <tr>
+                <td>${renderSeatGuardIdentity(item)}</td>
+                <td>${renderStatusPill(item.status || 'pending')}</td>
+                <td>${renderStatusPill(classification, classification.replaceAll('_', ' '))}</td>
+                <td>${escapeHtml(seatGuardDate(item.expiresAt))}</td>
+                <td>${renderSeatGuardReferences(item.orderIds, 'No matching order')}</td>
+                <td>${canCancel
+                  ? seatGuardAction('seat-guard-cancel-invitation', item, classification === 'manual_allowed' ? 'Cancel unverified' : 'Cancel invite', 'mail-x')
+                  : '<span class="meta">Protected or read only</span>'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderSeatGuardEntitlements(items = []) {
+  if (!items.length) return '<p class="meta empty-state">No Seat entitlements were returned.</p>';
+  return `
+    <div class="table-wrap">
+      <table class="data-table seat-guard-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>State</th>
+            <th>Expires</th>
+            <th>Products</th>
+            <th>Orders</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((item) => `
+            <tr>
+              <td><strong>${escapeHtml(item.email || '-')}</strong></td>
+              <td>${renderStatusPill(item.state || 'unknown')}</td>
+              <td>${escapeHtml(seatGuardDate(item.expiresAt))}</td>
+              <td>${renderSeatGuardReferences(item.productNames)}</td>
+              <td>${renderSeatGuardReferences(item.orderIds)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderSeatGuardSummary(summary = {}) {
+  const values = {
+    seatGuardMembersCount: summary.members,
+    seatGuardPendingCount: summary.pendingInvitations,
+    seatGuardValidCount: summary.validMembers,
+    seatGuardAllowedCount: summary.manualAllowedMembers,
+    seatGuardProtectedCount: summary.protectedMembers,
+    seatGuardUnauthorizedCount: summary.unauthorizedMembers,
+    seatGuardExpiredCount: summary.expiredMembers,
+    seatGuardReviewCount: summary.reviewMembers,
+    seatGuardInviteRiskCount: seatGuardCount(summary.unauthorizedInvitations) + seatGuardCount(summary.expiredInvitations),
+    seatGuardMissingCount: summary.missingAuthorized
+  };
+  for (const [id, value] of Object.entries(values)) {
+    $(`#${id}`).textContent = seatGuardCount(value).toLocaleString('vi-VN');
+  }
+}
+
+function renderSeatGuardConnection(data = {}) {
+  const capabilities = data.capabilities || {};
+  const status = data.configured ? (capabilities.canRead ? 'ok' : 'warn') : 'warn';
+  const title = data.configured
+    ? capabilities.canRead ? 'Connected' : 'Configured without member-read permission'
+    : 'Seat Guard is not configured';
+  $('#seatGuardConnection').innerHTML = `
+    <div class="seat-guard-connection-head">
+      <span class="status-dot ${status}">${escapeHtml(title)}</span>
+      <span class="meta">Observed: ${escapeHtml(seatGuardDate(data.observedAt))}</span>
+    </div>
+    <div class="seat-guard-connection-grid">
+      <span><strong>Account</strong>${escapeHtml(seatGuardAccountLabel(data.account))}</span>
+      <span><strong>Permissions</strong>${escapeHtml(seatGuardPermissionsLabel(data.permissions))}</span>
+      <span><strong>Capabilities</strong>Read ${capabilities.canRead ? 'yes' : 'no'} · Remove ${capabilities.canRemove ? 'yes' : 'no'}</span>
+    </div>
+  `;
+}
+
+async function renderSeatGuard() {
+  const data = await api('/api/seat-guard');
+  state.seatGuard = data;
+  renderSeatGuardConnection(data);
+  renderSeatGuardSummary(data.summary || {});
+  renderSeatGuardTables();
+  refreshIcons();
+  return data;
+}
+
+function renderSeatGuardTables() {
+  const data = state.seatGuard || {};
+  $('#seatGuardMembers').innerHTML = renderSeatGuardMembers(data.members || [], data.capabilities || {});
+  $('#seatGuardInvitations').innerHTML = renderSeatGuardInvitations(data.invitations || [], data.capabilities || {});
+  $('#seatGuardEntitlements').innerHTML = renderSeatGuardEntitlements(data.entitlements || []);
+  refreshIcons();
+}
+
+function seatGuardOperationEnvelope(payload = {}) {
+  return payload.operation || payload.data || payload;
+}
+
+async function pollSeatGuardOperation(operationId, { timeoutMs = 180_000, intervalMs = 1_500 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  const terminalStatuses = new Set(['succeeded', 'failed', 'partially_succeeded', 'cancelled', 'completed']);
+  while (Date.now() < deadline) {
+    const payload = await api(`/api/seat-guard/operations/${encodeURIComponent(operationId)}`);
+    const operation = seatGuardOperationEnvelope(payload);
+    const status = String(operation.status || '').trim().toLowerCase();
+    const terminal = operation.terminal === true || terminalStatuses.has(status);
+    if (terminal) {
+      if (!['succeeded', 'completed'].includes(status)) {
+        await renderSeatGuard().catch(() => {});
+        const error = new Error(operation.error?.message || `Seat Guard operation ${status || 'failed'}`);
+        error.seatGuardTerminal = true;
+        error.operationId = operationId;
+        throw error;
+      }
+      await renderSeatGuard();
+      return operation;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error('Seat Guard operation is still running. Refresh the page to check its status.');
+}
+
+function newSeatGuardActionRequestId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  return `seat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function runSeatGuardAction(button, { action, id, email }) {
+  const verb = action === 'seat-guard-remove-member' ? 'REMOVE' : 'CANCEL';
+  const label = action === 'seat-guard-remove-member' ? 'remove this workspace member' : 'cancel this invitation';
+  const confirmation = `${verb} ${email}`;
+  const entered = window.prompt(`To ${label}, type exactly:\n${confirmation}`, '');
+  if (entered === null) return;
+  if (entered !== confirmation) {
+    toast('Confirmation did not match. No Seat Guard action was started.');
+    return;
+  }
+
+  const resource = action === 'seat-guard-remove-member' ? 'members' : 'invitations';
+  const endpointAction = action === 'seat-guard-remove-member' ? 'remove' : 'cancel';
+  const actionRequestId = button.dataset.seatGuardActionRequestId || newSeatGuardActionRequestId();
+  button.dataset.seatGuardActionRequestId = actionRequestId;
+  button.disabled = true;
+  try {
+    const result = await api(`/api/seat-guard/${resource}/${encodeURIComponent(id)}/${endpointAction}`, {
+      method: 'POST',
+      body: JSON.stringify({ expectedEmail: email, confirmation, actionRequestId })
+    });
+    if (!result.operationId) throw new Error('Seat Guard did not return an operation id');
+    toast(`Seat Guard operation ${result.operationId} started`);
+    await pollSeatGuardOperation(result.operationId);
+    toast(action === 'seat-guard-remove-member' ? 'Workspace member removed' : 'Invitation cancelled');
+  } catch (error) {
+    if (error.seatGuardTerminal || (Number.isInteger(error.status) && error.status < 500)) {
+      delete button.dataset.seatGuardActionRequestId;
+    }
+    throw error;
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderProductFilters(products) {
   const brandFilter = $('#productBrandFilter');
   if (!brandFilter) return;
@@ -298,6 +631,7 @@ function renderProductEditor(product) {
             <option value="seat_email" ${isSeatEmailProduct(product) ? 'selected' : ''}>Seat via customer emails</option>
           </select>
         </label>
+        <label>Seat term (months)<input name="seatTermMonths" type="number" min="1" max="120" value="${escapeHtml(product.seatTermMonths || 1)}"></label>
         <label>Official price note<input name="officialPriceNote" value="${escapeHtml(product.officialPriceNote || '')}"></label>
         <label>Price<input name="price" type="number" min="1" value="${escapeHtml(product.price)}" required></label>
         <label>Currency<input name="currency" value="${escapeHtml(product.currency || 'VND')}" required></label>
@@ -335,6 +669,7 @@ function renderProductCard(product) {
           ${product.replacementPolicy ? `<p><strong>Replacement:</strong> ${escapeHtml(product.replacementPolicy)}</p>` : ''}
           <p><strong>Delivery:</strong> ${product.deliveryMode === 'file' ? 'TXT file' : 'Text message'}</p>
           <p><strong>Fulfillment:</strong> ${escapeHtml(fulfillmentModeLabel(product))}</p>
+          ${seatEmail ? `<p><strong>Seat term:</strong> ${escapeHtml(product.seatTermMonths || 1)} month(s)</p>` : ''}
           ${product.officialPriceNote ? `<p>${escapeHtml(product.officialPriceNote)}</p>` : ''}
         </div>
         ${renderStatusPill(active ? 'available' : 'cancelled', active ? 'active' : 'disabled')}
@@ -668,6 +1003,7 @@ async function refresh() {
   renderProducts(products);
   renderSummary(summary);
   if (state.tab === 'inventory') await renderInventory();
+  if (state.tab === 'seatGuard') await renderSeatGuard();
   if (state.tab === 'orders') await renderOrders();
   if (state.tab === 'payments') await renderPayments();
   if (state.tab === 'audit') await renderAudit();
@@ -737,6 +1073,7 @@ $('#productForm').addEventListener('submit', async (event) => {
   const form = event.currentTarget;
   const data = Object.fromEntries(new FormData(form).entries());
   data.price = Number(data.price);
+  data.seatTermMonths = Number(data.seatTermMonths || 1);
   data.hot = data.hot === 'true';
   try {
     await api('/api/products', { method: 'POST', body: JSON.stringify(data) });
@@ -767,6 +1104,16 @@ $('#inventoryForm').addEventListener('submit', async (event) => {
 
 $('#inventoryForm select[name="productId"]').addEventListener('change', () => renderInventory().catch((error) => toast(error.message)));
 
+$('#seatGuardMemberSearch').addEventListener('input', (event) => {
+  state.seatGuardMemberSearch = event.currentTarget.value;
+  renderSeatGuardTables();
+});
+
+$('#seatGuardInvitationSearch').addEventListener('input', (event) => {
+  state.seatGuardInvitationSearch = event.currentTarget.value;
+  renderSeatGuardTables();
+});
+
 $('#devOrderForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -789,6 +1136,7 @@ document.addEventListener('submit', async (event) => {
   const data = Object.fromEntries(new FormData(form).entries());
   data.price = Number(form.elements.price.value);
   data.sortOrder = Number(form.elements.sortOrder.value || 1000);
+  data.seatTermMonths = Number(form.elements.seatTermMonths.value || 1);
   data.active = form.elements.active.value === 'true';
   data.hot = form.elements.hot.checked;
   try {
@@ -809,6 +1157,19 @@ document.addEventListener('click', async (event) => {
 
   const { action, id } = target.dataset;
   try {
+    if (action === 'refresh-seat-guard') {
+      await renderSeatGuard();
+      toast('Seat Guard refreshed');
+      return;
+    }
+
+    if (['seat-guard-remove-member', 'seat-guard-cancel-invitation'].includes(action)) {
+      const email = String(target.dataset.email || '').trim();
+      if (!id || !email) throw new Error('Seat Guard action is missing its member identity');
+      await runSeatGuardAction(target, { action, id, email });
+      return;
+    }
+
     if (action === 'import-stock') {
       setTab('inventory');
       const select = $('#inventoryForm select[name="productId"]');

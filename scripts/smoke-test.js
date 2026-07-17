@@ -239,10 +239,18 @@ try {
     warrantyPolicy: 'Smoke seat warranty',
     replacementPolicy: 'Smoke seat replacement policy',
     fulfillmentMode: 'seat_email',
+    seatTermMonths: 3,
     price: 400000,
     currency: 'VND'
   });
   assert.equal(seatProduct.fulfillmentMode, 'seat_email');
+  assert.equal(seatProduct.seatTermMonths, 3);
+  const updatedSeatProduct = await shop.updateProduct(actorId, seatProduct.id, { seatTermMonths: 6 });
+  assert.equal(updatedSeatProduct.seatTermMonths, 6, 'Seat term updates should be persisted.');
+  await assert.rejects(
+    () => shop.updateProduct(actorId, seatProduct.id, { seatTermMonths: 0 }),
+    /integer between 1 and 120/
+  );
   assert.equal(seatProduct.stock.available, 0);
   await assert.rejects(
     () => shop.importInventory(actorId, seatProduct.id, ['seat-secret-that-must-not-be-stored']),
@@ -276,6 +284,7 @@ try {
   assert.equal(seatCheckout.order.quantity, 2, 'Seat quantity should come from the number of email lines.');
   assert.equal(seatCheckout.order.total, 800000);
   assert.equal(seatCheckout.order.productSnapshot.fulfillmentMode, 'seat_email');
+  assert.equal(seatCheckout.order.productSnapshot.seatTermMonths, 6);
   assert.deepEqual(
     seatCheckout.order.fulfillment.recipients.map((recipient) => [recipient.email, recipient.status]),
     [

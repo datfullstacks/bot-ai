@@ -119,12 +119,194 @@ const parsedCanva = parseMemberOperationEnvelope('canva', {
 });
 assert.equal(parsedCanva.partiallySucceeded, true);
 assert.equal(parsedCanva.terminal, true);
+const parsedFailure = parseMemberOperationEnvelope('chatgpt', {
+  data: operation('op_chatgpt_failed', 'failed', {
+    error: { code: 'REMOTE_FAILED', retryable: true, message: 'Workspace session expired' }
+  })
+});
+assert.equal(parsedFailure.error.message, 'Workspace session expired');
 assert.equal(isTerminalMemberOperationStatus('failed'), true);
 assert.equal(isTerminalMemberOperationStatus('running'), false);
 assert.throws(
   () => parseMemberOperationEnvelope('canva', { data: operation('wrong_envelope', 'queued') }),
   (error) => error.code === 'MEMBER_SERVICE_MALFORMED_RESPONSE'
 );
+
+await withServer(async (req, res) => {
+  globalThis.__seatGuardRequests ||= [];
+  globalThis.__seatGuardRequests.push({
+    method: req.method,
+    url: req.url,
+    apiKey: req.headers['x-api-key'],
+    idempotencyKey: req.headers['idempotency-key']
+  });
+  if (req.method === 'GET' && req.url === '/api/v1/me') {
+    sendJson(res, 200, {
+      data: {
+        tenantId: 'tenant-seat-guard',
+        apiKeyId: 'key-seat-guard',
+        permissions: ['accounts:read', 'members:remove']
+      },
+      meta: { requestId: 'req-identity' }
+    });
+    return;
+  }
+  if (req.method === 'GET') {
+    sendJson(res, 200, {
+      data: {
+        account: { id: 'account-seat-guard', email: 'admin@example.com' },
+        members: [{ id: 'member/123', email: 'buyer@example.com' }],
+        invitations: [{ id: 'invite-123', email: 'pending@example.com' }],
+        occupancy: { members: 1, pending: 1, remaining: 8 },
+        observedAt: '2026-07-17T00:00:00.000Z'
+      },
+      meta: { requestId: 'req-members' }
+    });
+    return;
+  }
+  const cancelingInvitation = req.url.includes('/invitations/');
+  sendJson(res, 202, {
+    data: operation(
+      cancelingInvitation ? 'op_cancel_invitation_live' : 'op_remove_member_live',
+      'queued',
+      { type: cancelingInvitation ? 'cancel_invitation' : 'delete_member' }
+    ),
+    meta: { replayed: cancelingInvitation, requestId: 'req-mutation' }
+  });
+}, async (baseUrl) => {
+  globalThis.__seatGuardRequests = [];
+  const client = createMemberFulfillmentClient({
+    provider: 'chatgpt',
+    baseUrl,
+    apiKey: 'gsk-seat-guard-test',
+    requestTimeoutMs: 500
+  });
+
+  assert.deepEqual(await client.getIdentity(), {
+    tenantId: 'tenant-seat-guard',
+    apiKeyId: 'key-seat-guard',
+    permissions: ['accounts:read', 'members:remove']
+  });
+  const members = await client.getAccountMembers('admin@example.com');
+  assert.equal(members.members[0].email, 'buyer@example.com');
+  assert.equal(members.invitations[0].email, 'pending@example.com');
+
+  const removed = await client.removeAccountMember('admin@example.com', 'member/123', {
+    idempotencyKey: 'seat-remove-0001'
+  });
+  assert.equal(removed.operationId, 'op_remove_member_live');
+  assert.equal(removed.type, 'delete_member');
+  assert.equal(removed.idempotencyKey, 'seat-remove-0001');
+  assert.equal(removed.replayed, false);
+
+  const canceled = await client.cancelAccountInvitation('admin@example.com', 'pending@example.com', {
+    idempotencyKey: 'seat-cancel-0001'
+  });
+  assert.equal(canceled.operationId, 'op_cancel_invitation_live');
+  assert.equal(canceled.type, 'cancel_invitation');
+  assert.equal(canceled.idempotencyKey, 'seat-cancel-0001');
+  assert.equal(canceled.replayed, true);
+
+  assert.deepEqual(
+    globalThis.__seatGuardRequests.map(({ method, url }) => ({ method, url })),
+    [
+      { method: 'GET', url: '/api/v1/me' },
+      { method: 'GET', url: '/api/v1/admin-accounts/admin%40example.com/members' },
+      { method: 'DELETE', url: '/api/v1/admin-accounts/admin%40example.com/members/member%2F123' },
+      { method: 'DELETE', url: '/api/v1/admin-accounts/admin%40example.com/invitations/pending%40example.com' }
+    ]
+  );
+  const mutations = globalThis.__seatGuardRequests.filter(({ method }) => method === 'DELETE');
+  assert.deepEqual(mutations.map(({ idempotencyKey }) => idempotencyKey), [
+    'seat-remove-0001',
+    'seat-cancel-0001'
+  ]);
+  assert.ok(globalThis.__seatGuardRequests.every(({ apiKey }) => apiKey === 'gsk-seat-guard-test'));
+  delete globalThis.__seatGuardRequests;
+});
+
+{
+  let requests = 0;
+  const client = createMemberFulfillmentClient({
+    provider: 'chatgpt',
+    baseUrl: 'https://member.invalid/api/v1',
+    apiKey: 'gsk-seat-guard-validation',
+    fetchImpl: async () => {
+      requests += 1;
+      throw new Error('validation must happen before the request');
+    }
+  });
+  await assert.rejects(
+    () => client.removeAccountMember('admin-account', 'member-1'),
+    /idempotencyKey must be 8-128 URL-safe characters/
+  );
+  await assert.rejects(
+    () => client.removeAccountMember('admin-account', 'member-1', { idempotencyKey: 'short' }),
+    /idempotencyKey must be 8-128 URL-safe characters/
+  );
+  await assert.rejects(
+    () => client.cancelAccountInvitation('admin-account', 'pending@example.com', {
+      idempotencyKey: 'contains spaces'
+    }),
+    /idempotencyKey must be 8-128 URL-safe characters/
+  );
+  assert.equal(requests, 0, 'Invalid explicit idempotency keys must fail before the request.');
+}
+
+{
+  const client = createMemberFulfillmentClient({
+    provider: 'chatgpt',
+    baseUrl: 'https://member.invalid/api/v1',
+    apiKey: 'gsk-seat-guard-ambiguity',
+    fetchImpl: async () => {
+      throw new Error('socket reset after DELETE was written');
+    }
+  });
+  await assert.rejects(
+    () => client.removeAccountMember('admin-account', 'member-1', {
+      idempotencyKey: 'seat-ambiguous-0001'
+    }),
+    (error) => (
+      error.code === 'MEMBER_SERVICE_NETWORK_ERROR'
+      && error.retryable === true
+      && error.submissionMayHaveBeenAccepted === true
+    )
+  );
+}
+
+{
+  const client = createMemberFulfillmentClient({
+    provider: 'chatgpt',
+    baseUrl: 'https://member.invalid/api/v1',
+    apiKey: 'gsk-seat-guard-malformed',
+    fetchImpl: async () => new Response(JSON.stringify({ data: { status: 'queued' } }), {
+      status: 202,
+      headers: { 'content-type': 'application/json' }
+    })
+  });
+  await assert.rejects(
+    () => client.cancelAccountInvitation('admin-account', 'pending@example.com', {
+      idempotencyKey: 'seat-malformed-0001'
+    }),
+    (error) => (
+      error.code === 'MEMBER_SERVICE_MALFORMED_RESPONSE'
+      && error.submissionMayHaveBeenAccepted === true
+    )
+  );
+}
+
+{
+  const client = createMemberFulfillmentClient({
+    provider: 'canva',
+    baseUrl: 'https://canva.invalid/api/v1',
+    apiKey: 'gsk-canva-seat-guard'
+  });
+  await assert.rejects(() => client.getIdentity(), /require the chatgpt provider/);
+  await assert.rejects(
+    () => client.removeAccountMember('team-a', 'member-1', { idempotencyKey: 'seat-remove-0001' }),
+    /require the chatgpt provider/
+  );
+}
 
 await withServer(async (req, res) => {
   globalThis.__gptRequests ||= [];

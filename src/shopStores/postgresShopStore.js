@@ -340,6 +340,24 @@ export async function updateProduct(actorId, productId, input) {
         sku: product.sku
       });
     }
+    if (isSeatEmailFulfillment(product)) {
+      if (input.seatTermMonths !== undefined) {
+        const rawSeatTermMonths = String(input.seatTermMonths ?? '').trim();
+        const seatTermMonths = rawSeatTermMonths ? Number(rawSeatTermMonths) : null;
+        if (
+          rawSeatTermMonths
+          && (!Number.isInteger(seatTermMonths) || seatTermMonths < 1 || seatTermMonths > 120)
+        ) {
+          throw Object.assign(
+            new Error('Seat term months must be an integer between 1 and 120'),
+            { statusCode: 400 }
+          );
+        }
+        product.seatTermMonths = seatTermMonths;
+      }
+    } else {
+      delete product.seatTermMonths;
+    }
     if (!product.name || !Number.isSafeInteger(product.price) || product.price <= 0) {
       throw Object.assign(new Error('Name and positive integer price are required'), { statusCode: 400 });
     }
@@ -553,6 +571,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         accountType: product.accountType || '',
         warrantyPolicy: product.warrantyPolicy || '',
         replacementPolicy: product.replacementPolicy || '',
+        seatTermMonths: product.seatTermMonths || null,
         deliveryMode: normalizeDeliveryMode(product.deliveryMode),
         fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku })
       },
@@ -653,7 +672,7 @@ export async function listOrders(options = {}) {
       `SELECT doc
        FROM app_documents
        WHERE collection = 'orders' ${listStatusClause}
-       ORDER BY doc->>'createdAt' DESC
+       ORDER BY doc->>'createdAt' DESC, id DESC
        LIMIT $1 OFFSET $2`,
       params
     );

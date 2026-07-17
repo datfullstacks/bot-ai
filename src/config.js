@@ -154,10 +154,19 @@ export const config = {
         enabled: enabled(process.env.GPT_MEMBER_SERVICE_ENABLED, Boolean(gptMemberServiceUrl)),
         serviceUrl: gptMemberServiceUrl,
         apiKey: String(process.env.GPT_MEMBER_SERVICE_API_KEY || '').trim(),
+        seatGuardApiKey: String(
+          process.env.GPT_SEAT_GUARD_API_KEY || process.env.GPT_MEMBER_SERVICE_API_KEY || ''
+        ).trim(),
         accountRef: String(
           process.env.GPT_MEMBER_ACCOUNT_REF || process.env.GPT_MEMBER_SERVICE_ACCOUNT_REF || ''
         ).trim(),
         skus: commaSeparated(process.env.GPT_MEMBER_SKUS, 'chatgpt-business-seat-1m'),
+        protectedEmails: commaSeparated(process.env.GPT_SEAT_PROTECTED_EMAILS),
+        defaultSeatTermMonths: boundedEnv('GPT_SEAT_DEFAULT_TERM_MONTHS', 1, { min: 1, max: 120 }),
+        seatGuardMaxResponseBytes: boundedEnv('GPT_SEAT_GUARD_MAX_RESPONSE_BYTES', 2 * 1024 * 1024, {
+          min: 64 * 1024,
+          max: 10 * 1024 * 1024
+        }),
         requestTimeoutMs: boundedEnv('GPT_MEMBER_REQUEST_TIMEOUT_MS', 10_000, { min: 1_000, max: 120_000 }),
         operationTimeoutMs: boundedEnv('GPT_MEMBER_OPERATION_TIMEOUT_MS', 180_000, { min: 1_000, max: 1_800_000 }),
         pollIntervalMs: boundedEnv('GPT_MEMBER_POLL_INTERVAL_MS', 1_500, { min: 100, max: 60_000 })

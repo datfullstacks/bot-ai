@@ -334,6 +334,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   }
 ].map((product) => normalizeProductInput({
   ...product,
+  seatTermMonths: product.seatTermMonths ?? inferSeatTermMonths(product),
   accountType: product.accountType || inferAccountType(product),
   warrantyPolicy: product.warrantyPolicy
     || 'Hỗ trợ kiểm tra lỗi đăng nhập trong thời hạn gói; thời gian xử lý được xác nhận theo từng sản phẩm.',
@@ -349,7 +350,23 @@ function inferAccountType(product = {}) {
   return 'Tài khoản hoặc quyền truy cập số theo đúng mô tả gói.';
 }
 
+function inferSeatTermMonths(product = {}) {
+  if (String(product.fulfillmentMode || '').trim().toLowerCase() !== 'seat_email') return null;
+  const skuMatch = String(product.sku || '').trim().toLowerCase().match(/(?:^|[-_])(\d{1,3})m(?:$|[-_])/);
+  return skuMatch ? Number(skuMatch[1]) : 1;
+}
+
 export function normalizeProductInput(input = {}) {
+  const fulfillmentMode = normalizeFulfillmentMode(input.fulfillmentMode, { strict: true, sku: input.sku });
+  const rawSeatTermMonths = String(input.seatTermMonths ?? '').trim();
+  const seatTermMonths = rawSeatTermMonths ? Number(rawSeatTermMonths) : null;
+  if (
+    fulfillmentMode === 'seat_email'
+    && rawSeatTermMonths
+    && (!Number.isInteger(seatTermMonths) || seatTermMonths < 1 || seatTermMonths > 120)
+  ) {
+    throw Object.assign(new Error('Seat term months must be an integer between 1 and 120'), { statusCode: 400 });
+  }
   return {
     sku: String(input.sku || '').trim().toLowerCase(),
     name: String(input.name || '').trim(),
@@ -366,7 +383,8 @@ export function normalizeProductInput(input = {}) {
     accountType: String(input.accountType || '').trim(),
     warrantyPolicy: String(input.warrantyPolicy || '').trim(),
     replacementPolicy: String(input.replacementPolicy || input.exchangePolicy || '').trim(),
-    fulfillmentMode: normalizeFulfillmentMode(input.fulfillmentMode, { strict: true, sku: input.sku }),
+    fulfillmentMode,
+    ...(fulfillmentMode === 'seat_email' ? { seatTermMonths } : {}),
     deliveryMode: normalizeDeliveryMode(input.deliveryMode, { strict: true })
   };
 }
@@ -384,6 +402,13 @@ export function normalizePublicProduct(product = {}) {
     warrantyPolicy: String(product.warrantyPolicy || '').trim(),
     replacementPolicy: String(product.replacementPolicy || product.exchangePolicy || '').trim(),
     fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),
+    ...(normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }) === 'seat_email'
+      ? {
+          seatTermMonths: Number.isInteger(Number(product.seatTermMonths))
+            ? Number(product.seatTermMonths)
+            : null
+        }
+      : {}),
     deliveryMode: normalizeDeliveryMode(product.deliveryMode)
   };
 }

@@ -26,6 +26,7 @@ const supportedProviders = new Set(Object.values(MEMBER_FULFILLMENT_PROVIDERS));
 const retryableHttpStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 const maxIdempotencyGeneration = 9999;
 const operationIdPattern = /^op_[A-Za-z0-9_-]{8,128}$/;
+const explicitIdempotencyKeyPattern = /^[A-Za-z0-9._:-]{8,128}$/;
 
 const defaults = Object.freeze({
   requestTimeoutMs: 10_000,
@@ -170,6 +171,22 @@ function normalizeAccountRefs(value) {
   return refs;
 }
 
+function normalizeSeatGuardReference(value, name) {
+  const reference = String(value || '').trim();
+  if (!reference || reference.length > 320) {
+    throw new TypeError(`A valid ${name} is required`);
+  }
+  return reference;
+}
+
+function normalizeExplicitIdempotencyKey(value) {
+  const key = String(value || '').trim();
+  if (!explicitIdempotencyKeyPattern.test(key)) {
+    throw new TypeError('idempotencyKey must be 8-128 URL-safe characters');
+  }
+  return key;
+}
+
 export function buildMemberFulfillmentRequest(provider, options = {}) {
   const normalizedProvider = normalizeProvider(provider);
   const maxEmails = boundedInteger(options.maxEmails, defaults.maxEmails, {
@@ -257,7 +274,8 @@ export function parseMemberOperationEnvelope(provider, payload) {
   if (operation.error && typeof operation.error === 'object') {
     normalized.error = {
       code: safeCode(operation.error.code),
-      retryable: Boolean(operation.error.retryable)
+      retryable: Boolean(operation.error.retryable),
+      message: String(operation.error.message || '').trim().slice(0, 300) || undefined
     };
   }
   return normalized;
@@ -269,6 +287,20 @@ function malformedResponse(provider) {
     retryable: false,
     provider
   });
+}
+
+function parseChatGptDataEnvelope(payload) {
+  if (
+    !payload
+    || typeof payload !== 'object'
+    || Array.isArray(payload)
+    || !payload.data
+    || typeof payload.data !== 'object'
+    || Array.isArray(payload.data)
+  ) {
+    throw malformedResponse(MEMBER_FULFILLMENT_PROVIDERS.CHATGPT);
+  }
+  return payload.data;
 }
 
 function operationIdFromEnvelope(provider, payload) {
@@ -442,7 +474,8 @@ export function createMemberFulfillmentClient(options = {}) {
 
   async function request(method, path, { body, idempotencyKey, signal, operationId } = {}) {
     const timed = makeTimedSignal(signal, requestTimeoutMs);
-    const submissionRequest = String(method || '').toUpperCase() === 'POST';
+    const mutationRequest = ['POST', 'PUT', 'PATCH', 'DELETE']
+      .includes(String(method || '').toUpperCase());
     let response;
     try {
       const headers = {
@@ -463,7 +496,7 @@ export function createMemberFulfillmentClient(options = {}) {
       return { response, payload };
     } catch (error) {
       const submissionMayHaveBeenAccepted = Boolean(
-        submissionRequest
+        mutationRequest
         && (!response || response.ok || response.status === 408 || response.status >= 500)
       );
       if (error instanceof MemberFulfillmentClientError) {
@@ -535,6 +568,81 @@ export function createMemberFulfillmentClient(options = {}) {
       operationId: normalizedId
     });
     return parseMemberOperationEnvelope(provider, payload);
+  }
+
+  function requireChatGptSeatGuard() {
+    if (provider !== MEMBER_FULFILLMENT_PROVIDERS.CHATGPT) {
+      throw new TypeError('ChatGPT Seat Guard methods require the chatgpt provider');
+    }
+  }
+
+  async function getIdentity({ signal } = {}) {
+    requireChatGptSeatGuard();
+    const { payload } = await request('GET', '/me', { signal });
+    return parseChatGptDataEnvelope(payload);
+  }
+
+  async function getAccountMembers(accountRef, { signal } = {}) {
+    requireChatGptSeatGuard();
+    const normalizedAccountRef = normalizeSeatGuardReference(accountRef, 'accountRef');
+    const { payload } = await request(
+      'GET',
+      `/admin-accounts/${encodeURIComponent(normalizedAccountRef)}/members`,
+      { signal }
+    );
+    return parseChatGptDataEnvelope(payload);
+  }
+
+  async function submitSeatGuardMutation(method, path, input = {}) {
+    requireChatGptSeatGuard();
+    const idempotencyKey = normalizeExplicitIdempotencyKey(input.idempotencyKey);
+    const { response, payload } = await request(method, path, {
+      idempotencyKey,
+      signal: input.signal
+    });
+    const operationId = operationIdFromEnvelope(provider, payload);
+    if (response.status !== 202) {
+      throw new MemberFulfillmentClientError('Member service did not accept the operation', {
+        code: 'MEMBER_SERVICE_OPERATION_NOT_ACCEPTED',
+        statusCode: response.status,
+        retryable: response.status >= 500,
+        provider,
+        operationId,
+        submissionMayHaveBeenAccepted: response.status >= 200 && response.status < 300
+      });
+    }
+    try {
+      return {
+        ...parseMemberOperationEnvelope(provider, payload),
+        idempotencyKey
+      };
+    } catch (error) {
+      if (error instanceof MemberFulfillmentClientError) {
+        error.submissionMayHaveBeenAccepted = true;
+        error.operationId ||= operationId;
+      }
+      throw error;
+    }
+  }
+
+  async function removeAccountMember(accountRef, memberId, input = {}) {
+    const normalizedAccountRef = normalizeSeatGuardReference(accountRef, 'accountRef');
+    const normalizedMemberId = normalizeSeatGuardReference(memberId, 'memberId');
+    return submitSeatGuardMutation(
+      'DELETE',
+      `/admin-accounts/${encodeURIComponent(normalizedAccountRef)}/members/${encodeURIComponent(normalizedMemberId)}`,
+      input
+    );
+  }
+
+  async function cancelAccountInvitation(accountRef, invitationRef, input = {}) {
+    const normalizedAccountRef = normalizeSeatGuardReference(accountRef, 'accountRef');
+    const normalizedInvitationRef = normalizeSeatGuardReference(invitationRef, 'invitationRef');
+    return submitSeatGuardMutation(
+      'DELETE',
+      `/admin-accounts/${encodeURIComponent(normalizedAccountRef)}/invitations/${encodeURIComponent(normalizedInvitationRef)}`,
+      input
+    );
   }
 
   async function pollOperation(operationId, input = {}) {
@@ -628,6 +736,10 @@ export function createMemberFulfillmentClient(options = {}) {
     baseUrl,
     submitOperation,
     getOperation,
+    getIdentity,
+    getAccountMembers,
+    removeAccountMember,
+    cancelAccountInvitation,
     pollOperation,
     submitAndPoll
   });

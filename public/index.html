@@ -40,6 +40,7 @@
           <button class="nav active" data-tab="overview"><span class="nav-icon" data-lucide="layout-dashboard" aria-hidden="true"></span><span>Overview</span></button>
           <button class="nav" data-tab="products"><span class="nav-icon" data-lucide="package" aria-hidden="true"></span><span>Products</span></button>
           <button class="nav" data-tab="inventory"><span class="nav-icon" data-lucide="boxes" aria-hidden="true"></span><span>Inventory</span></button>
+          <button class="nav" data-tab="seatGuard"><span class="nav-icon" data-lucide="shield-check" aria-hidden="true"></span><span>Seat Guard</span></button>
           <button class="nav" data-tab="orders"><span class="nav-icon" data-lucide="shopping-cart" aria-hidden="true"></span><span>Orders</span></button>
           <button class="nav" data-tab="payments"><span class="nav-icon" data-lucide="credit-card" aria-hidden="true"></span><span>Payments</span></button>
           <button class="nav" data-tab="audit"><span class="nav-icon" data-lucide="scroll-text" aria-hidden="true"></span><span>Audit</span></button>
@@ -110,6 +111,7 @@
                   <option value="seat_email">Seat via customer emails</option>
                 </select>
               </label>
+              <label>Seat term (months)<input name="seatTermMonths" type="number" min="1" max="120" value="1"></label>
               <label>Official price note<input name="officialPriceNote" placeholder="Official: $20/mo"></label>
               <label>Price<input name="price" type="number" min="1" value="10000" required></label>
               <label>Currency<input name="currency" value="VND" required></label>
@@ -162,6 +164,66 @@
               <div id="inventoryList"></div>
             </section>
           </div>
+        </section>
+
+        <section id="seatGuardTab" class="tab">
+          <section class="panel seat-guard-overview">
+            <div class="panel-head">
+              <div>
+                <h2>Seat Guard</h2>
+                <p class="panel-subtitle">Compare workspace access with paid Seat entitlements.</p>
+              </div>
+              <button class="secondary icon-button" data-action="refresh-seat-guard">
+                <span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span>
+                <span>Refresh Seat Guard</span>
+              </button>
+            </div>
+            <div id="seatGuardConnection" class="seat-guard-connection"></div>
+            <div class="stats seat-guard-stats">
+              <div class="stat"><span>Members</span><strong id="seatGuardMembersCount">0</strong></div>
+              <div class="stat"><span>Pending invites</span><strong id="seatGuardPendingCount">0</strong></div>
+              <div class="stat"><span>Valid</span><strong id="seatGuardValidCount">0</strong></div>
+              <div class="stat warning-stat"><span>Unverified allow-list</span><strong id="seatGuardAllowedCount">0</strong></div>
+              <div class="stat"><span>Protected</span><strong id="seatGuardProtectedCount">0</strong></div>
+              <div class="stat danger-stat"><span>Unauthorized</span><strong id="seatGuardUnauthorizedCount">0</strong></div>
+              <div class="stat warning-stat"><span>Expired</span><strong id="seatGuardExpiredCount">0</strong></div>
+              <div class="stat warning-stat"><span>Needs review</span><strong id="seatGuardReviewCount">0</strong></div>
+              <div class="stat danger-stat"><span>Risk invites</span><strong id="seatGuardInviteRiskCount">0</strong></div>
+              <div class="stat warning-stat"><span>Missing access</span><strong id="seatGuardMissingCount">0</strong></div>
+            </div>
+          </section>
+
+          <section class="panel seat-guard-section">
+            <div class="panel-head">
+              <div>
+                <h2>Workspace Members</h2>
+                <p class="panel-subtitle">Observed members classified against active orders and protected access.</p>
+              </div>
+              <input id="seatGuardMemberSearch" class="seat-guard-search" type="search" placeholder="Search member, risk, order..." autocomplete="off">
+            </div>
+            <div id="seatGuardMembers"></div>
+          </section>
+
+          <section class="panel seat-guard-section">
+            <div class="panel-head">
+              <div>
+                <h2>Pending Invitations</h2>
+                <p class="panel-subtitle">Invitations that have not become active workspace members.</p>
+              </div>
+              <input id="seatGuardInvitationSearch" class="seat-guard-search" type="search" placeholder="Search invitation, risk, order..." autocomplete="off">
+            </div>
+            <div id="seatGuardInvitations"></div>
+          </section>
+
+          <section class="panel seat-guard-section">
+            <div class="panel-head">
+              <div>
+                <h2>Seat Entitlements</h2>
+                <p class="panel-subtitle">Paid access expected from bot orders, including missing and expired Seat access.</p>
+              </div>
+            </div>
+            <div id="seatGuardEntitlements"></div>
+          </section>
         </section>
 
         <section id="ordersTab" class="tab">
