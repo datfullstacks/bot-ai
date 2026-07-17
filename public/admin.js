@@ -460,10 +460,18 @@ function renderSeatGuardSummary(summary = {}) {
 
 function renderSeatGuardConnection(data = {}) {
   const capabilities = data.capabilities || {};
+  const expiry = data.expiryAutomation || {};
   const status = data.configured ? (capabilities.canRead ? 'ok' : 'warn') : 'warn';
   const title = data.configured
     ? capabilities.canRead ? 'Connected' : 'Configured without member-read permission'
     : 'Seat Guard is not configured';
+  const expiryStatus = !expiry.enabled
+    ? 'Automatic cleanup off'
+    : expiry.storageReady
+      ? 'Automatic cleanup on'
+      : expiry.storageReason === 'database_pool_too_small'
+        ? `Blocked: DATABASE_POOL_MAX must be at least ${Number(expiry.requiredDatabasePoolMax || 0)}`
+        : 'Blocked: PostgreSQL row mode required';
   $('#seatGuardConnection').innerHTML = `
     <div class="seat-guard-connection-head">
       <span class="status-dot ${status}">${escapeHtml(title)}</span>
@@ -472,6 +480,7 @@ function renderSeatGuardConnection(data = {}) {
     <div class="seat-guard-connection-grid">
       <span><strong>Account</strong>${escapeHtml(seatGuardAccountLabel(data.account))}</span>
       <span><strong>Permissions</strong>${escapeHtml(seatGuardPermissionsLabel(data.permissions))}</span>
+      <span><strong>30-day expiry</strong>${escapeHtml(expiryStatus)}</span>
       <span><strong>Capabilities</strong>Read ${capabilities.canRead ? 'yes' : 'no'} · Remove ${capabilities.canRemove ? 'yes' : 'no'}</span>
     </div>
   `;

@@ -196,6 +196,11 @@ GPT_MEMBER_SKUS=chatgpt-business-seat-1m
 GPT_SEAT_PROTECTED_EMAILS=<owner-or-staff-emails-comma-separated>
 GPT_SEAT_DEFAULT_TERM_MONTHS=1
 GPT_SEAT_GUARD_MAX_RESPONSE_BYTES=2097152
+GPT_SEAT_EXPIRY_AUTO_REMOVE=false
+GPT_SEAT_EXPIRY_SWEEP_MS=900000
+GPT_SEAT_EXPIRY_BATCH_SIZE=10
+GPT_SEAT_EXPIRY_GRACE_MS=0
+GPT_SEAT_EXPIRY_RETRY_WINDOW_MS=900000
 
 CANVA_MEMBER_SERVICE_ENABLED=true
 CANVA_MEMBER_SERVICE_URL=http://${{canva-member-api.RAILWAY_PRIVATE_DOMAIN}}:${{canva-member-api.PORT}}/api/v1
@@ -213,7 +218,12 @@ Each active order pins a fingerprint of its provider, private service URL,
 API key and target account. Changing any of those values while an order is
 still awaiting fulfillment pauses that order in `verification_required`
 instead of risking an invitation to a different account. Finish, verify or
-clean up active operations before rotating these variables.
+clean up active operations before rotating these variables. Delivered orders
+also store a separate non-secret entitlement target fingerprint (provider,
+service URL and account reference), so later API-key rotation does not disable
+their 30-day lifecycle. Legacy delivered orders are backfilled only when their
+automation succeeded and the old credential-bound fingerprint still matches;
+all other old orders fail closed as **needs review**.
 
 The member APIs return durable asynchronous operations. The bot stores the
 operation id, polls until `succeeded`, and only then marks the order delivered.
@@ -232,6 +242,8 @@ cancelling an invitation requires an exact email confirmation, uses an
 idempotent action generation, and is written to the bot audit log.
 
 Seat time starts at `deliveredAt` (or the fulfillment completion timestamp).
+Each configured Seat month is exactly 30 x 24 hours, so a 1M ChatGPT Seat
+expires after 30 days rather than after a variable-length calendar month.
 Missing delivery timestamps fail closed to **needs review** rather than using
 the earlier payment time. Repeated delivered orders for the same email extend
 the previous entitlement, while paid orders still awaiting fulfillment remain
@@ -240,11 +252,22 @@ back to the duration encoded in the SKU/package and then
 `GPT_SEAT_DEFAULT_TERM_MONTHS`. Orders whose saved integration target cannot be
 matched to the current ChatGPT target also fail closed to **needs review**.
 
-Seat Guard intentionally starts in review/manual-removal mode. Do not enable
-automatic removal until every older or externally managed legitimate member is
-represented by an order or `GPT_SEAT_PROTECTED_EMAILS`. Review upstream-only
-allow-list entries explicitly. Claude lifecycle management remains manual until
-a Claude member service is configured in code.
+Seat Guard intentionally starts in review/manual-removal mode. Set
+`GPT_SEAT_EXPIRY_AUTO_REMOVE=true` only after reviewing the first Seat Guard
+snapshot. Automatic cleanup requires PostgreSQL row mode and a guard key with
+`accounts:read,members:remove`. It only acts on bot orders with a verified
+target and an expired delivery term; active, pending, needs-review,
+manual-allow-list, owner/admin, and `GPT_SEAT_PROTECTED_EMAILS` entries are
+never auto-removed. `DATABASE_POOL_MAX` must be at least
+`(2 * MEMBER_FULFILLMENT_CONCURRENCY) + 2` (6 with the defaults; the recommended
+value remains 10). Cleanup uses a shared per-email PostgreSQL advisory lock,
+rechecks orders after taking the lock, and stores a durable cleanup fence before
+calling the member service. Fulfillment must reconcile that fence before it can
+invite the same email, so a timed-out old removal cannot delete a newly renewed
+Seat. The worker removes the live member or invitation, polls the durable
+operation, and verifies that `allowedMembers` no longer contains the email. It
+never replaces the whole upstream allow-list. Claude lifecycle management
+remains manual until a Claude member service is configured in code.
 
 Generate separate values for `AUTH_SECRET`, `TELEGRAM_WEBHOOK_SECRET`,
 `SEPAY_WEBHOOK_SECRET`, and `INVENTORY_ENCRYPTION_KEY`:

@@ -300,6 +300,11 @@ try {
   assert.equal(seatPaid.order.status, 'awaiting_fulfillment');
   assert.equal(seatPaid.payment.status, 'paid');
   assert.equal(seatPaid.order.deliveredAt, null);
+  assert.equal(
+    (await shop.listSeatOrdersForEmails(['SEAT-ONE@example.com'])).some((order) => order.id === seatCheckout.order.id),
+    true,
+    'Targeted Seat entitlement reads must find active orders without OFFSET pagination.'
+  );
   const seatBeforeCompletion = await shop.getDeliveryForOrder(seatCheckout.order.id);
   assert.deepEqual(seatBeforeCompletion.deliverySecrets, []);
   const awaitingSeatSummary = await shop.getDashboardSummary();
@@ -318,11 +323,13 @@ try {
     attempt: 1,
     idempotencyKey: 'seat-chatgpt-smoke-g0',
     operationId: 'op_smoke_automation',
+    targetFingerprint: 'b'.repeat(64),
     error: null
   });
   assert.equal(automatedSeat.fulfillment.automation.provider, 'chatgpt');
   assert.equal(automatedSeat.fulfillment.automation.status, 'processing');
   assert.equal(automatedSeat.fulfillment.automation.operationId, 'op_smoke_automation');
+  assert.equal(automatedSeat.fulfillment.automation.entitlementTargetFingerprint, undefined);
 
   await assert.rejects(
     () => shop.completeSeatFulfillment(actorId, seatCheckout.order.id, { note: 'Too early' }),
@@ -393,6 +400,19 @@ try {
   );
   assert.equal(completedSeat.order.fulfillment.automation.operationId, 'op_smoke_automation');
   assert.equal(completedSeat.order.fulfillment.automation.status, 'succeeded');
+  const legacyTargetBackfill = await shop.backfillSeatEntitlementTarget(
+    'seat-entitlement-backfill',
+    seatCheckout.order.id,
+    {
+      expectedTargetFingerprint: 'b'.repeat(64),
+      entitlementTargetFingerprint: 'a'.repeat(64)
+    }
+  );
+  assert.equal(legacyTargetBackfill.updated, true);
+  assert.equal(
+    legacyTargetBackfill.order.fulfillment.automation.entitlementTargetFingerprint,
+    'a'.repeat(64)
+  );
   assert.deepEqual((await shop.getDeliveryForOrder(seatCheckout.order.id)).deliverySecrets, []);
   assert.equal((await shop.completeSeatFulfillment(actorId, seatCheckout.order.id)).duplicate, true);
 
@@ -480,6 +500,7 @@ try {
     status: 'verification_required',
     attempt: 1,
     operationId: '',
+    targetFingerprint: 'c'.repeat(64),
     error: { code: 'MEMBER_OUTCOME_UNKNOWN', message: 'External verification required', retryable: false }
   });
   const verifiedCompletion = await shop.completeSeatFulfillment(actorId, verifiedCheckout.order.id, {
@@ -487,6 +508,16 @@ try {
     confirmExternalVerification: true
   });
   assert.equal(verifiedCompletion.order.status, 'delivered');
+  const unsafeManualBackfill = await shop.backfillSeatEntitlementTarget(
+    'seat-entitlement-backfill',
+    verifiedCheckout.order.id,
+    {
+      expectedTargetFingerprint: 'c'.repeat(64),
+      entitlementTargetFingerprint: 'd'.repeat(64)
+    }
+  );
+  assert.equal(unsafeManualBackfill.updated, false);
+  assert.equal(unsafeManualBackfill.order.fulfillment.automation.entitlementTargetFingerprint, undefined);
 
   const summary = await shop.getDashboardSummary();
   assert.ok(summary.deliveredOrders >= 2, 'summary should count delivered smoke orders');

@@ -41,7 +41,9 @@ import {
   cancelSeatGuardInvitation,
   getSeatGuardOperation,
   getSeatGuardSnapshot,
-  removeSeatGuardMember
+  removeSeatGuardMember,
+  startSeatEntitlementTargetBackfill,
+  startSeatExpiryAutomation
 } from './seatGuard.js';
 
 const publicDir = resolve(process.cwd(), 'public');
@@ -609,6 +611,8 @@ await initStore();
 configureTelegramMenu().catch((error) => console.error('[telegram] menu setup failed:', error.message));
 setInterval(() => expireOrders().catch((error) => console.error('[orders] expire failed:', error.message)), 60_000);
 startSeatFulfillmentAutomation({ onDelivered: notifyAutomaticSeatDelivery });
+startSeatEntitlementTargetBackfill();
+startSeatExpiryAutomation();
 startTelegramPolling();
 
 createServer(requestHandler).listen(config.port, '0.0.0.0', () => {

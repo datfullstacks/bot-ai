@@ -12,6 +12,8 @@ import {
   listOrders,
   updateSeatFulfillmentAutomation
 } from './shop.js';
+import { reconcileSeatAccessFences } from './seatAccessFence.js';
+import { withSeatAccessLocks } from './seatAccessLock.js';
 
 const activeOrders = new Set();
 const terminalAutomationStatuses = new Set(['failed', 'verification_required']);
@@ -48,6 +50,17 @@ export function memberIntegrationTargetFingerprint(provider, integration = {}) {
       serviceUrl,
       String(integration.accountRef || '').trim(),
       String(integration.apiKey || '').trim()
+    ].join('\0'), 'utf8')
+    .digest('hex');
+}
+
+export function memberIntegrationEntitlementFingerprint(provider, integration = {}) {
+  const serviceUrl = normalizeMemberServiceBaseUrl(integration.serviceUrl);
+  return createHash('sha256')
+    .update([
+      String(provider || '').trim().toLowerCase(),
+      serviceUrl,
+      String(integration.accountRef || '').trim().toLowerCase()
     ].join('\0'), 'utf8')
     .digest('hex');
 }
@@ -207,11 +220,64 @@ function defaultDependencies() {
     updateAutomation: updateSeatFulfillmentAutomation,
     complete: completeSeatFulfillment,
     createClient: createMemberFulfillmentClient,
+    reconcileSeatAccessFences,
+    withSeatAccessLocks,
     settings: config.memberFulfillment
   };
 }
 
 export async function processSeatFulfillment(orderId, options = {}) {
+  const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
+  const key = String(orderId || '').trim();
+  if (!key) throw new TypeError('orderId is required');
+  const order = (await dependencies.getOrder(key))?.order;
+  const match = memberIntegrationForOrder(order || {}, dependencies.settings);
+  const emails = recipientEmails(order || {});
+  if (!match || !emails.length) {
+    return processSeatFulfillmentUnlocked(key, { ...options, dependencies });
+  }
+
+  const locked = await dependencies.withSeatAccessLocks({
+    provider: match.provider,
+    accountRef: match.integration.accountRef,
+    emails
+  }, async (lockContext) => {
+    const fenceResolution = await dependencies.reconcileSeatAccessFences({
+      provider: match.provider,
+      accountRef: match.integration.accountRef,
+      emails
+    }, {
+      integration: match.integration,
+      lockContext,
+      dependencies: { createClient: dependencies.createClient }
+    });
+    if (!fenceResolution.ok) {
+      return {
+        skipped: true,
+        reason: fenceResolution.reason || 'seat_cleanup_pending',
+        provider: match.provider,
+        order,
+        email: fenceResolution.email,
+        operationId: fenceResolution.operationId || null
+      };
+    }
+    return processSeatFulfillmentUnlocked(key, { ...options, onDelivered: undefined, dependencies });
+  });
+  if (!locked.acquired) {
+    return { skipped: true, reason: 'seat_access_busy', provider: match.provider, order };
+  }
+  const { notificationOrder, ...result } = locked.value || {};
+  if (notificationOrder) {
+    try {
+      await options.onDelivered?.(notificationOrder);
+    } catch (error) {
+      console.error('[member-fulfillment] delivery notification failed:', String(error?.message || error).slice(0, 300));
+    }
+  }
+  return result;
+}
+
+async function processSeatFulfillmentUnlocked(orderId, options = {}) {
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
   const key = String(orderId || '').trim();
   if (!key) throw new TypeError('orderId is required');
@@ -230,11 +296,32 @@ export async function processSeatFulfillment(orderId, options = {}) {
     const persistedAutomation = order.fulfillment?.automation || {};
     if (persistedAutomation.status === 'succeeded') {
       const persistedProvider = String(persistedAutomation.provider || 'reconcile').trim().toLowerCase();
+      const persistedMatch = memberIntegrationForOrder(order, dependencies.settings);
+      let persistedTargetMatches = false;
+      try {
+        persistedTargetMatches = Boolean(
+          persistedMatch
+          && persistedAutomation.targetFingerprint
+          && persistedAutomation.targetFingerprint === memberIntegrationTargetFingerprint(
+            persistedMatch.provider,
+            persistedMatch.integration
+          )
+        );
+      } catch {
+        persistedTargetMatches = false;
+      }
+      if (persistedTargetMatches && !persistedAutomation.entitlementTargetFingerprint) {
+        await dependencies.updateAutomation(`member-service:${persistedProvider}`, order.id, {
+          entitlementTargetFingerprint: memberIntegrationEntitlementFingerprint(
+            persistedMatch.provider,
+            persistedMatch.integration
+          )
+        });
+      }
       const completed = await dependencies.complete(`member-service:${persistedProvider}`, order.id, {
         note: `Automatic ${persistedProvider} member invitation was already verified (${persistedAutomation.operationId || 'operation persisted'})`
       });
-      await options.onDelivered?.(completed.order);
-      return { ok: true, provider: persistedProvider, reconciled: true, ...completed };
+      return { ok: true, provider: persistedProvider, reconciled: true, notificationOrder: completed.order, ...completed };
     }
     const match = memberIntegrationForOrder(order, dependencies.settings);
     if (!match) return { skipped: true, reason: 'manual_fulfillment', order };
@@ -247,6 +334,7 @@ export async function processSeatFulfillment(orderId, options = {}) {
 
     const automation = order.fulfillment?.automation || {};
     const targetFingerprint = memberIntegrationTargetFingerprint(provider, integration);
+    const entitlementTargetFingerprint = memberIntegrationEntitlementFingerprint(provider, integration);
     const storedTargetFingerprint = String(automation.targetFingerprint || '').trim();
     const failedBeforeSubmission = automation.status === 'failed' && !automation.operationId;
     const unpinnedExternalRisk = Boolean(
@@ -351,6 +439,7 @@ export async function processSeatFulfillment(orderId, options = {}) {
       retryCount,
       idempotencyKey,
       operationId: operation.operationId,
+      entitlementTargetFingerprint,
       completedAt: nowIso(),
       nextRetryAt: null,
       error: null
@@ -358,8 +447,7 @@ export async function processSeatFulfillment(orderId, options = {}) {
     const completed = await dependencies.complete(`member-service:${provider}`, order.id, {
       note: `Automatic ${provider} member invitation verified (${operation.operationId})`
     });
-    await options.onDelivered?.(completed.order);
-    return { ok: true, provider, operation, ...completed };
+    return { ok: true, provider, operation, notificationOrder: completed.order, ...completed };
   } catch (error) {
     if (submittedOperationId && !error.operationId) error.operationId = submittedOperationId;
     if (submissionMayHaveBeenAccepted && !terminalOutcomeKnown) {

@@ -19,6 +19,7 @@ import { publicPaymentCheckout } from '../paymentView.js';
 import { paymentProvider } from '../payments.js';
 import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
 import { parseSeatEmailLines } from '../seatFulfillment.js';
+import { lockSeatAccessTransaction } from '../seatAccessLock.js';
 import { withPostgresClient, withPostgresTransaction } from '../postgresStore.js';
 
 const orderTtlMs = config.orders.ttlMinutes * 60 * 1000;
@@ -41,6 +42,23 @@ function automaticSeatProvider(order = {}) {
   const sku = String(order.productSku || '').trim().toLowerCase();
   return Object.entries(config.memberFulfillment?.integrations || {})
     .find(([, integration]) => integration.skus.includes(sku))?.[0] || '';
+}
+
+function chatGptSeatLockScope(order = {}) {
+  if (automaticSeatProvider(order) !== 'chatgpt') return null;
+  const integration = config.memberFulfillment.integrations.chatgpt || {};
+  const emails = [...new Set((order.fulfillment?.recipients || [])
+    .map((recipient) => String(recipient?.email || '').trim().toLowerCase())
+    .filter(Boolean))];
+  const accountRef = String(integration.accountRef || '').trim();
+  return accountRef && emails.length
+    ? { provider: 'chatgpt', accountRef, emails }
+    : null;
+}
+
+async function lockChatGptSeatPaymentTransition(client, order) {
+  const scope = chatGptSeatLockScope(order);
+  if (scope) await lockSeatAccessTransaction(client, scope);
 }
 
 function automaticSeatIntegration(order = {}) {
@@ -684,6 +702,40 @@ export async function listOrders(options = {}) {
   });
 }
 
+export async function listSeatOrdersForEmails(emailValues = []) {
+  const emails = [...new Set(emailValues
+    .map((email) => String(email || '').trim().toLowerCase())
+    .filter(Boolean))]
+    .slice(0, 200);
+  if (!emails.length) return [];
+  return withPostgresClient(async (client) => {
+    const result = await client.query(
+      `SELECT doc
+       FROM app_documents
+       WHERE collection = 'orders'
+         AND doc->>'status' IN ('delivered', 'awaiting_fulfillment')
+         AND EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements(
+             CASE
+               WHEN jsonb_typeof(doc#>'{fulfillment,recipients}') = 'array'
+                 THEN doc#>'{fulfillment,recipients}'
+               ELSE '[]'::jsonb
+             END
+           ) AS recipient
+           WHERE lower(recipient->>'email') = ANY($1::text[])
+         )
+       ORDER BY doc->>'createdAt' ASC, id ASC
+       LIMIT 1001`,
+      [emails]
+    );
+    if (result.rows.length > 1000) {
+      throw Object.assign(new Error('Seat order history is too large to reconcile safely'), { statusCode: 503 });
+    }
+    return result.rows.map((row) => publicOrder(row.doc));
+  });
+}
+
 export async function listPayments(options = {}) {
   return withPostgresClient(async (client) => {
     const limit = Math.min(Math.max(Number(options.limit || 100), 1), 500);
@@ -1086,6 +1138,7 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
     }
 
     if (isSeatOrder(order)) {
+      await lockChatGptSeatPaymentTransition(client, order);
       payment.status = 'paid';
       payment.bankReference = event.bankReference || payment.bankReference || '';
       order.paidAt = nowIso();
@@ -1206,6 +1259,7 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
     }
 
     if (seatEmailOrder) {
+      await lockChatGptSeatPaymentTransition(client, order);
       order.paidAt ||= nowIso();
       await setOrderStatus(client, order, 'awaiting_fulfillment', actorId, 'manual_review_approved', {
         note,
@@ -1317,7 +1371,14 @@ export async function updateSeatFulfillmentAutomation(actorId, orderId, input = 
       return publicOrder(order);
     }
     const automation = { ...current };
-    const stringFields = ['provider', 'status', 'operationId', 'idempotencyKey', 'targetFingerprint'];
+    const stringFields = [
+      'provider',
+      'status',
+      'operationId',
+      'idempotencyKey',
+      'targetFingerprint',
+      'entitlementTargetFingerprint'
+    ];
     for (const key of stringFields) {
       if (input[key] !== undefined) automation[key] = String(input[key] || '').trim().slice(0, 160);
     }
@@ -1353,6 +1414,33 @@ export async function updateSeatFulfillmentAutomation(actorId, orderId, input = 
     });
     await upsertDoc(client, 'orders', order);
     return publicOrder(order);
+  });
+}
+
+export async function backfillSeatEntitlementTarget(actorId, orderId, input = {}) {
+  const expectedTargetFingerprint = String(input.expectedTargetFingerprint || '').trim();
+  const entitlementTargetFingerprint = String(input.entitlementTargetFingerprint || '').trim();
+  if (!/^[a-f0-9]{64}$/.test(expectedTargetFingerprint) || !/^[a-f0-9]{64}$/.test(entitlementTargetFingerprint)) {
+    throw new TypeError('Valid Seat target fingerprints are required');
+  }
+  return withPostgresTransaction(async (client) => {
+    const orderRow = await getDoc(client, 'orders', orderId, { forUpdate: true });
+    if (!orderRow) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    const order = orderRow.doc;
+    if (!isSeatOrder(order) || order.status !== 'delivered') return { updated: false, order: publicOrder(order) };
+    const automation = order.fulfillment?.automation || {};
+    if (automation.status !== 'succeeded') return { updated: false, order: publicOrder(order) };
+    if (automation.entitlementTargetFingerprint) return { updated: false, order: publicOrder(order) };
+    if (automation.targetFingerprint !== expectedTargetFingerprint) return { updated: false, order: publicOrder(order) };
+    automation.entitlementTargetFingerprint = entitlementTargetFingerprint;
+    automation.updatedAt = nowIso();
+    order.fulfillment = { ...order.fulfillment, automation };
+    order.updatedAt = nowIso();
+    await addAuditDoc(client, actorId, 'order.fulfillment.entitlement_target_backfill', 'order', order.id, {
+      provider: automation.provider || ''
+    });
+    await upsertDoc(client, 'orders', order);
+    return { updated: true, order: publicOrder(order) };
   });
 }
 

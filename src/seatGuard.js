@@ -1,14 +1,35 @@
 import { createHash } from 'node:crypto';
 import { config } from './config.js';
 import { createMemberFulfillmentClient } from './memberFulfillmentClient.js';
-import { memberIntegrationTargetFingerprint } from './seatFulfillmentAutomation.js';
-import { listOrders } from './shop.js';
+import {
+  deleteSeatAccessFence,
+  deleteSeatAccessFencesByOperationId,
+  getSeatAccessFence,
+  putSeatAccessFence,
+  reconcileSeatAccessFences,
+  seatExpiryStorageStatus
+} from './seatAccessFence.js';
+import { withSeatAccessLocks } from './seatAccessLock.js';
+import {
+  memberIntegrationEntitlementFingerprint,
+  memberIntegrationTargetFingerprint
+} from './seatFulfillmentAutomation.js';
+import {
+  backfillSeatEntitlementTarget,
+  listOrders,
+  listSeatOrdersForEmails,
+  recordAudit
+} from './shop.js';
 
 const protectedRoles = new Set(['owner', 'admin']);
 const ordinaryMemberRoles = new Set(['member', 'standard-user', 'standard_user', 'user']);
 const removableClassifications = new Set(['unauthorized', 'expired', 'manual_allowed']);
 const activeOrderStatuses = new Set(['awaiting_fulfillment', 'delivered']);
 const actionRequestIdPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{15,127}$/;
+const seatTermDays = 30;
+const dayMs = 24 * 60 * 60_000;
+let expirySweepPromise = null;
+let entitlementBackfillPromise = null;
 
 function normalizedEmail(value) {
   const email = String(value || '').trim().toLowerCase();
@@ -20,14 +41,8 @@ function validDate(value) {
   return Number.isFinite(time) ? time : null;
 }
 
-function addUtcMonths(timestamp, months) {
-  const date = new Date(timestamp);
-  const day = date.getUTCDate();
-  date.setUTCDate(1);
-  date.setUTCMonth(date.getUTCMonth() + months);
-  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
-  date.setUTCDate(Math.min(day, lastDay));
-  return date.getTime();
+function addSeatTerm(timestamp, months) {
+  return timestamp + (months * seatTermDays * dayMs);
 }
 
 export function seatTermMonths(order = {}, fallback = 1) {
@@ -53,10 +68,15 @@ function chatGptSeatOrderScope(order, integration) {
   const sku = String(order?.productSku || '').trim().toLowerCase();
   if (!provider && !(Array.isArray(integration?.skus) && integration.skus.includes(sku))) return false;
 
-  const storedFingerprint = String(order?.fulfillment?.automation?.targetFingerprint || '').trim();
-  if (!storedFingerprint) return 'review';
+  const automation = order?.fulfillment?.automation || {};
+  const entitlementFingerprint = String(automation.entitlementTargetFingerprint || '').trim();
+  const storedFingerprint = String(automation.targetFingerprint || '').trim();
+  if (!entitlementFingerprint && !storedFingerprint) return 'review';
   try {
-    return storedFingerprint === memberIntegrationTargetFingerprint('chatgpt', integration)
+    const currentFingerprint = entitlementFingerprint
+      ? memberIntegrationEntitlementFingerprint('chatgpt', integration)
+      : memberIntegrationTargetFingerprint('chatgpt', integration);
+    return (entitlementFingerprint || storedFingerprint) === currentFingerprint
       ? 'current'
       : 'review';
   } catch {
@@ -111,7 +131,7 @@ export function buildSeatEntitlements(orders = [], options = {}) {
         continue;
       }
       const start = Math.max(item.deliveredAt, entitlementEnd || item.deliveredAt);
-      entitlementEnd = addUtcMonths(start, item.months);
+      entitlementEnd = addSeatTerm(start, item.months);
     }
     const hasPending = entry.pending.length > 0;
     const state = invalidDeliveredDate
@@ -245,7 +265,19 @@ function guardConfig() {
 }
 
 function defaultDependencies() {
-  return { listOrders, createClient: createMemberFulfillmentClient };
+  return {
+    listOrders,
+    listSeatOrdersForEmails,
+    backfillSeatEntitlementTarget,
+    createClient: createMemberFulfillmentClient,
+    deleteSeatAccessFence,
+    deleteSeatAccessFencesByOperationId,
+    getSeatAccessFence,
+    putSeatAccessFence,
+    reconcileSeatAccessFences,
+    recordAudit,
+    withSeatAccessLocks
+  };
 }
 
 async function listAllOrders(dependencies) {
@@ -267,6 +299,77 @@ async function listAllOrders(dependencies) {
   throw Object.assign(new Error('Seat order history is too large to reconcile safely'), { statusCode: 503 });
 }
 
+function legacyEntitlementBackfillConfigured(integration = {}) {
+  return Boolean(
+    integration.enabled
+    && integration.serviceUrl
+    && integration.apiKey
+    && integration.accountRef
+  );
+}
+
+export async function backfillLegacySeatEntitlementTargets(options = {}) {
+  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  if (!legacyEntitlementBackfillConfigured(integration)) {
+    return { skipped: true, reason: 'not_configured', checked: 0, updated: 0 };
+  }
+
+  const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
+  const expectedTargetFingerprint = memberIntegrationTargetFingerprint('chatgpt', integration);
+  const entitlementTargetFingerprint = memberIntegrationEntitlementFingerprint('chatgpt', integration);
+  const orders = options.orders || await listAllOrders(dependencies);
+  const candidates = orders.filter((order) => {
+    const automation = order?.fulfillment?.automation || {};
+    return Boolean(
+      order?.id
+      && order.status === 'delivered'
+      && automation.status === 'succeeded'
+      && !automation.entitlementTargetFingerprint
+      && automation.targetFingerprint === expectedTargetFingerprint
+      && chatGptSeatOrderScope(order, integration) === 'current'
+    );
+  });
+
+  let updated = 0;
+  for (const order of candidates) {
+    const result = await dependencies.backfillSeatEntitlementTarget(
+      'seat-entitlement-backfill',
+      order.id,
+      { expectedTargetFingerprint, entitlementTargetFingerprint }
+    );
+    if (result?.updated) updated += 1;
+  }
+  return { ok: true, checked: orders.length, candidates: candidates.length, updated };
+}
+
+export function startSeatEntitlementTargetBackfill(options = {}) {
+  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  if (!legacyEntitlementBackfillConfigured(integration)) return null;
+  const intervalMs = Math.max(60_000, Number(options.intervalMs || 24 * 60 * 60_000));
+  const run = () => {
+    if (entitlementBackfillPromise) return entitlementBackfillPromise;
+    const tracked = backfillLegacySeatEntitlementTargets(options)
+      .then((result) => {
+        if (result.updated) {
+          console.log(`[seat-guard] backfilled ${result.updated} legacy Seat entitlement target(s)`);
+        }
+        return result;
+      })
+      .catch((error) => {
+        console.error('[seat-guard] entitlement backfill failed:', String(error?.message || error).slice(0, 300));
+      })
+      .finally(() => {
+        if (entitlementBackfillPromise === tracked) entitlementBackfillPromise = null;
+      });
+    entitlementBackfillPromise = tracked;
+    return tracked;
+  };
+  setImmediate(run);
+  const timer = setInterval(run, intervalMs);
+  timer.unref?.();
+  return timer;
+}
+
 function clientFor(integration, dependencies) {
   return dependencies.createClient({
     provider: 'chatgpt',
@@ -283,10 +386,13 @@ async function loadSeatGuardContext(options = {}) {
   const integration = options.integration || guardConfig();
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
   const client = clientFor(integration, dependencies);
+  const entitlementEmails = (options.entitlementEmails || []).map(normalizedEmail).filter(Boolean);
   const [identity, remote, orders] = await Promise.all([
     client.getIdentity(),
     client.getAccountMembers(integration.accountRef),
-    listAllOrders(dependencies)
+    entitlementEmails.length
+      ? dependencies.listSeatOrdersForEmails(entitlementEmails)
+      : listAllOrders(dependencies)
   ]);
   const entitlements = buildSeatEntitlements(orders, {
     integration,
@@ -299,6 +405,18 @@ async function loadSeatGuardContext(options = {}) {
     entitlements,
     protectedEmails: integration.protectedEmails || []
   });
+  const storage = seatExpiryStorageStatus();
+  view.expiryAutomation = {
+    enabled: Boolean(integration.expiryAutoRemove),
+    storageReady: storage.ready,
+    storageReason: storage.rowMode ? (storage.poolReady ? null : 'database_pool_too_small') : 'postgres_row_mode_required',
+    databasePoolMax: storage.poolMax,
+    requiredDatabasePoolMax: storage.requiredPoolMax,
+    termDays: seatTermDays,
+    sweepMs: Number(integration.expirySweepMs || 15 * 60_000),
+    batchSize: Number(integration.expiryBatchSize || 10),
+    graceMs: Number(integration.expiryGraceMs || 0)
+  };
   return { integration, client, view };
 }
 
@@ -326,72 +444,547 @@ function expectedConfirmation(action, email) {
   return `${action} ${email}`;
 }
 
+function fenceScope(integration, email) {
+  return { provider: 'chatgpt', accountRef: integration.accountRef, email };
+}
+
+function fenceDependencies(dependencies) {
+  return {
+    createClient: dependencies.createClient,
+    getFence: dependencies.getSeatAccessFence,
+    putFence: dependencies.putSeatAccessFence,
+    deleteFence: dependencies.deleteSeatAccessFence
+  };
+}
+
+async function reconcileGuardFence(email, integration, dependencies, lockContext) {
+  return dependencies.reconcileSeatAccessFences({
+    provider: 'chatgpt',
+    accountRef: integration.accountRef,
+    emails: [email]
+  }, {
+    integration,
+    lockContext,
+    dependencies: fenceDependencies(dependencies)
+  });
+}
+
+async function saveSubmittedFence(scope, fence, operation, dependencies, lockContext) {
+  if (operation?.terminal) {
+    await dependencies.deleteSeatAccessFence(scope, { lockContext });
+    return;
+  }
+  await dependencies.putSeatAccessFence(scope, {
+    ...fence,
+    operationId: operation?.operationId || null,
+    status: 'pending'
+  }, { lockContext });
+}
+
+async function submitFencedMutation(scope, fence, submit, dependencies, lockContext) {
+  let operation;
+  try {
+    operation = await submit();
+    await saveSubmittedFence(scope, fence, operation, dependencies, lockContext);
+    return operation;
+  } catch (error) {
+    const operationId = error?.operationId || operation?.operationId || null;
+    if (operationId || error?.submissionMayHaveBeenAccepted === true || operation) {
+      await dependencies.putSeatAccessFence(scope, {
+        ...fence,
+        operationId,
+        status: 'uncertain',
+        errorCode: String(error?.code || 'SEAT_CLEANUP_SUBMISSION_UNCERTAIN').slice(0, 100)
+      }, { lockContext }).catch(() => {});
+    } else {
+      await dependencies.deleteSeatAccessFence(scope, { lockContext }).catch(() => {});
+    }
+    if (operationId && error && typeof error === 'object' && !error.operationId) error.operationId = operationId;
+    throw error;
+  }
+}
+
 export async function removeSeatGuardMember(memberId, input = {}, options = {}) {
   const actionRequestId = requireActionRequestId(input.actionRequestId);
-  const context = await loadSeatGuardContext(options);
-  if (!context.view.capabilities.canRemove) {
-    throw Object.assign(new Error('The member-service API key needs members:remove permission'), { statusCode: 403 });
-  }
-  const member = context.view.members.find((item) => item.actionRef === String(memberId || '').trim());
-  if (!member) throw Object.assign(new Error('The live ChatGPT member was not found'), { statusCode: 404 });
-  if (!member.removable || !member.email) {
-    throw Object.assign(new Error('This member is protected or still has valid Seat authorization'), { statusCode: 409 });
-  }
-  if (normalizedEmail(input.expectedEmail) !== member.email) {
-    throw Object.assign(new Error('Member email changed; refresh Seat Guard before removing'), { statusCode: 409 });
-  }
-  if (String(input.confirmation || '') !== expectedConfirmation('REMOVE', member.email)) {
-    throw Object.assign(new Error(`Type REMOVE ${member.email} to confirm`), { statusCode: 400 });
-  }
-  const operation = await context.client.removeAccountMember(context.integration.accountRef, member.id, {
-    idempotencyKey: mutationKey(
+  const integration = options.integration || guardConfig();
+  const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
+  const expectedEmail = normalizedEmail(input.expectedEmail);
+  if (!expectedEmail) throw Object.assign(new Error('A valid member email is required'), { statusCode: 400 });
+
+  const locked = await dependencies.withSeatAccessLocks({
+    provider: 'chatgpt',
+    accountRef: integration.accountRef,
+    emails: [expectedEmail]
+  }, async (lockContext) => {
+    const reconciled = await reconcileGuardFence(expectedEmail, integration, dependencies, lockContext);
+    if (!reconciled.ok) {
+      throw Object.assign(new Error('A previous Seat removal is still pending'), {
+        statusCode: 409,
+        code: 'SEAT_CLEANUP_PENDING',
+        operationId: reconciled.operationId
+      });
+    }
+
+    const context = await loadSeatGuardContext({
+      ...options,
+      integration,
+      dependencies,
+      entitlementEmails: [expectedEmail]
+    });
+    if (!context.view.capabilities.canRemove) {
+      throw Object.assign(new Error('The member-service API key needs members:remove permission'), { statusCode: 403 });
+    }
+    const member = context.view.members.find((item) => item.actionRef === String(memberId || '').trim());
+    if (!member) throw Object.assign(new Error('The live ChatGPT member was not found'), { statusCode: 404 });
+    if (!member.removable || !member.email) {
+      throw Object.assign(new Error('This member is protected or still has valid Seat authorization'), { statusCode: 409 });
+    }
+    if (expectedEmail !== member.email) {
+      throw Object.assign(new Error('Member email changed; refresh Seat Guard before removing'), { statusCode: 409 });
+    }
+    if (String(input.confirmation || '') !== expectedConfirmation('REMOVE', member.email)) {
+      throw Object.assign(new Error(`Type REMOVE ${member.email} to confirm`), { statusCode: 400 });
+    }
+    const idempotencyKey = mutationKey(
       'remove',
       context.integration.accountRef,
       member.id,
       member.email,
       member.createdAt,
       actionRequestId
-    )
+    );
+    const scope = fenceScope(context.integration, member.email);
+    const fence = {
+      source: 'manual',
+      actionKind: 'member',
+      externalRef: member.id,
+      idempotencyKey,
+      operationId: null,
+      status: 'submitting',
+      createdAt: new Date().toISOString()
+    };
+    await dependencies.putSeatAccessFence(scope, fence, { lockContext });
+    const operation = await submitFencedMutation(
+      scope,
+      fence,
+      () => context.client.removeAccountMember(context.integration.accountRef, member.id, { idempotencyKey }),
+      dependencies,
+      lockContext
+    );
+    return { ok: true, operationId: operation.operationId, actionRequestId, operation, member };
   });
-  return { ok: true, operationId: operation.operationId, actionRequestId, operation, member };
+  if (!locked.acquired) {
+    throw Object.assign(new Error('This Seat email is already being changed'), { statusCode: 409, code: 'SEAT_ACCESS_BUSY' });
+  }
+  return locked.value;
 }
 
 export async function cancelSeatGuardInvitation(invitationId, input = {}, options = {}) {
   const actionRequestId = requireActionRequestId(input.actionRequestId);
-  const context = await loadSeatGuardContext(options);
-  if (!context.view.capabilities.canRemove) {
-    throw Object.assign(new Error('The member-service API key needs members:remove permission'), { statusCode: 403 });
-  }
-  const invitation = context.view.invitations.find((item) => item.actionRef === String(invitationId || '').trim());
-  if (!invitation) throw Object.assign(new Error('The pending ChatGPT invitation was not found'), { statusCode: 404 });
-  if (!invitation.cancelable || !invitation.email) {
-    throw Object.assign(new Error('This invitation is protected or still has valid Seat authorization'), { statusCode: 409 });
-  }
-  if (normalizedEmail(input.expectedEmail) !== invitation.email) {
-    throw Object.assign(new Error('Invitation email changed; refresh Seat Guard before cancelling'), { statusCode: 409 });
-  }
-  if (String(input.confirmation || '') !== expectedConfirmation('CANCEL', invitation.email)) {
-    throw Object.assign(new Error(`Type CANCEL ${invitation.email} to confirm`), { statusCode: 400 });
-  }
-  const operation = await context.client.cancelAccountInvitation(
-    context.integration.accountRef,
-    invitation.actionRef,
-    {
-      idempotencyKey: mutationKey(
-        'cancel',
+  const integration = options.integration || guardConfig();
+  const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
+  const expectedEmail = normalizedEmail(input.expectedEmail);
+  if (!expectedEmail) throw Object.assign(new Error('A valid invitation email is required'), { statusCode: 400 });
+
+  const locked = await dependencies.withSeatAccessLocks({
+    provider: 'chatgpt',
+    accountRef: integration.accountRef,
+    emails: [expectedEmail]
+  }, async (lockContext) => {
+    const reconciled = await reconcileGuardFence(expectedEmail, integration, dependencies, lockContext);
+    if (!reconciled.ok) {
+      throw Object.assign(new Error('A previous Seat removal is still pending'), {
+        statusCode: 409,
+        code: 'SEAT_CLEANUP_PENDING',
+        operationId: reconciled.operationId
+      });
+    }
+
+    const context = await loadSeatGuardContext({
+      ...options,
+      integration,
+      dependencies,
+      entitlementEmails: [expectedEmail]
+    });
+    if (!context.view.capabilities.canRemove) {
+      throw Object.assign(new Error('The member-service API key needs members:remove permission'), { statusCode: 403 });
+    }
+    const invitation = context.view.invitations.find((item) => item.actionRef === String(invitationId || '').trim());
+    if (!invitation) throw Object.assign(new Error('The pending ChatGPT invitation was not found'), { statusCode: 404 });
+    if (!invitation.cancelable || !invitation.email) {
+      throw Object.assign(new Error('This invitation is protected or still has valid Seat authorization'), { statusCode: 409 });
+    }
+    if (expectedEmail !== invitation.email) {
+      throw Object.assign(new Error('Invitation email changed; refresh Seat Guard before cancelling'), { statusCode: 409 });
+    }
+    if (String(input.confirmation || '') !== expectedConfirmation('CANCEL', invitation.email)) {
+      throw Object.assign(new Error(`Type CANCEL ${invitation.email} to confirm`), { statusCode: 400 });
+    }
+    const idempotencyKey = mutationKey(
+      'cancel',
+      context.integration.accountRef,
+      invitation.actionRef,
+      invitation.email,
+      invitation.createdAt,
+      actionRequestId
+    );
+    const scope = fenceScope(context.integration, invitation.email);
+    const fence = {
+      source: 'manual',
+      actionKind: 'invitation',
+      externalRef: invitation.actionRef,
+      idempotencyKey,
+      operationId: null,
+      status: 'submitting',
+      createdAt: new Date().toISOString()
+    };
+    await dependencies.putSeatAccessFence(scope, fence, { lockContext });
+    const operation = await submitFencedMutation(
+      scope,
+      fence,
+      () => context.client.cancelAccountInvitation(
         context.integration.accountRef,
         invitation.actionRef,
-        invitation.email,
-        invitation.createdAt,
-        actionRequestId
-      )
-    }
+        { idempotencyKey }
+      ),
+      dependencies,
+      lockContext
+    );
+    return { ok: true, operationId: operation.operationId, actionRequestId, operation, invitation };
+  });
+  if (!locked.acquired) {
+    throw Object.assign(new Error('This Seat email is already being changed'), { statusCode: 409, code: 'SEAT_ACCESS_BUSY' });
+  }
+  return locked.value;
+}
+
+function automaticExpiryCandidate(view, integration, email, nowMs) {
+  const normalized = normalizedEmail(email);
+  const entitlement = view.entitlements.find((item) => item.email === normalized);
+  const expiresAtMs = validDate(entitlement?.expiresAt);
+  const graceMs = Math.max(0, Number(integration.expiryGraceMs || 0));
+  if (
+    !normalized
+    || entitlement?.state !== 'expired'
+    || expiresAtMs === null
+    || expiresAtMs + graceMs > nowMs
+  ) return null;
+
+  const ownerEmail = normalizedEmail(view.account?.email);
+  const protectedEmails = new Set((integration.protectedEmails || []).map(normalizedEmail).filter(Boolean));
+  if (normalized === ownerEmail || protectedEmails.has(normalized)) return null;
+
+  const member = view.members.find((item) => item.email === normalized);
+  if (member) {
+    return member.classification === 'expired' && member.removable
+      ? { kind: 'member', reference: member.actionRef, subject: member, entitlement }
+      : null;
+  }
+  const invitation = view.invitations.find((item) => item.email === normalized);
+  if (invitation) {
+    return invitation.classification === 'expired' && invitation.cancelable
+      ? { kind: 'invitation', reference: invitation.actionRef, subject: invitation, entitlement }
+      : null;
+  }
+  const allowed = new Set((view.account?.allowedMembers || []).map(normalizedEmail).filter(Boolean));
+  return allowed.has(normalized)
+    ? { kind: 'allowlist', reference: normalized, subject: null, entitlement }
+    : null;
+}
+
+async function safeExpiryAudit(dependencies, action, email, details = {}) {
+  try {
+    await dependencies.recordAudit('seat-expiry', action, 'chatgpt_seat', email, details);
+  } catch (error) {
+    console.error('[seat-expiry] audit failed:', String(error?.message || error).slice(0, 300));
+  }
+}
+
+function assertExpiryOperationSucceeded(operation) {
+  if (operation?.succeeded || operation?.status === 'succeeded') return;
+  const error = Object.assign(new Error('Seat expiry cleanup operation did not succeed'), {
+    code: operation?.error?.code || 'SEAT_EXPIRY_OPERATION_FAILED',
+    operationId: operation?.operationId
+  });
+  throw error;
+}
+
+async function verifyExpiryCleanup(client, accountRef, email) {
+  const remote = await client.getAccountMembers(accountRef);
+  const allowed = new Set((remote.account?.allowedMembers || []).map(normalizedEmail).filter(Boolean));
+  const liveMember = (remote.members || []).some((item) => normalizedEmail(item?.email) === email);
+  const liveInvitation = (remote.invitations || []).some((item) => normalizedEmail(item?.email) === email);
+  if (allowed.has(email) || liveMember || liveInvitation) {
+    throw Object.assign(new Error('Expired Seat cleanup is not yet visible in the live workspace'), {
+      code: 'SEAT_EXPIRY_VERIFICATION_PENDING'
+    });
+  }
+  return remote;
+}
+
+function seatEmailStillPresent(view, email) {
+  return (view.members || []).some((item) => item.email === email)
+    || (view.invitations || []).some((item) => item.email === email)
+    || (view.account?.allowedMembers || []).some((item) => normalizedEmail(item) === email);
+}
+
+async function executeExpiryCandidate(candidate, context, options) {
+  const {
+    dependencies,
+    integration,
+    lockContext,
+    normalized,
+    nowMs,
+    retryGeneration
+  } = options;
+  const action = candidate.kind === 'member' ? 'expire-member' : 'expire-invitation';
+  const idempotencyKey = mutationKey(
+    action,
+    integration.accountRef,
+    candidate.reference,
+    normalized,
+    candidate.entitlement.expiresAt,
+    retryGeneration
   );
-  return { ok: true, operationId: operation.operationId, actionRequestId, operation, invitation };
+  const scope = fenceScope(integration, normalized);
+  const fence = {
+    source: 'expiry',
+    actionKind: candidate.kind === 'member' ? 'member' : 'invitation',
+    externalRef: candidate.reference,
+    idempotencyKey,
+    entitlementExpiresAt: candidate.entitlement.expiresAt,
+    orderIds: candidate.entitlement.orderIds,
+    operationId: null,
+    status: 'submitting',
+    createdAt: new Date(nowMs).toISOString()
+  };
+  await dependencies.putSeatAccessFence(scope, fence, { lockContext });
+
+  let submitted;
+  let operation;
+  let terminalOutcomeKnown = false;
+  try {
+    submitted = await submitFencedMutation(
+      scope,
+      fence,
+      () => candidate.kind === 'member'
+        ? context.client.removeAccountMember(integration.accountRef, candidate.reference, { idempotencyKey })
+        : context.client.cancelAccountInvitation(integration.accountRef, candidate.reference, { idempotencyKey }),
+      dependencies,
+      lockContext
+    );
+    operation = submitted.terminal
+      ? submitted
+      : await context.client.pollOperation(submitted.operationId);
+    terminalOutcomeKnown = Boolean(operation?.terminal);
+    if (terminalOutcomeKnown) {
+      if (operation?.succeeded || operation?.status === 'succeeded') {
+        await dependencies.deleteSeatAccessFence(scope, { lockContext });
+      } else {
+        await dependencies.putSeatAccessFence(scope, {
+          ...fence,
+          operationId: operation?.operationId || submitted.operationId || null,
+          status: operation?.status || 'failed',
+          errorCode: String(operation?.error?.code || 'SEAT_EXPIRY_OPERATION_FAILED').slice(0, 100)
+        }, { lockContext });
+      }
+    }
+    assertExpiryOperationSucceeded(operation);
+  } catch (error) {
+    if (error && typeof error === 'object' && !error.operationId) {
+      error.operationId = submitted?.operationId;
+    }
+    if (submitted && !terminalOutcomeKnown && !submitted.terminal) {
+      await dependencies.putSeatAccessFence(scope, {
+        ...fence,
+        operationId: error?.operationId || null,
+        status: 'uncertain',
+        errorCode: String(error?.code || 'SEAT_EXPIRY_CLEANUP_UNCERTAIN').slice(0, 100)
+      }, { lockContext }).catch(() => {});
+    }
+    throw error;
+  }
+  return {
+    ok: true,
+    email: normalized,
+    kind: candidate.kind,
+    expiresAt: candidate.entitlement.expiresAt,
+    orderIds: candidate.entitlement.orderIds,
+    submittedOperationId: submitted.operationId,
+    operation
+  };
+}
+
+export async function cleanupExpiredSeatAccess(email, options = {}) {
+  const integration = options.integration || guardConfig();
+  const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
+  const nowMs = Number(options.nowMs ?? Date.now());
+  const normalized = normalizedEmail(email);
+  if (!normalized) throw Object.assign(new Error('A valid Seat email is required'), { statusCode: 400 });
+
+  const locked = await dependencies.withSeatAccessLocks({
+    provider: 'chatgpt',
+    accountRef: integration.accountRef,
+    emails: [normalized]
+  }, async (lockContext) => {
+    const reconciled = await reconcileGuardFence(normalized, integration, dependencies, lockContext);
+    if (!reconciled.ok) {
+      return {
+        skipped: true,
+        reason: 'seat_cleanup_pending',
+        email: normalized,
+        operationId: reconciled.operationId || null
+      };
+    }
+
+    let context = await loadSeatGuardContext({
+      integration,
+      dependencies,
+      nowMs,
+      entitlementEmails: [normalized]
+    });
+    if (!context.view.capabilities.canRemove) {
+      throw Object.assign(new Error('The Seat expiry key needs members:remove permission'), { statusCode: 403 });
+    }
+    const retryWindowMs = Math.max(15 * 60_000, Number(integration.expiryRetryWindowMs || 15 * 60_000));
+    const previousFailure = reconciled.results?.find((item) => (
+      item.email === normalized && !['succeeded', 'already_absent'].includes(String(item.status || ''))
+    ));
+    const retryGeneration = previousFailure?.operationId
+      ? `after-${previousFailure.operationId}`
+      : `window-${Math.floor(nowMs / retryWindowMs)}`;
+    let completedResult = null;
+    for (let pass = 0; pass < 3; pass += 1) {
+      const candidate = automaticExpiryCandidate(context.view, integration, normalized, nowMs);
+      if (!candidate) {
+        if (completedResult && !seatEmailStillPresent(context.view, normalized)) return completedResult;
+        return { skipped: true, reason: 'no_longer_expired_or_eligible', email: normalized };
+      }
+
+      completedResult = await executeExpiryCandidate(candidate, context, {
+        dependencies,
+        integration,
+        lockContext,
+        normalized,
+        nowMs,
+        retryGeneration: `${retryGeneration}-pass-${pass}`
+      });
+      try {
+        await verifyExpiryCleanup(context.client, integration.accountRef, normalized);
+        return completedResult;
+      } catch (error) {
+        if (error?.code !== 'SEAT_EXPIRY_VERIFICATION_PENDING' || pass === 2) throw error;
+        context = await loadSeatGuardContext({
+          integration,
+          dependencies,
+          nowMs,
+          entitlementEmails: [normalized]
+        });
+      }
+    }
+    return completedResult;
+  });
+
+  if (!locked.acquired) return { skipped: true, reason: 'seat_access_busy', email: normalized };
+  const result = locked.value;
+  if (result?.ok) {
+    const details = {
+      kind: result.kind,
+      expiresAt: result.expiresAt,
+      orderIds: result.orderIds,
+      operationId: result.operation?.operationId || result.submittedOperationId
+    };
+    await safeExpiryAudit(dependencies, 'seat_guard.expiry_cleanup_succeeded', normalized, details);
+  }
+  return result;
+}
+
+async function runExpiredSeatSweep(options = {}) {
+  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  if (!integration.expiryAutoRemove) return { skipped: true, reason: 'disabled', results: [] };
+  const storage = seatExpiryStorageStatus();
+  if (!storage.ready && options.allowNonPostgres !== true) {
+    return {
+      skipped: true,
+      reason: storage.rowMode ? 'database_pool_too_small' : 'postgres_row_mode_required',
+      requiredDatabasePoolMax: storage.requiredPoolMax,
+      results: []
+    };
+  }
+
+  const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
+  const nowMs = Number(options.nowMs ?? Date.now());
+  const context = await loadSeatGuardContext({ integration, dependencies, nowMs });
+  if (!context.view.capabilities.canRemove) {
+    return { skipped: true, reason: 'members_remove_permission_required', results: [] };
+  }
+  const batchSize = Math.max(1, Math.min(100, Number(integration.expiryBatchSize || 10)));
+  const emails = context.view.entitlements
+    .map((entitlement) => automaticExpiryCandidate(context.view, integration, entitlement.email, nowMs))
+    .filter(Boolean)
+    .sort((left, right) => String(left.entitlement.expiresAt).localeCompare(String(right.entitlement.expiresAt)))
+    .slice(0, batchSize)
+    .map((candidate) => candidate.entitlement.email);
+
+  const results = [];
+  for (const candidateEmail of emails) {
+    try {
+      results.push(await cleanupExpiredSeatAccess(candidateEmail, {
+        integration,
+        dependencies,
+        nowMs
+      }));
+    } catch (error) {
+      await safeExpiryAudit(dependencies, 'seat_guard.expiry_cleanup_failed', candidateEmail, {
+        code: String(error?.code || 'SEAT_EXPIRY_CLEANUP_FAILED').slice(0, 100),
+        operationId: error?.operationId || null
+      });
+      results.push({
+        ok: false,
+        email: candidateEmail,
+        code: error?.code || 'SEAT_EXPIRY_CLEANUP_FAILED'
+      });
+    }
+  }
+  return { ok: results.every((item) => item.ok !== false), results };
+}
+
+export function sweepExpiredSeatAccess(options = {}) {
+  if (expirySweepPromise) return expirySweepPromise;
+  const tracked = runExpiredSeatSweep(options).finally(() => {
+    if (expirySweepPromise === tracked) expirySweepPromise = null;
+  });
+  expirySweepPromise = tracked;
+  return tracked;
+}
+
+export function startSeatExpiryAutomation(options = {}) {
+  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  if (!integration.expiryAutoRemove) return null;
+  if (!seatExpiryStorageStatus().ready && options.allowNonPostgres !== true) return null;
+  const intervalMs = Math.max(60_000, Number(integration.expirySweepMs || 15 * 60_000));
+  const run = () => sweepExpiredSeatAccess(options).catch((error) => {
+    console.error('[seat-expiry] sweep failed:', String(error?.message || error).slice(0, 300));
+  });
+  setImmediate(run);
+  const timer = setInterval(run, intervalMs);
+  timer.unref?.();
+  return timer;
 }
 
 export async function getSeatGuardOperation(operationId, options = {}) {
   const integration = options.integration || guardConfig();
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
-  return clientFor(integration, dependencies).getOperation(operationId);
+  const operation = await clientFor(integration, dependencies).getOperation(operationId);
+  if (operation?.terminal) {
+    try {
+      await dependencies.deleteSeatAccessFencesByOperationId(operation.operationId, {
+        provider: 'chatgpt',
+        accountRef: integration.accountRef
+      });
+    } catch (error) {
+      console.error('[seat-guard] terminal fence cleanup failed:', String(error?.message || error).slice(0, 300));
+    }
+  }
+  return operation;
 }

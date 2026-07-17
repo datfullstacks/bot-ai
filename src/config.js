@@ -167,6 +167,20 @@ export const config = {
           min: 64 * 1024,
           max: 10 * 1024 * 1024
         }),
+        expiryAutoRemove: enabled(process.env.GPT_SEAT_EXPIRY_AUTO_REMOVE, false),
+        expirySweepMs: boundedEnv('GPT_SEAT_EXPIRY_SWEEP_MS', 15 * 60_000, {
+          min: 60_000,
+          max: 24 * 60 * 60_000
+        }),
+        expiryBatchSize: boundedEnv('GPT_SEAT_EXPIRY_BATCH_SIZE', 10, { min: 1, max: 100 }),
+        expiryGraceMs: boundedEnv('GPT_SEAT_EXPIRY_GRACE_MS', 0, {
+          min: 0,
+          max: 7 * 24 * 60 * 60_000
+        }),
+        expiryRetryWindowMs: boundedEnv('GPT_SEAT_EXPIRY_RETRY_WINDOW_MS', 15 * 60_000, {
+          min: 15 * 60_000,
+          max: 7 * 24 * 60 * 60_000
+        }),
         requestTimeoutMs: boundedEnv('GPT_MEMBER_REQUEST_TIMEOUT_MS', 10_000, { min: 1_000, max: 120_000 }),
         operationTimeoutMs: boundedEnv('GPT_MEMBER_OPERATION_TIMEOUT_MS', 180_000, { min: 1_000, max: 1_800_000 }),
         pollIntervalMs: boundedEnv('GPT_MEMBER_POLL_INTERVAL_MS', 1_500, { min: 100, max: 60_000 })

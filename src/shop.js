@@ -20,6 +20,7 @@ export const listOrdersForUser = (...args) => activeShopStore().listOrdersForUse
 export const getOrderCheckoutForUser = (...args) => activeShopStore().getOrderCheckoutForUser(...args);
 export const cancelOrderForUser = (...args) => activeShopStore().cancelOrderForUser(...args);
 export const listOrders = (...args) => activeShopStore().listOrders(...args);
+export const listSeatOrdersForEmails = (...args) => activeShopStore().listSeatOrdersForEmails(...args);
 export const listPayments = (...args) => activeShopStore().listPayments(...args);
 export const getPublicPaymentStatus = (...args) => activeShopStore().getPublicPaymentStatus(...args);
 export const listAuditLogs = (...args) => activeShopStore().listAuditLogs(...args);
@@ -30,6 +31,7 @@ export const cancelOrder = (...args) => activeShopStore().cancelOrder(...args);
 export const approveReviewDelivery = (...args) => activeShopStore().approveReviewDelivery(...args);
 export const completeSeatFulfillment = (...args) => activeShopStore().completeSeatFulfillment(...args);
 export const updateSeatFulfillmentAutomation = (...args) => activeShopStore().updateSeatFulfillmentAutomation(...args);
+export const backfillSeatEntitlementTarget = (...args) => activeShopStore().backfillSeatEntitlementTarget(...args);
 export const markOrderRefunded = (...args) => activeShopStore().markOrderRefunded(...args);
 export const getDeliveryForOrder = (...args) => activeShopStore().getDeliveryForOrder(...args);
 export const expireOrders = (...args) => activeShopStore().expireOrders(...args);

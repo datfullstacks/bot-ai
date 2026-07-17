@@ -121,6 +121,40 @@ assert.equal(memberIntegrationForOrder(seatOrder({ sku: 'canva-pro-6m' }), setti
 assert.equal(memberIntegrationForOrder(seatOrder({ sku: 'claude-business-seat-1x-1m' }), settings()), null);
 assert.equal(memberIntegrationForOrder({ ...chatgptOrder, productSnapshot: { fulfillmentMode: 'inventory' }, fulfillment: {} }, settings()), null);
 {
+  const lockedOrder = seatOrder({ id: 'ord_seat_access_busy' });
+  const test = harness(lockedOrder, settings(), () => {
+    throw new Error('The member client must not be created while the Seat access lock is busy.');
+  });
+  test.dependencies.withSeatAccessLocks = async () => ({ acquired: false, value: undefined });
+  const result = await processSeatFulfillment(lockedOrder.id, { dependencies: test.dependencies });
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, 'seat_access_busy');
+  assert.equal(test.automationUpdates.length, 0);
+  assert.equal(test.completions.length, 0);
+}
+{
+  const fencedOrder = seatOrder({ id: 'ord_cleanup_still_pending' });
+  const test = harness(fencedOrder, settings(), () => {
+    throw new Error('Fulfillment must not create a member client while an older cleanup is unresolved.');
+  });
+  test.dependencies.withSeatAccessLocks = async (scope, callback) => ({
+    acquired: true,
+    value: await callback({ storage: 'local', client: null })
+  });
+  test.dependencies.reconcileSeatAccessFences = async () => ({
+    ok: false,
+    reason: 'seat_cleanup_pending',
+    email: 'buyer@example.com',
+    operationId: 'op_old_cleanup_0001'
+  });
+  const result = await processSeatFulfillment(fencedOrder.id, { dependencies: test.dependencies });
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, 'seat_cleanup_pending');
+  assert.equal(result.operationId, 'op_old_cleanup_0001');
+  assert.equal(test.automationUpdates.length, 0);
+  assert.equal(test.completions.length, 0);
+}
+{
   const pinnedOrder = seatOrder({ id: 'ord_provider_pinned' });
   pinnedOrder.fulfillment.automation = { provider: 'chatgpt', status: 'blocked' };
   const remappedSettings = settings();
@@ -169,6 +203,7 @@ assert.throws(
 {
   const order = seatOrder({ emails: ['A@example.com', 'b@example.com'] });
   let deliveredNotice = 0;
+  let seatLockHeld = false;
   const test = harness(order, settings(), () => ({
     async submitOperation(input) {
       assert.equal(input.accountRef, 'admin@example.com');
@@ -187,15 +222,27 @@ assert.throws(
       };
     }
   }));
+  test.dependencies.withSeatAccessLocks = async (scope, callback) => {
+    seatLockHeld = true;
+    try {
+      return { acquired: true, value: await callback({ storage: 'local', client: null }) };
+    } finally {
+      seatLockHeld = false;
+    }
+  };
   const result = await processSeatFulfillment(order.id, {
     dependencies: test.dependencies,
-    onDelivered: async () => { deliveredNotice += 1; },
+    onDelivered: async () => {
+      assert.equal(seatLockHeld, false, 'Telegram delivery notices must run after releasing the Seat lock.');
+      deliveredNotice += 1;
+    },
     throwOnError: true
   });
   assert.equal(result.ok, true);
   assert.equal(order.status, 'delivered');
   assert.equal(order.fulfillment.automation.status, 'succeeded');
   assert.equal(order.fulfillment.automation.operationId, 'op_success_submit');
+  assert.match(order.fulfillment.automation.entitlementTargetFingerprint, /^[a-f0-9]{64}$/);
   assert.equal(test.completions.length, 1);
   assert.equal(deliveredNotice, 1);
 }
@@ -602,6 +649,11 @@ assert.throws(
   assert.equal(result.reconciled, true);
   assert.equal(order.status, 'delivered');
   assert.equal(test.completions.length, 1);
+  assert.equal(
+    order.fulfillment.automation.entitlementTargetFingerprint,
+    undefined,
+    'A persisted success without a matching credential-bound target must remain fail-closed.'
+  );
 }
 
 {

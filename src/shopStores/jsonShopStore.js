@@ -445,6 +445,24 @@ export async function listOrders(options = {}) {
   return pageItems(orders, options);
 }
 
+export async function listSeatOrdersForEmails(emailValues = []) {
+  const emails = new Set(emailValues
+    .map((email) => String(email || '').trim().toLowerCase())
+    .filter(Boolean));
+  if (!emails.size) return [];
+  const db = await readStore();
+  const orders = db.orders.filter((order) => (
+    ['delivered', 'awaiting_fulfillment'].includes(order.status)
+    && (order.fulfillment?.recipients || []).some((recipient) => (
+      emails.has(String(recipient?.email || '').trim().toLowerCase())
+    ))
+  ));
+  if (orders.length > 1000) {
+    throw Object.assign(new Error('Seat order history is too large to reconcile safely'), { statusCode: 503 });
+  }
+  return orders.map(publicOrder);
+}
+
 export async function listPayments(options = {}) {
   const db = await readStore();
   return pageItems(db.payments.slice().reverse(), options);
@@ -917,7 +935,14 @@ export async function updateSeatFulfillmentAutomation(actorId, orderId, input = 
       return publicOrder(order);
     }
     const automation = { ...current };
-    const stringFields = ['provider', 'status', 'operationId', 'idempotencyKey', 'targetFingerprint'];
+    const stringFields = [
+      'provider',
+      'status',
+      'operationId',
+      'idempotencyKey',
+      'targetFingerprint',
+      'entitlementTargetFingerprint'
+    ];
     for (const key of stringFields) {
       if (input[key] !== undefined) automation[key] = String(input[key] || '').trim().slice(0, 160);
     }
@@ -952,6 +977,31 @@ export async function updateSeatFulfillmentAutomation(actorId, orderId, input = 
       errorCode: automation.error?.code || ''
     });
     return publicOrder(order);
+  });
+}
+
+export async function backfillSeatEntitlementTarget(actorId, orderId, input = {}) {
+  const expectedTargetFingerprint = String(input.expectedTargetFingerprint || '').trim();
+  const entitlementTargetFingerprint = String(input.entitlementTargetFingerprint || '').trim();
+  if (!/^[a-f0-9]{64}$/.test(expectedTargetFingerprint) || !/^[a-f0-9]{64}$/.test(entitlementTargetFingerprint)) {
+    throw new TypeError('Valid Seat target fingerprints are required');
+  }
+  return withWrite(async (db) => {
+    const order = db.orders.find((item) => item.id === orderId);
+    if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    if (!isSeatOrder(order) || order.status !== 'delivered') return { updated: false, order: publicOrder(order) };
+    const automation = order.fulfillment?.automation || {};
+    if (automation.status !== 'succeeded') return { updated: false, order: publicOrder(order) };
+    if (automation.entitlementTargetFingerprint) return { updated: false, order: publicOrder(order) };
+    if (automation.targetFingerprint !== expectedTargetFingerprint) return { updated: false, order: publicOrder(order) };
+    automation.entitlementTargetFingerprint = entitlementTargetFingerprint;
+    automation.updatedAt = nowIso();
+    order.fulfillment = { ...order.fulfillment, automation };
+    order.updatedAt = nowIso();
+    addAudit(db, actorId, 'order.fulfillment.entitlement_target_backfill', 'order', order.id, {
+      provider: automation.provider || ''
+    });
+    return { updated: true, order: publicOrder(order) };
   });
 }
 

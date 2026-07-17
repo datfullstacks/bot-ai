@@ -32,6 +32,7 @@ assert.ok(html.includes('data-lucide="log-out"'), 'Logout button should include 
 assert.ok(html.includes('data-tab="seatGuard"'), 'Admin nav should expose the Seat Guard tab.');
 assert.ok(html.includes('id="seatGuardTab"'), 'Admin HTML should include the Seat Guard panel.');
 assert.ok(html.includes('data-lucide="shield-check"'), 'Seat Guard nav should include a shield icon.');
+assert.ok(html.includes('configured 30-day term'), 'Seat Guard should explain its fixed 30-day entitlement term.');
 
 for (const fn of [
   'renderProductFilters',
@@ -72,6 +73,8 @@ assert.ok(js.includes('expectedEmail: email, confirmation'), 'Seat Guard mutatio
 assert.ok(js.includes('actionRequestId'), 'Seat Guard mutations should preserve an explicit idempotency generation.');
 assert.ok(js.includes('/api/seat-guard/operations/${encodeURIComponent(operationId)}'), 'Seat Guard should poll the returned operation until terminal.');
 assert.ok(js.includes('seatGuardRiskSorted'), 'Seat Guard should sort dangerous access rows first.');
+assert.ok(js.includes('<strong>30-day expiry</strong>'), 'Seat Guard should surface automatic expiry status.');
+assert.ok(js.includes('PostgreSQL row mode required'), 'Seat Guard should explain when expiry cleanup storage is unsafe.');
 assert.ok(html.includes('id="seatGuardMemberSearch"'), 'Seat Guard should support searching large member workspaces.');
 assert.ok(html.includes('id="seatGuardInviteRiskCount"'), 'Seat Guard should surface risky invitations in its summary.');
 assert.ok(js.includes("filteredProducts()"), 'Product rendering should use filteredProducts().');
@@ -121,6 +124,7 @@ assert.ok(server.includes("'seat_guard.member.remove_queued'"), 'Seat member rem
 assert.ok(server.includes("'seat_guard.invitation.cancel_queued'"), 'Seat invitation cancellation should be written to the audit log.');
 assert.ok(server.includes('await requestSeatFulfillmentRetry(params.id'), 'Retry Auto should persist a durable retry request before returning 202.');
 assert.ok(server.includes('startSeatFulfillmentAutomation'), 'Server should resume pending automatic Seat operations after restart.');
+assert.ok(server.includes('startSeatExpiryAutomation()'), 'Server should start the guarded Seat expiry scheduler.');
 assert.ok(js.includes('automaticFulfillmentProvider'), 'Admin automation actions should use the backend SKU mapping instead of hardcoded SKUs.');
 assert.ok(js.includes("actionButton('refund-after-cleanup'"), 'Failed external operations should require cleanup before refund.');
 assert.ok(js.includes('confirmExternalCleanup: true'), 'Confirmed cleanup should be sent explicitly to the refund guard.');

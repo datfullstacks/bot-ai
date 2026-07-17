@@ -68,6 +68,15 @@ export async function ensurePostgresSchema(client = getPool()) {
       updated_at timestamptz NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS seat_access_fences (
+      provider text NOT NULL,
+      account_ref text NOT NULL,
+      email text NOT NULL,
+      fence jsonb NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (provider, account_ref, email)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_app_documents_collection
       ON app_documents (collection);
 
@@ -184,13 +193,17 @@ export async function readPostgresStore() {
   }
 }
 
-export async function withPostgresClient(callback) {
+export async function withPostgresClient(callback, options = {}) {
   const client = await getPool().connect();
+  let discard = false;
   try {
     await ensurePostgresSchema(client);
     return await callback(client);
+  } catch (error) {
+    discard = options.destroyOnError === true;
+    throw error;
   } finally {
-    client.release();
+    client.release(discard);
   }
 }
 
