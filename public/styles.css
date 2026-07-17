@@ -557,6 +557,11 @@ nav {
   color: var(--warning);
 }
 
+.badge.awaiting_fulfillment {
+  background: #e7f0ff;
+  color: #2457a7;
+}
+
 .badge.cancelled,
 .badge.failed,
 .badge.expired,
@@ -577,7 +582,7 @@ nav {
 
 .inline-form {
   display: grid;
-  grid-template-columns: 180px 80px auto;
+  grid-template-columns: 180px 80px minmax(240px, 1fr) auto;
   gap: 8px;
 }
 
@@ -590,7 +595,7 @@ nav {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 820px;
+  min-width: 1040px;
 }
 
 .data-table th,
@@ -600,6 +605,38 @@ nav {
   text-align: left;
   vertical-align: top;
   font-size: 13px;
+}
+
+.seat-fulfillment-strip span {
+  background: #e7f0ff;
+  color: #2457a7;
+}
+
+.recipient-list {
+  display: grid;
+  gap: 5px;
+  min-width: 190px;
+}
+
+.data-table td .recipient-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.recipient-email small {
+  color: var(--muted);
+}
+
+.data-table td .inline-icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-top: 0;
 }
 
 .data-table th {

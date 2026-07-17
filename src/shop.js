@@ -28,6 +28,7 @@ export const applyPaymentEvent = (...args) => activeShopStore().applyPaymentEven
 export const markOrderPaidManually = (...args) => activeShopStore().markOrderPaidManually(...args);
 export const cancelOrder = (...args) => activeShopStore().cancelOrder(...args);
 export const approveReviewDelivery = (...args) => activeShopStore().approveReviewDelivery(...args);
+export const completeSeatFulfillment = (...args) => activeShopStore().completeSeatFulfillment(...args);
 export const markOrderRefunded = (...args) => activeShopStore().markOrderRefunded(...args);
 export const getDeliveryForOrder = (...args) => activeShopStore().getDeliveryForOrder(...args);
 export const expireOrders = (...args) => activeShopStore().expireOrders(...args);

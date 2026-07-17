@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { config, nowIso } from '../config.js';
-import { normalizeDeliveryMode, normalizeProductInput, normalizePublicProduct } from '../catalog.js';
+import {
+  isSeatEmailFulfillment,
+  normalizeDeliveryMode,
+  normalizeFulfillmentMode,
+  normalizeProductInput,
+  normalizePublicProduct
+} from '../catalog.js';
 import {
   assertInventoryEncryptionReadyForImport,
   assertInventorySecretsReadyForSale,
@@ -12,11 +18,22 @@ import {
 import { publicPaymentCheckout } from '../paymentView.js';
 import { paymentProvider } from '../payments.js';
 import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
+import { parseSeatEmailLines } from '../seatFulfillment.js';
 import { withPostgresClient, withPostgresTransaction } from '../postgresStore.js';
 
 const orderTtlMs = config.orders.ttlMinutes * 60 * 1000;
 const finalOrderStatuses = new Set(['delivered', 'refunded']);
 const closedPaymentStatuses = new Set(['paid', 'amount_mismatch', 'paid_needs_review', 'refunded']);
+
+function seatOrderRecipients(input) {
+  const emails = parseSeatEmailLines(input, { maxQuantity: config.orders.maxQuantity });
+  return emails.map((email) => ({ email, status: 'pending' }));
+}
+
+function isSeatOrder(order = {}) {
+  return [order.productSnapshot?.fulfillmentMode, order.fulfillment?.mode]
+    .some((value) => String(value || '').trim().toLowerCase() === 'seat_email');
+}
 
 function makeId(prefix) {
   return `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 18)}`;
@@ -160,10 +177,11 @@ export async function getDashboardSummary() {
       WHERE collection IN ('products', 'inventory', 'orders')
       GROUP BY collection, doc->>'status'
     `);
-    const deliveredRevenue = await client.query(`
+    const receivedRevenue = await client.query(`
       SELECT COALESCE(sum((doc->>'total')::numeric), 0)::float AS revenue
       FROM app_documents
-      WHERE collection = 'orders' AND doc->>'status' = 'delivered'
+      WHERE collection = 'orders'
+        AND doc->>'status' IN ('delivered', 'awaiting_fulfillment')
     `);
     const recentOrders = await client.query(`
       SELECT doc
@@ -184,11 +202,14 @@ export async function getDashboardSummary() {
       products: count('products'),
       availableInventory: count('inventory', 'available'),
       pendingOrders: count('orders', 'pending_payment'),
+      awaitingFulfillmentOrders: count('orders', 'awaiting_fulfillment'),
       deliveredOrders: count('orders', 'delivered'),
       reviewOrders: count('orders', 'payment_review'),
-      revenue: deliveredRevenue.rows[0]?.revenue || 0,
+      revenue: receivedRevenue.rows[0]?.revenue || 0,
       recentOrders: recentOrders.rows.map((row) => publicOrder(row.doc)),
-      lowStock: products.filter((product) => product.active && product.stock.available <= 2)
+      lowStock: products.filter((product) => (
+        product.active && !isSeatEmailFulfillment(product) && product.stock.available <= 2
+      ))
     };
   });
 }
@@ -285,6 +306,12 @@ export async function updateProduct(actorId, productId, input) {
     if (input.deliveryMode !== undefined) {
       product.deliveryMode = normalizeDeliveryMode(input.deliveryMode, { strict: true });
     }
+    if (input.fulfillmentMode !== undefined) {
+      product.fulfillmentMode = normalizeFulfillmentMode(input.fulfillmentMode, {
+        strict: true,
+        sku: product.sku
+      });
+    }
     if (!product.name || !Number.isSafeInteger(product.price) || product.price <= 0) {
       throw Object.assign(new Error('Name and positive integer price are required'), { statusCode: 400 });
     }
@@ -300,6 +327,9 @@ export async function importInventory(actorId, productId, lines) {
   return withPostgresTransaction(async (client) => {
     const productRow = await getDoc(client, 'products', productId);
     if (!productRow) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
+    if (isSeatEmailFulfillment(productRow.doc)) {
+      throw Object.assign(new Error('Seat-email products do not use inventory'), { statusCode: 409 });
+    }
 
     assertInventoryEncryptionReadyForImport();
     const requested = [...new Set(lines.map((line) => String(line).trim()).filter(Boolean))];
@@ -390,7 +420,6 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
   return withPostgresTransaction(async (client) => {
     await expirePendingOrdersInClient(client, 'system', 100);
 
-    const qty = normalizeOrderQuantity(quantity);
     const sku = String(productSkuOrId || '').toLowerCase();
     const productResult = await client.query(
       `SELECT id, doc
@@ -405,6 +434,13 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
     }
     assertSalesOrderAllowed(product, user);
+    const seatEmailOrder = isSeatEmailFulfillment(product);
+    const seatRecipients = seatEmailOrder
+      ? seatOrderRecipients(options.recipientEmails)
+      : [];
+    const qty = seatEmailOrder
+      ? normalizeOrderQuantity(seatRecipients.length)
+      : normalizeOrderQuantity(quantity);
 
     const checkoutKey = String(options.idempotencyKey || '').trim().slice(0, 200);
     if (checkoutKey) {
@@ -449,21 +485,25 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       throw Object.assign(new Error('Too many pending orders. Pay or cancel an existing order first.'), { statusCode: 429 });
     }
 
-    const inventoryResult = await client.query(
-      `SELECT id, doc
-       FROM app_documents
-       WHERE collection = 'inventory'
-         AND doc->>'productId' = $1
-         AND doc->>'status' = 'available'
-       ORDER BY doc->>'createdAt' ASC
-       LIMIT $2
-       FOR UPDATE SKIP LOCKED`,
-      [product.id, qty]
-    );
-    if (inventoryResult.rows.length < qty) {
-      throw Object.assign(new Error('Not enough stock'), { statusCode: 409 });
+    let inventoryRows = [];
+    if (!seatEmailOrder) {
+      const inventoryResult = await client.query(
+        `SELECT id, doc
+         FROM app_documents
+         WHERE collection = 'inventory'
+           AND doc->>'productId' = $1
+           AND doc->>'status' = 'available'
+         ORDER BY doc->>'createdAt' ASC
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED`,
+        [product.id, qty]
+      );
+      inventoryRows = inventoryResult.rows;
+      if (inventoryRows.length < qty) {
+        throw Object.assign(new Error('Not enough stock'), { statusCode: 409 });
+      }
+      assertInventorySecretsReadyForSale(inventoryRows.map((row) => row.doc));
     }
-    assertInventorySecretsReadyForSale(inventoryResult.rows.map((row) => row.doc));
 
     const order = {
       id: makeId('ord'),
@@ -485,8 +525,15 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         accountType: product.accountType || '',
         warrantyPolicy: product.warrantyPolicy || '',
         replacementPolicy: product.replacementPolicy || '',
-        deliveryMode: normalizeDeliveryMode(product.deliveryMode)
+        deliveryMode: normalizeDeliveryMode(product.deliveryMode),
+        fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku })
       },
+      ...(seatEmailOrder ? {
+        fulfillment: {
+          mode: 'seat_email',
+          recipients: seatRecipients
+        }
+      } : {}),
       status: 'pending_payment',
       paymentId: null,
       deliverySecrets: [],
@@ -500,12 +547,16 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         to: 'pending_payment',
         actorId: user.id,
         reason: 'order_created',
-        details: { sku: product.sku, quantity: qty },
+        details: {
+          sku: product.sku,
+          quantity: qty,
+          ...(seatEmailOrder ? { fulfillmentMode: 'seat_email', recipientCount: seatRecipients.length } : {})
+        },
         at: nowIso()
       }]
     };
 
-    for (const row of inventoryResult.rows) {
+    for (const row of inventoryRows) {
       const item = row.doc;
       item.status = 'reserved';
       item.orderId = order.id;
@@ -928,7 +979,10 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       return { order: publicOrder(order), payment };
     }
 
-    if (closedPaymentStatuses.has(payment.status) && ['paid', 'delivered', 'payment_review'].includes(order.status)) {
+    if (
+      closedPaymentStatuses.has(payment.status)
+      && ['paid', 'delivered', 'payment_review', 'awaiting_fulfillment'].includes(order.status)
+    ) {
       await upsertDoc(client, 'payments', payment);
       return { duplicate: true, order: publicOrder(order), payment };
     }
@@ -949,7 +1003,7 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       return { order: publicOrder(order), payment };
     }
 
-    if (['paid', 'delivered'].includes(order.status)) {
+    if (['paid', 'delivered', 'awaiting_fulfillment'].includes(order.status)) {
       await upsertDoc(client, 'payments', payment);
       return { duplicate: true, order: publicOrder(order), payment };
     }
@@ -978,6 +1032,24 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       await addAuditDoc(client, actorId, 'payment.needs_review.expired', 'order', order.id, {
         amount: event.amount,
         expiresAt: order.expiresAt
+      });
+      await upsertDoc(client, 'payments', payment);
+      await upsertDoc(client, 'orders', order);
+      return { order: publicOrder(order), payment };
+    }
+
+    if (isSeatOrder(order)) {
+      payment.status = 'paid';
+      payment.bankReference = event.bankReference || payment.bankReference || '';
+      order.paidAt = nowIso();
+      await setOrderStatus(client, order, 'awaiting_fulfillment', actorId, 'payment_confirmed', {
+        amount: order.total,
+        fulfillmentMode: 'seat_email',
+        recipientCount: order.fulfillment?.recipients?.length || 0
+      });
+      await addAuditDoc(client, actorId, 'payment.paid', 'order', order.id, {
+        amount: order.total,
+        fulfillmentMode: 'seat_email'
       });
       await upsertDoc(client, 'payments', payment);
       await upsertDoc(client, 'orders', order);
@@ -1048,7 +1120,7 @@ export async function cancelOrder(actorId, orderId) {
     const orderRow = await getDoc(client, 'orders', orderId, { forUpdate: true });
     if (!orderRow) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
     const order = orderRow.doc;
-    if (finalOrderStatuses.has(order.status) || ['paid', 'payment_review'].includes(order.status)) {
+    if (finalOrderStatuses.has(order.status) || ['paid', 'payment_review', 'awaiting_fulfillment'].includes(order.status)) {
       throw Object.assign(new Error('This order cannot be cancelled from the normal flow'), { statusCode: 409 });
     }
     await releaseReservedInventory(client, order.id);
@@ -1068,10 +1140,11 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
     }
 
     const payment = await findPaymentForOrder(client, order);
-    const deliveryItems = await allocateInventoryForReviewDelivery(client, order);
+    const seatEmailOrder = isSeatOrder(order);
+    const deliveryItems = seatEmailOrder ? [] : await allocateInventoryForReviewDelivery(client, order);
     const note = String(input.note || '').trim();
     const resolution = {
-      type: 'delivered',
+      type: seatEmailOrder ? 'awaiting_fulfillment' : 'delivered',
       actorId,
       note,
       at: nowIso()
@@ -1079,10 +1152,25 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
 
     order.reviewResolution = resolution;
     if (payment) {
-      if (payment.status === 'paid_needs_review') payment.status = 'paid';
+      if (seatEmailOrder || payment.status === 'paid_needs_review') payment.status = 'paid';
       payment.reviewResolution = resolution;
       payment.updatedAt = nowIso();
       await upsertDoc(client, 'payments', payment);
+    }
+
+    if (seatEmailOrder) {
+      order.paidAt ||= nowIso();
+      await setOrderStatus(client, order, 'awaiting_fulfillment', actorId, 'manual_review_approved', {
+        note,
+        fulfillmentMode: 'seat_email',
+        recipientCount: order.fulfillment?.recipients?.length || 0
+      });
+      await addAuditDoc(client, actorId, 'order.review.approve_fulfillment', 'order', order.id, {
+        recipientCount: order.fulfillment?.recipients?.length || 0,
+        note
+      });
+      await upsertDoc(client, 'orders', order);
+      return { order: publicOrder(order), payment, delivered: 0, awaitingFulfillment: true };
     }
 
     await markInventorySold(client, order, deliveryItems, actorId, 'manual_review_delivery', { note });
@@ -1095,13 +1183,63 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
   });
 }
 
+export async function completeSeatFulfillment(actorId, orderId, input = {}) {
+  return withPostgresTransaction(async (client) => {
+    const orderRow = await getDoc(client, 'orders', orderId, { forUpdate: true });
+    if (!orderRow) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    const order = orderRow.doc;
+    if (!isSeatOrder(order)) {
+      throw Object.assign(new Error('Only seat-email orders use this fulfillment flow'), { statusCode: 409 });
+    }
+
+    const recipients = Array.isArray(order.fulfillment?.recipients)
+      ? order.fulfillment.recipients
+      : [];
+    if (order.status === 'delivered') {
+      return { order: publicOrder(order), fulfilled: recipients.length, duplicate: true };
+    }
+    if (order.status !== 'awaiting_fulfillment') {
+      throw Object.assign(new Error('Only orders awaiting fulfillment can be completed'), { statusCode: 409 });
+    }
+    if (!recipients.length) {
+      throw Object.assign(new Error('Seat order has no fulfillment recipients'), { statusCode: 409 });
+    }
+
+    const completedAt = nowIso();
+    const note = String(input.note || '').trim();
+    order.fulfillment = {
+      ...order.fulfillment,
+      mode: 'seat_email',
+      recipients: recipients.map((recipient) => ({
+        ...recipient,
+        status: 'invited',
+        invitedAt: recipient.invitedAt || completedAt
+      })),
+      completedAt,
+      note
+    };
+    order.deliverySecrets = [];
+    order.deliveredAt = completedAt;
+    await setOrderStatus(client, order, 'delivered', actorId, 'seat_fulfillment_completed', {
+      count: recipients.length,
+      note
+    });
+    await addAuditDoc(client, actorId, 'order.fulfillment.complete', 'order', order.id, {
+      count: recipients.length,
+      note
+    });
+    await upsertDoc(client, 'orders', order);
+    return { order: publicOrder(order), fulfilled: recipients.length };
+  });
+}
+
 export async function markOrderRefunded(actorId, orderId, input = {}) {
   return withPostgresTransaction(async (client) => {
     const orderRow = await getDoc(client, 'orders', orderId, { forUpdate: true });
     if (!orderRow) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
     const order = orderRow.doc;
-    if (order.status !== 'payment_review') {
-      throw Object.assign(new Error('Only review orders can be marked refunded'), { statusCode: 409 });
+    if (!['payment_review', 'awaiting_fulfillment'].includes(order.status)) {
+      throw Object.assign(new Error('Only review or awaiting-fulfillment orders can be marked refunded'), { statusCode: 409 });
     }
 
     const payment = await findPaymentForOrder(client, order);

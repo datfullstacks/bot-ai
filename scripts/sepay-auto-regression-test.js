@@ -234,7 +234,47 @@ try {
   const cancelledInventory = await shop.listInventory(cancelledProduct.id);
   assert.equal(cancelledInventory.filter((item) => item.status === 'available').length, 1);
 
-  console.log(JSON.stringify({ ok: true, checked: 'sepay automatic payment and review safety' }, null, 2));
+  const seatProduct = await shop.createProduct(actorId, {
+    sku: 'sepay-chatgpt-business-seat',
+    name: 'SePay ChatGPT Business Seat',
+    description: 'Seat granted through customer email',
+    accountType: 'Business workspace seat',
+    warrantyPolicy: 'Seat warranty test',
+    replacementPolicy: 'Seat replacement test',
+    fulfillmentMode: 'seat_email',
+    category: 'AI Accounts',
+    brand: 'ChatGPT',
+    packageType: 'Business Seat 1M',
+    price: 400000,
+    currency: 'VND'
+  });
+  const seatCheckout = await shop.createOrderForUser(user, seatProduct.sku, 1, {
+    recipientEmails: 'sepay-seat-one@example.com\nsepay-seat-two@example.com'
+  });
+  assert.equal(seatCheckout.order.quantity, 2);
+  assert.equal(seatCheckout.order.total, 800000);
+  assert.match(seatCheckout.payment.qrImageUrl, /amount=800000/);
+  assert.equal((await shop.listInventory(seatProduct.id)).length, 0);
+
+  const seatPaidEvent = await verifySignedSePayBody(sepayBody({
+    id: 'bank_tx_seat_success_1',
+    amount: seatCheckout.order.total,
+    reference: seatCheckout.payment.reference
+  }));
+  const seatPaidResult = await shop.applyPaymentEvent(seatPaidEvent, 'sepay-webhook');
+  assert.equal(seatPaidResult.order.status, 'awaiting_fulfillment');
+  assert.equal(seatPaidResult.payment.status, 'paid');
+  assert.deepEqual((await shop.getDeliveryForOrder(seatCheckout.order.id)).deliverySecrets, []);
+  const seatCompleted = await shop.completeSeatFulfillment(actorId, seatCheckout.order.id, {
+    note: 'SePay Seat invite sent'
+  });
+  assert.equal(seatCompleted.order.status, 'delivered');
+  assert.deepEqual(
+    seatCompleted.order.fulfillment.recipients.map((recipient) => recipient.status),
+    ['invited', 'invited']
+  );
+
+  console.log(JSON.stringify({ ok: true, checked: 'sepay inventory delivery and Seat email fulfillment' }, null, 2));
 } finally {
   await rm(dataFile, { force: true });
 }

@@ -3,6 +3,7 @@ import {
   DEFAULT_CATALOG_PRODUCTS,
   brandSortKey,
   normalizeDeliveryMode,
+  normalizeFulfillmentMode,
   normalizeProductInput,
   normalizePublicProduct
 } from '../src/catalog.js';
@@ -78,6 +79,8 @@ for (const expected of [
   assert.equal(product.name, expected.name, `${expected.sku} should use the expected name.`);
   assert.equal(product.packageType, expected.packageType, `${expected.sku} should use the expected package type.`);
   assert.equal(product.price, expected.price, `${expected.sku} should use the expected price.`);
+  assert.equal(product.hot, true, `${expected.sku} should appear in the hot-product list.`);
+  assert.equal(product.fulfillmentMode, 'seat_email', `${expected.sku} should collect customer emails instead of inventory.`);
   assert.equal(product.deliveryMode, 'text', `${expected.sku} should use text delivery.`);
   assert.match(product.accountType, /seat/i, `${expected.sku} should explicitly describe the seat account type.`);
   assert.match(product.warrantyPolicy, /1 tháng/i, `${expected.sku} should explicitly cover the one-month term.`);
@@ -148,11 +151,19 @@ assert.deepEqual(normalized, {
   accountType: 'Tài khoản riêng',
   warrantyPolicy: 'Bảo hành 30 ngày',
   replacementPolicy: 'Đổi khi lỗi bàn giao',
+  fulfillmentMode: 'inventory',
   deliveryMode: 'file'
 });
 
+assert.equal(normalizeFulfillmentMode('SEAT_EMAIL'), 'seat_email');
+assert.equal(normalizeFulfillmentMode('', { sku: 'chatgpt-business-seat-1m' }), 'seat_email');
+assert.equal(normalizePublicProduct({ sku: 'regular-product' }).fulfillmentMode, 'inventory');
 assert.equal(normalizeDeliveryMode('TEXT'), 'text');
 assert.equal(normalizePublicProduct({ deliveryMode: 'invalid' }).deliveryMode, 'text');
+assert.throws(
+  () => normalizeProductInput({ sku: 'bad-fulfillment', name: 'Bad', price: 1, fulfillmentMode: 'warehouse' }),
+  /Fulfillment mode must be inventory or seat_email/
+);
 assert.throws(
   () => normalizeProductInput({ sku: 'bad-mode', name: 'Bad', price: 1, deliveryMode: 'zip' }),
   /Delivery mode must be text or file/

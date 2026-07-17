@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { isDeliveryMode } from './catalog.js';
+import { isDeliveryMode, isSeatEmailFulfillment } from './catalog.js';
 import { inventoryEncryptionStatus } from './inventorySecrets.js';
 import { strongWebhookCredential } from './webhookSecurity.js';
 
@@ -69,7 +69,7 @@ export function salesReadinessProblems(product = null, user = null) {
     problems.push('BASE_URL phải là HTTPS công khai');
   }
 
-  if (production) {
+  if (production && product && !isSeatEmailFulfillment(product)) {
     const encryption = inventoryEncryptionStatus();
     if (!encryption.valid) {
       problems.push(encryption.error || 'Thiếu INVENTORY_ENCRYPTION_KEY');

@@ -117,6 +117,52 @@ function sortedProducts(products = state.products) {
   return products.slice().sort((left, right) => productSortKey(left).localeCompare(productSortKey(right)));
 }
 
+function productFulfillmentMode(product = {}) {
+  return String(product.fulfillmentMode || '').trim().toLowerCase() === 'seat_email'
+    ? 'seat_email'
+    : 'inventory';
+}
+
+function isSeatEmailProduct(product = {}) {
+  return productFulfillmentMode(product) === 'seat_email';
+}
+
+function fulfillmentModeLabel(product = {}) {
+  return isSeatEmailProduct(product) ? 'Seat via customer emails' : 'Inventory stock';
+}
+
+function isSeatEmailOrder(order = {}) {
+  return isSeatEmailProduct({
+    fulfillmentMode: order.productSnapshot?.fulfillmentMode || order.fulfillment?.mode
+  });
+}
+
+function orderRecipientRows(order = {}) {
+  const source = order.fulfillment?.recipients
+    || order.recipientEmails
+    || order.fulfillment?.emails
+    || order.seatEmails
+    || [];
+  const values = Array.isArray(source) ? source : [source];
+  return values
+    .map((entry) => (typeof entry === 'string'
+      ? { email: entry, status: '' }
+      : { email: entry?.email, status: entry?.status || '' }))
+    .filter((entry) => String(entry.email || '').trim());
+}
+
+function renderOrderRecipients(order) {
+  const recipients = orderRecipientRows(order);
+  if (!recipients.length) {
+    return isSeatEmailOrder(order)
+      ? '<span class="meta">No recipient emails</span>'
+      : '<span class="meta">-</span>';
+  }
+  return `<div class="recipient-list">${recipients.map((recipient) => `
+    <span class="recipient-email">${icon('mail', 'inline-icon')}${escapeHtml(recipient.email)}${recipient.status ? ` <small>${escapeHtml(recipient.status)}</small>` : ''}</span>
+  `).join('')}</div>`;
+}
+
 function renderProductFilters(products) {
   const brandFilter = $('#productBrandFilter');
   if (!brandFilter) return;
@@ -146,6 +192,8 @@ function filteredProducts() {
       product.accountType,
       product.warrantyPolicy,
       product.replacementPolicy,
+      product.fulfillmentMode,
+      fulfillmentModeLabel(product),
       product.deliveryMode
     ].join(' ').toLowerCase();
 
@@ -153,7 +201,7 @@ function filteredProducts() {
     if (state.productBrand !== 'all' && (product.brand || 'Other') !== state.productBrand) return false;
     if (state.productStatus === 'active' && !active) return false;
     if (state.productStatus === 'inactive' && active) return false;
-    if (state.productStatus === 'low-stock' && (!active || stock > 2)) return false;
+    if (state.productStatus === 'low-stock' && (isSeatEmailProduct(product) || !active || stock > 2)) return false;
     return true;
   });
 }
@@ -177,6 +225,12 @@ function renderProductEditor(product) {
             <option value="file" ${product.deliveryMode === 'file' ? 'selected' : ''}>TXT file</option>
           </select>
         </label>
+        <label>Fulfillment mode
+          <select name="fulfillmentMode">
+            <option value="inventory" ${isSeatEmailProduct(product) ? '' : 'selected'}>Inventory stock</option>
+            <option value="seat_email" ${isSeatEmailProduct(product) ? 'selected' : ''}>Seat via customer emails</option>
+          </select>
+        </label>
         <label>Official price note<input name="officialPriceNote" value="${escapeHtml(product.officialPriceNote || '')}"></label>
         <label>Price<input name="price" type="number" min="1" value="${escapeHtml(product.price)}" required></label>
         <label>Currency<input name="currency" value="${escapeHtml(product.currency || 'VND')}" required></label>
@@ -198,6 +252,7 @@ function renderProductEditor(product) {
 
 function renderProductCard(product) {
   const active = product.active !== false;
+  const seatEmail = isSeatEmailProduct(product);
   const available = Number(product.stock?.available || 0);
   const reserved = Number(product.stock?.reserved || 0);
   const sold = Number(product.stock?.sold || 0);
@@ -212,6 +267,7 @@ function renderProductCard(product) {
           ${product.warrantyPolicy ? `<p><strong>Warranty:</strong> ${escapeHtml(product.warrantyPolicy)}</p>` : ''}
           ${product.replacementPolicy ? `<p><strong>Replacement:</strong> ${escapeHtml(product.replacementPolicy)}</p>` : ''}
           <p><strong>Delivery:</strong> ${product.deliveryMode === 'file' ? 'TXT file' : 'Text message'}</p>
+          <p><strong>Fulfillment:</strong> ${escapeHtml(fulfillmentModeLabel(product))}</p>
           ${product.officialPriceNote ? `<p>${escapeHtml(product.officialPriceNote)}</p>` : ''}
         </div>
         ${renderStatusPill(active ? 'available' : 'cancelled', active ? 'active' : 'disabled')}
@@ -221,14 +277,16 @@ function renderProductCard(product) {
         <span>${icon('barcode')}SKU <strong>${escapeHtml(product.sku)}</strong></span>
         <span>${icon('wallet')}${escapeHtml(money(product.price, product.currency))}</span>
       </div>
-      <div class="stock-strip">
-        <span>${icon('circle-check')}<strong>${escapeHtml(available)}</strong> available</span>
-        <span>${icon('clock-3')}<strong>${escapeHtml(reserved)}</strong> reserved</span>
-        <span>${icon('archive')}<strong>${escapeHtml(sold)}</strong> sold</span>
-      </div>
+      ${seatEmail
+        ? `<div class="stock-strip seat-fulfillment-strip"><span>${icon('mail-check')}<strong>Seat</strong> via customer emails</span></div>`
+        : `<div class="stock-strip">
+            <span>${icon('circle-check')}<strong>${escapeHtml(available)}</strong> available</span>
+            <span>${icon('clock-3')}<strong>${escapeHtml(reserved)}</strong> reserved</span>
+            <span>${icon('archive')}<strong>${escapeHtml(sold)}</strong> sold</span>
+          </div>`}
       <div class="actions">
         <button class="small secondary" data-action="toggle-product" data-id="${escapeHtml(product.id)}" data-active="${active}">${icon(active ? 'pause-circle' : 'play-circle')}<span>${active ? 'Disable' : 'Enable'}</span></button>
-        ${actionButton('import-stock', product.id, 'Import stock', 'small secondary', icon('boxes'))}
+        ${seatEmail ? '' : actionButton('import-stock', product.id, 'Import stock', 'small secondary', icon('boxes'))}
       </div>
       ${renderProductEditor(product)}
     </article>
@@ -269,7 +327,15 @@ function renderProducts(products) {
   }
 
   const select = $('#inventoryForm select[name="productId"]');
-  select.innerHTML = sortedProducts(products).map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.brand || 'Other')} - ${escapeHtml(product.name)} (${escapeHtml(product.sku)})</option>`).join('');
+  const selectedProductId = select.value;
+  const inventoryProducts = sortedProducts(products).filter((product) => !isSeatEmailProduct(product));
+  select.innerHTML = inventoryProducts.length
+    ? inventoryProducts.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.brand || 'Other')} - ${escapeHtml(product.name)} (${escapeHtml(product.sku)})</option>`).join('')
+    : '<option value="">No inventory-managed products</option>';
+  select.disabled = inventoryProducts.length === 0;
+  if (inventoryProducts.some((product) => product.id === selectedProductId)) {
+    select.value = selectedProductId;
+  }
   refreshIcons();
 }
 
@@ -277,6 +343,7 @@ function renderSummary(summary) {
   $('#statProducts').textContent = summary.products;
   $('#statStock').textContent = summary.availableInventory;
   $('#statPending').textContent = summary.pendingOrders;
+  $('#statAwaitingSeat').textContent = summary.awaitingFulfillmentOrders || 0;
   $('#statDelivered').textContent = summary.deliveredOrders;
   $('#statReview').textContent = summary.reviewOrders;
   $('#statRevenue').textContent = money(summary.revenue);
@@ -290,8 +357,12 @@ function renderSummary(summary) {
     `).join('')
     : '<p class="meta">No orders yet.</p>';
 
-  $('#lowStock').innerHTML = summary.lowStock.length
-    ? summary.lowStock.map((product) => `
+  const lowStockProducts = (summary.lowStock || []).filter((product) => {
+    const catalogProduct = state.products.find((item) => item.id === product.id || item.sku === product.sku) || product;
+    return !isSeatEmailProduct(catalogProduct);
+  });
+  $('#lowStock').innerHTML = lowStockProducts.length
+    ? lowStockProducts.map((product) => `
       <div class="row">
         <div class="row-title"><strong>${icon('package-x')}${escapeHtml(product.name)}</strong><span class="badge reserved">${escapeHtml(product.stock.available)} left</span></div>
         <div class="meta">${escapeHtml(product.sku)}</div>
@@ -303,7 +374,10 @@ function renderSummary(summary) {
 
 async function renderInventory() {
   const selected = $('#inventoryForm select[name="productId"]').value;
-  if (!selected) return;
+  if (!selected) {
+    $('#inventoryList').innerHTML = '<p class="meta">No inventory-managed products.</p>';
+    return;
+  }
   const items = await api(`/api/products/${selected}/inventory`);
   $('#inventoryList').innerHTML = items.length
     ? items.slice(0, 80).map((item) => `
@@ -318,17 +392,36 @@ async function renderInventory() {
 
 function renderOrderActions(order) {
   const actions = [];
+  const seatEmail = isSeatEmailOrder(order);
   if (order.status === 'pending_payment') {
     actions.push(actionButton('mark-paid', order.id, 'Mark Paid', 'small', icon('shopping-cart')));
     actions.push(actionButton('cancel-order', order.id, 'Cancel', 'small danger', icon('x-circle')));
   }
   if (order.status === 'payment_review') {
-    actions.push(actionButton('approve-review', order.id, 'Approve Delivery', 'small', icon('check-circle-2')));
+    actions.push(actionButton(
+      'approve-review',
+      order.id,
+      seatEmail ? 'Approve Seat Payment' : 'Approve Delivery',
+      'small',
+      icon('check-circle-2')
+    ));
     actions.push(actionButton('mark-refunded', order.id, 'Mark Refunded', 'small danger', icon('rotate-ccw')));
   }
+  if (order.status === 'awaiting_fulfillment') {
+    actions.push(actionButton('complete-seat', order.id, 'Complete Seat', 'small', icon('mail-check')));
+    actions.push(actionButton('mark-refunded', order.id, 'Refund', 'small danger', icon('rotate-ccw')));
+  }
   if (order.status === 'delivered') {
-    actions.push(actionButton('show-delivery', order.id, 'Delivery', 'small secondary', icon('key-round')));
-    actions.push(actionButton('resend-delivery', order.id, 'Resend Telegram', 'small secondary', icon('send')));
+    if (!seatEmail) {
+      actions.push(actionButton('show-delivery', order.id, 'Delivery', 'small secondary', icon('key-round')));
+    }
+    actions.push(actionButton(
+      'resend-delivery',
+      order.id,
+      seatEmail ? 'Resend Seat Notice' : 'Resend Telegram',
+      'small secondary',
+      icon('send')
+    ));
   }
   return actions.length ? `<div class="actions">${actions.join('')}</div>` : '';
 }
@@ -343,6 +436,7 @@ function renderOrderTable(orders) {
             <th>Order</th>
             <th>Product</th>
             <th>User</th>
+            <th>Recipient emails</th>
             <th>Total</th>
             <th>Status</th>
             <th>Actions</th>
@@ -354,6 +448,7 @@ function renderOrderTable(orders) {
               <td><strong>${escapeHtml(order.id)}</strong><span>${escapeHtml(new Date(order.createdAt).toLocaleString())}</span></td>
               <td><strong>${escapeHtml(order.productName)}</strong><span>${escapeHtml(order.productSku || order.productId)}</span></td>
               <td>${escapeHtml(order.telegramId || order.userId)}</td>
+              <td>${renderOrderRecipients(order)}</td>
               <td>${escapeHtml(money(order.total, order.currency))}<span>qty ${escapeHtml(order.quantity)}</span></td>
               <td>${renderStatusPill(order.status)}</td>
               <td>${renderOrderActions(order) || '<span class="meta">No actions</span>'}</td>
@@ -366,11 +461,14 @@ function renderOrderTable(orders) {
 }
 
 async function renderOrders() {
-  const result = await api('/api/orders?limit=100');
-  const orders = state.orderStatus === 'all'
-    ? result.items
-    : result.items.filter((order) => order.status === state.orderStatus);
-  $('#ordersList').innerHTML = renderOrderTable(orders);
+  const statusQuery = state.orderStatus === 'all'
+    ? ''
+    : `&status=${encodeURIComponent(state.orderStatus)}`;
+  const result = await api(`/api/orders?limit=500${statusQuery}`);
+  const more = result.hasMore
+    ? `<p class="meta">Showing 500 of ${escapeHtml(result.total)} matching orders.</p>`
+    : '';
+  $('#ordersList').innerHTML = `${more}${renderOrderTable(result.items)}`;
   refreshIcons();
 }
 
@@ -469,8 +567,8 @@ async function refresh() {
     api('/api/system/status')
   ]);
   renderQuickStatus(system);
-  renderSummary(summary);
   renderProducts(products);
+  renderSummary(summary);
   if (state.tab === 'inventory') await renderInventory();
   if (state.tab === 'orders') await renderOrders();
   if (state.tab === 'payments') await renderPayments();
@@ -632,7 +730,7 @@ document.addEventListener('click', async (event) => {
 
     if (action === 'mark-paid') {
       await api(`/api/orders/${id}/mark-paid`, { method: 'POST' });
-      toast('Order marked paid and delivered');
+      toast('Order marked paid');
     }
 
     if (action === 'cancel-order') {
@@ -643,11 +741,11 @@ document.addEventListener('click', async (event) => {
     if (action === 'approve-review') {
       const note = window.prompt('Review note (optional)', '');
       if (note === null) return;
-      await api(`/api/orders/${id}/approve-review`, {
+      const result = await api(`/api/orders/${id}/approve-review`, {
         method: 'POST',
         body: JSON.stringify({ note })
       });
-      toast('Review approved and delivered');
+      toast(result.awaitingFulfillment ? 'Seat payment approved; awaiting fulfillment' : 'Review approved and delivered');
     }
 
     if (action === 'mark-refunded') {
@@ -657,7 +755,17 @@ document.addEventListener('click', async (event) => {
         method: 'POST',
         body: JSON.stringify({ note })
       });
-      toast('Review order marked refunded');
+      toast('Order marked refunded');
+    }
+
+    if (action === 'complete-seat') {
+      const note = window.prompt('Seat fulfillment note (optional)', 'Invitations sent');
+      if (note === null) return;
+      await api(`/api/orders/${id}/complete-fulfillment`, {
+        method: 'POST',
+        body: JSON.stringify({ note })
+      });
+      toast('Seat fulfillment completed');
     }
 
     if (action === 'show-delivery') {

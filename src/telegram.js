@@ -2,7 +2,12 @@ import { existsSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { config } from './config.js';
-import { brandSortKey, normalizeDeliveryMode, normalizePublicProduct } from './catalog.js';
+import {
+  brandSortKey,
+  isSeatEmailFulfillment,
+  normalizeDeliveryMode,
+  normalizePublicProduct
+} from './catalog.js';
 import {
   cancelOrderForUser,
   createOrderForUser,
@@ -16,6 +21,13 @@ import {
 import { readStore } from './storage.js';
 import { consumeRateLimit } from './rateLimit.js';
 import { normalizeOrderQuantity } from './salesGuard.js';
+import { parseSeatEmailLines } from './seatFulfillment.js';
+import {
+  createSeatEmailDraft,
+  deleteSeatEmailDraft,
+  getSeatEmailDraft,
+  updateSeatEmailDraft
+} from './telegramSeatDraftStore.js';
 import { readTelegramOffset, writeTelegramOffset } from './telegramOffsetStore.js';
 import { brandIcon as brandAssetIcon } from '../public/brand-assets.js';
 import * as telegramEmoji from './telegramEmoji.js';
@@ -241,6 +253,7 @@ const FLOW_MOTION_BRANDS = new Map([
 const ORDER_STATUS_LABELS = new Map([
   ['pending_payment', '💳 Chờ thanh toán'],
   ['payment_review', '📣 Cần kiểm tra'],
+  ['awaiting_fulfillment', '🔍 Đã thanh toán · chờ cấp Seat'],
   ['delivered', '📦 Đã giao hàng'],
   ['cancelled', '🔌 Đã hủy'],
   ['expired', '📣 Hết hạn'],
@@ -676,7 +689,7 @@ function startCustomEmojiCandidates() {
   ];
 }
 
-function catalogCustomEmojiCandidates(products = []) {
+function catalogCustomEmojiCandidates() {
   return [
     customEmojiCandidate(roboEmoji('ok', '👌'), roboCustomEmojiId('ok')),
     newsEmojiCandidate('shopping-bag'),
@@ -691,11 +704,8 @@ function catalogCustomEmojiCandidates(products = []) {
     newsEmojiCandidate('party'),
     bannerCustomEmojiCandidate('kaito'),
     bannerCustomEmojiCandidate('hot'),
-    bannerCustomEmojiCandidate('new'),
     bannerCustomEmojiCandidate('mmo'),
-    bannerCustomEmojiCandidate('stock'),
-    sloganCustomEmojiCandidate('payment'),
-    ...hotProductsForCatalog(products).map((product) => brandTextEmojiCandidate(product.brand))
+    bannerCustomEmojiCandidate('stock')
   ];
 }
 
@@ -718,6 +728,8 @@ function topupCustomEmojiCandidates() {
 function orderCustomEmojiCandidates() {
   return [
     newsEmojiCandidate('search'),
+    newsEmojiCandidate('check'),
+    newsEmojiCandidate('tracking'),
     sloganCustomEmojiCandidate('payment'),
     bannerCustomEmojiCandidate('checkin'),
     bannerCustomEmojiCandidate('guide'),
@@ -735,13 +747,16 @@ function deliveryCustomEmojiCandidates() {
     uiCustomEmojiCandidate('security'),
     bannerCustomEmojiCandidate('guide'),
     bannerCustomEmojiCandidate('stock'),
-    uiCustomEmojiCandidate('security')
+    uiCustomEmojiCandidate('security'),
+    newsEmojiCandidate('tracking')
   ];
 }
 
 function confirmationCustomEmojiCandidates() {
   return [
     newsEmojiCandidate('check'),
+    newsEmojiCandidate('info'),
+    newsEmojiCandidate('tracking'),
     newsEmojiCandidate('shopping-bag'),
     newsEmojiCandidate('chart'),
     ...newsEmojiCandidates('dollar', 2),
@@ -874,6 +889,8 @@ function orderStatusKeyboardCustomEmojiId(status) {
       return firstCustomEmojiId(newsCustomEmojiId('dollar'), sloganCustomEmojiId('payment'), bannerCustomEmojiId('payment'));
     case 'payment_review':
       return firstCustomEmojiId(newsCustomEmojiId('warning'), bannerCustomEmojiId('review'), sloganCustomEmojiId('soldout'));
+    case 'awaiting_fulfillment':
+      return firstCustomEmojiId(newsCustomEmojiId('email'), newsCustomEmojiId('tracking'), bannerCustomEmojiId('checkin'));
     case 'delivered':
       return firstCustomEmojiId(newsCustomEmojiId('check'), sloganCustomEmojiId('delivery'), bannerCustomEmojiId('delivery'));
     case 'cancelled':
@@ -1229,6 +1246,7 @@ function productCustomEmojiCandidates(product) {
     newsEmojiCandidate('download'),
     newsEmojiCandidate('dollar'),
     newsEmojiCandidate('chart'),
+    newsEmojiCandidate('tracking'),
     newsEmojiCandidate('warning')
   ];
 }
@@ -1253,6 +1271,7 @@ function orderStatusLine(status) {
 }
 
 export function formatStockStatus(product) {
+  if (isSeatEmailFulfillment(product)) return `${newsEmoji('tracking')} Nhận email để cấp Seat`;
   const available = Number(product?.stock?.available || 0);
   return available > 0 ? `${bannerTextEmoji('stock')} Còn ${available}` : `${sloganTextEmoji('soldout')} Hết hàng`;
 }
@@ -1322,12 +1341,22 @@ function availableStock(product) {
   return Number(product.stock?.available || 0);
 }
 
-function brandHasStock(product) {
-  return Number(product.brandAvailable ?? availableStock(product)) > 0;
+function productIsOrderable(product) {
+  return isSeatEmailFulfillment(product) || availableStock(product) > 0;
+}
+
+function productAvailabilityLabel(product) {
+  if (isSeatEmailFulfillment(product)) return 'Nhập email';
+  const available = availableStock(product);
+  return available > 0 ? `Còn ${available}` : 'Hết hàng';
+}
+
+function brandIsOrderable(product) {
+  return Boolean(product.brandHasSeatEmail) || Number(product.brandAvailable ?? availableStock(product)) > 0;
 }
 
 function brandChoiceButton(product) {
-  const available = brandHasStock(product);
+  const available = brandIsOrderable(product);
   const label = `${available ? '' : '[Hết] '}${brandButtonLabel(product.brand)}`;
   return brandKeyboardButton(product.brand, {
     text: label,
@@ -1374,9 +1403,11 @@ function catalogBrandEntries(products) {
     const entry = entries.get(key) || {
       ...product,
       brandAvailable: 0,
+      brandHasSeatEmail: false,
       brandProducts: 0
     };
     entry.brandAvailable += availableStock(product);
+    entry.brandHasSeatEmail ||= isSeatEmailFulfillment(product);
     entry.brandProducts += 1;
     entries.set(key, entry);
   }
@@ -1387,14 +1418,30 @@ export function buildCategoryKeyboard(products) {
   const normalized = products.map((product) => normalizePublicProduct(product));
   const categories = uniqueSorted(normalized.map((product) => product.category));
   const rows = chunkButtons(categories.map((category) => {
-    const available = normalized
-      .filter((product) => product.category === category)
+    const categoryProducts = normalized.filter((product) => product.category === category);
+    const available = categoryProducts
       .reduce((sum, product) => sum + availableStock(product), 0);
+    const hasSeatEmail = categoryProducts.some((product) => isSeatEmailFulfillment(product));
     return animatedKeyboardButton({
-      text: `${category}${available > 0 ? ` [${available}]` : ' [Hết]'}`,
+      text: `${category}${available > 0 ? ` [${available}${hasSeatEmail ? '+Seat' : ''}]` : hasSeatEmail ? ' [Seat]' : ' [Hết]'}`,
       callback_data: `cat:${catalogToken(category)}`
     }, 'category', categoryKeyboardCustomEmojiId(category));
   }), 2);
+  rows.push(...hotProductsForCatalog(normalized).flatMap((product) => {
+    const key = product.id || product.sku;
+    if (!key) return [];
+    const productName = product.name
+      || [product.brand, product.packageType].filter(Boolean).join(' ')
+      || product.sku
+      || 'Gói sản phẩm';
+    const price = Number(product.price) > 0
+      ? money(product.price, product.currency)
+      : 'Liên hệ';
+    return [[brandKeyboardButton(product.brand, {
+      text: `HOT · ${productName} · ${price} · ${productAvailabilityLabel(product)}`,
+      callback_data: `pkg:${key}`
+    })]];
+  }));
   rows.push([animatedKeyboardButton({ text: 'Làm mới', callback_data: 'catalog:all' }, 'refresh')]);
   rows.push([animatedKeyboardButton({ text: 'Menu chính', callback_data: 'start:menu' }, 'home')]);
   return { inline_keyboard: rows };
@@ -1422,16 +1469,20 @@ export function buildPackageKeyboard(products) {
   const normalized = products
     .map((product) => normalizePublicProduct(product))
     .sort((left, right) => {
-      const stockCompare = Number(right.stock?.available || 0) - Number(left.stock?.available || 0);
+      const orderableCompare = Number(productIsOrderable(right)) - Number(productIsOrderable(left));
+      if (orderableCompare !== 0) return orderableCompare;
+      const stockCompare = availableStock(right) - availableStock(left);
       if (stockCompare !== 0) return stockCompare;
       const groupCompare = brandSortKey(left).localeCompare(brandSortKey(right));
       if (groupCompare !== 0) return groupCompare;
       return left.sku.localeCompare(right.sku);
     });
   const rows = normalized.map((product) => [brandKeyboardButton(product.brand, {
-      text: Number(product.stock?.available || 0) > 0
-        ? `Xem gói · ${product.packageType || product.name} · ${money(product.price, product.currency)}`
-        : `Hết hàng · ${product.packageType || product.name} · ${money(product.price, product.currency)}`,
+      text: isSeatEmailFulfillment(product)
+        ? `Đặt Seat · ${product.packageType || product.name} · ${money(product.price, product.currency)}`
+        : availableStock(product) > 0
+          ? `Xem gói · ${product.packageType || product.name} · ${money(product.price, product.currency)}`
+          : `Hết hàng · ${product.packageType || product.name} · ${money(product.price, product.currency)}`,
       callback_data: `pkg:${product.id || product.sku}`
     })]);
   const category = normalized[0]?.category;
@@ -1481,12 +1532,12 @@ export function productMessage(products) {
   ].join('\n\n');
 }
 
-function hotProductsForCatalog(products, limit = 3) {
+function hotProductsForCatalog(products, limit = 8) {
   return products
     .map((product) => normalizePublicProduct(product))
     .filter((product) => product.active !== false && product.hot)
     .sort((left, right) => {
-      const availabilityCompare = Number(availableStock(right) > 0) - Number(availableStock(left) > 0);
+      const availabilityCompare = Number(productIsOrderable(right)) - Number(productIsOrderable(left));
       if (availabilityCompare !== 0) return availabilityCompare;
       const stockCompare = availableStock(right) - availableStock(left);
       if (stockCompare !== 0) return stockCompare;
@@ -1497,51 +1548,22 @@ function hotProductsForCatalog(products, limit = 3) {
     .slice(0, Math.max(0, Number(limit) || 0));
 }
 
-function hotProductSummaryLines(products) {
-  const hotProducts = hotProductsForCatalog(products);
-  if (!hotProducts.length) {
-    return [
-      `${bannerTextEmoji('hot')} <b>Sản phẩm hot</b>`,
-      `${bannerTextEmoji('new')} Đang cập nhật các gói nổi bật.`
-    ];
-  }
-
-  return [
-    `${bannerTextEmoji('hot')} <b>Sản phẩm hot</b>`,
-    ...hotProducts.map((product) => {
-      const available = availableStock(product);
-      const productName = product.name
-        || [product.brand, product.packageType].filter(Boolean).join(' ')
-        || product.sku
-        || 'Gói sản phẩm';
-      const price = Number(product.price) > 0
-        ? `${sloganTextEmoji('payment')} ${escapeHtml(money(product.price, product.currency))}`
-        : `${bannerTextEmoji('contact')} Liên hệ`;
-      const stock = available > 0
-        ? `${bannerTextEmoji('stock')} Còn ${available}`
-        : `${sloganTextEmoji('soldout')} Hết hàng`;
-      return `${brandTextEmoji(product.brand)} <b>${escapeHtml(productName)}</b> · ${price} · ${stock}`;
-    })
-  ];
-}
-
 export function categoryMenuMessage(products) {
   const normalized = products.map((product) => normalizePublicProduct(product));
   const categoryCount = uniqueSorted(normalized.map((product) => product.category)).length;
   const brandCount = catalogBrandEntries(normalized).length;
-  const availableCount = normalized.filter((product) => Number(product.stock?.available || 0) > 0).length;
+  const availableCount = normalized.filter((product) => productIsOrderable(product)).length;
   return [
     `${roboEmoji('ok', '👌')} ${newsEmoji('shopping-bag')} <b>Danh mục sản phẩm</b>`,
     config.sales.enabled
-      ? `${newsEmoji('newsflash')} ${newsEmoji('auto247')} Thanh toán khớp sẽ được giao tự động 24/7.`
+      ? `${newsEmoji('newsflash')} ${newsEmoji('auto247')} Thanh toán khớp tự động; hàng kho giao ngay, Seat xử lý theo email.`
       : `${uiTextEmoji('security')} Shop đang chuẩn bị tồn kho và thanh toán, chưa mở nhận đơn.`,
     `${sloganTextEmoji('soldout')} ${bannerTextEmoji('guide')} Gói hết vui lòng liên hệ admin để đặt thêm ${bannerTextEmoji('combo')} ${roboEmoji('please', '🙏')}`,
     `${bannerTextEmoji('contact')} ${supportContactLine()}`,
     '',
-    ...hotProductSummaryLines(normalized),
-    '',
     `${bannerTextEmoji('review')} ${newsEmoji('party')} Chọn một danh mục bên dưới ${bannerTextEmoji('kaito')}`,
-    `${bannerTextEmoji('mmo')} ${categoryCount} danh mục · ${brandCount} nhãn hàng · ${bannerTextEmoji('stock')} ${availableCount} gói còn hàng.`
+    `${bannerTextEmoji('mmo')} ${categoryCount} danh mục · ${brandCount} nhãn hàng · ${bannerTextEmoji('stock')} ${availableCount} gói đang nhận đơn.`,
+    `${bannerTextEmoji('hot')} <b>Sản phẩm hot</b> được liệt kê ngay dưới các nút danh mục.`
   ].join('\n');
 }
 
@@ -1783,7 +1805,7 @@ function brandMenuMessage(products, category) {
     .map((product) => product.brand));
   return [
     bold(categoryLabel(category)),
-    'Chọn nhãn hiệu bằng nút bên dưới. Mỗi nhãn hiệu sẽ mở danh sách gói, giá và tình trạng còn hàng.',
+    'Chọn nhãn hiệu bằng nút bên dưới. Mỗi nhãn hiệu sẽ mở danh sách gói, giá và cách nhận hàng/Seat.',
     '',
     ...brands.map((brand) => brandHtmlLabel(brand))
   ].join('\n');
@@ -1796,18 +1818,21 @@ function brandPackagesMessage(products, category, brand) {
     .sort((left, right) => Number(left.sortOrder || 1000) - Number(right.sortOrder || 1000));
   if (!selected.length) return 'Chưa có gói nào trong nhãn hiệu này.';
 
-  const available = selected.filter((product) => Number(product.stock?.available || 0) > 0).length;
+  const available = selected.filter((product) => productIsOrderable(product)).length;
+  const hasSeatEmail = selected.some((product) => isSeatEmailFulfillment(product));
   const priceNotes = officialPriceNoteLines(selected);
   return [
     `${categoryIcon(category)} ${brandTextEmoji(brand)} ${bold(`${category} / ${brand}`)}`,
-    'Chọn gói bằng nút bên dưới. Gói còn hàng được ưu tiên ở trên.',
+    'Chọn gói bằng nút bên dưới. Hàng có sẵn và Seat nhận qua email được ưu tiên ở trên.',
     available > 0
-      ? `${bannerTextEmoji('stock')} Bấm Mua ngay để giữ slot và nhận hướng dẫn thanh toán.`
+      ? hasSeatEmail
+        ? `${bannerTextEmoji('stock')} Gói Seat không cần tồn kho: bấm mua rồi gửi mỗi email trên một dòng.`
+        : `${bannerTextEmoji('stock')} Bấm Mua ngay để giữ hàng và nhận hướng dẫn thanh toán.`
       : `${sloganTextEmoji('soldout')} Tất cả gói hiện hết hàng. Khi có slot mới, nút Mua ngay sẽ giữ slot cho bạn; hiện hãy bấm Nhãn hàng hoặc Danh mục để chọn lựa khác.`,
     '',
     priceNotes.length ? 'Giá hãng tham khảo:' : '',
     ...priceNotes,
-    `${bannerTextEmoji('stock')} Còn hàng: ${available}/${selected.length}`
+    `${bannerTextEmoji('stock')} Đang nhận đơn: ${available}/${selected.length}`
   ].join('\n');
 }
 
@@ -1830,6 +1855,18 @@ function deliveryModeLabel(value) {
   return normalizeDeliveryMode(value) === 'file' ? 'Tệp TXT (.txt)' : 'Tin nhắn Telegram';
 }
 
+function fulfillmentDeliveryLabel(product = {}) {
+  return isSeatEmailFulfillment(product)
+    ? 'Cấp Seat theo email khách cung cấp'
+    : deliveryModeLabel(product.deliveryMode);
+}
+
+function orderRecipientEmails(order = {}) {
+  return Array.isArray(order.fulfillment?.recipients)
+    ? order.fulfillment.recipients.map((recipient) => String(recipient?.email || '').trim()).filter(Boolean)
+    : [];
+}
+
 export function productDetailMessage(product) {
   const normalized = normalizePublicProduct(product);
   const available = availableStock(normalized);
@@ -1841,14 +1878,18 @@ export function productDetailMessage(product) {
     `${newsEmoji('settings')} Loại tài khoản: ${policyText(normalized.accountType)}`,
     `${newsEmoji('shield')} Bảo hành: ${policyText(normalized.warrantyPolicy)}`,
     `${newsEmoji('refresh')} Điều kiện đổi lỗi: ${policyText(normalized.replacementPolicy)}`,
-    `${newsEmoji('download')} Cách giao hàng: ${deliveryModeLabel(normalized.deliveryMode)}`,
+    `${newsEmoji('download')} Cách giao hàng: ${fulfillmentDeliveryLabel(normalized)}`,
     '',
     `${newsEmoji('dollar')} Giá: <b>${escapeHtml(money(normalized.price, normalized.currency))}</b>`,
-    available > 0
+    isSeatEmailFulfillment(normalized)
+      ? `${newsEmoji('tracking')} Cách đặt: gửi 1 hoặc nhiều email, mỗi email một dòng; không cần chờ nhập kho.`
+      : available > 0
       ? `${newsEmoji('chart')} Tồn kho: Còn ${available}`
       : `${newsEmoji('warning')} Tồn kho: Hết hàng`,
     config.sales.enabled
-      ? 'Bấm Mua gói này để kiểm tra lại số lượng và tổng tiền trước khi tạo đơn.'
+      ? isSeatEmailFulfillment(normalized)
+        ? 'Bấm Mua gói này, gửi danh sách email rồi kiểm tra tổng tiền trước khi thanh toán.'
+        : 'Bấm Mua gói này để kiểm tra lại số lượng và tổng tiền trước khi tạo đơn.'
       : `${newsEmoji('shield')} Shop chưa mở nhận đơn. Bạn vẫn có thể xem thông tin hoặc liên hệ hỗ trợ.`
   ].filter(Boolean).join('\n');
 }
@@ -1856,9 +1897,9 @@ export function productDetailMessage(product) {
 export function buildProductDetailKeyboard(product) {
   const normalized = normalizePublicProduct(product);
   const rows = [];
-  if (config.sales.enabled && availableStock(normalized) > 0) {
+  if (config.sales.enabled && productIsOrderable(normalized)) {
     rows.push([animatedKeyboardButton({
-      text: 'Mua gói này',
+      text: isSeatEmailFulfillment(normalized) ? 'Nhập email mua Seat' : 'Mua gói này',
       callback_data: `buy:${productKey(normalized)}:1`
     }, 'buy')]);
   }
@@ -1883,11 +1924,67 @@ export function confirmationMessage(product, quantity = 1) {
     `${newsEmoji('chart')} Số lượng: ${qty}`,
     `${newsEmoji('dollar')} Đơn giá: ${escapeHtml(money(normalized.price, normalized.currency))}`,
     `${newsEmoji('dollar')} Tổng tiền: <b>${escapeHtml(money(normalized.price * qty, normalized.currency))}</b>`,
-    `${newsEmoji('download')} Giao hàng: ${deliveryModeLabel(normalized.deliveryMode)}`,
+    `${newsEmoji('download')} Giao hàng: ${fulfillmentDeliveryLabel(normalized)}`,
     '',
     `${newsEmoji('lock')} Sau khi xác nhận, hàng được giữ trong ${config.orders.ttlMinutes} phút.`,
     'Chưa có đơn hàng hoặc tồn kho nào bị giữ ở bước này.'
   ].join('\n');
+}
+
+export function seatEmailPromptMessage(product) {
+  const normalized = normalizePublicProduct(product);
+  return [
+    `${newsEmoji('info')} <b>Nhập email nhận Seat</b>`,
+    `${newsEmoji('shopping-bag')} Sản phẩm: ${escapeHtml(normalized.name)}`,
+    `${newsEmoji('dollar')} Đơn giá mỗi Seat: ${escapeHtml(money(normalized.price, normalized.currency))}`,
+    '',
+    `Gửi từ 1 đến ${config.orders.maxQuantity} email, <b>mỗi email đúng một dòng</b>.`,
+    'Không gửi tên, số lượng hoặc nội dung khác trong cùng dòng.',
+    '',
+    `${code('email1@example.com')}\n${code('email2@example.com')}`
+  ].join('\n');
+}
+
+export function buildSeatEmailPromptKeyboard(product, draft) {
+  const key = productKey(normalizePublicProduct(product));
+  return {
+    inline_keyboard: [
+      [
+        animatedKeyboardButton({ text: 'Hủy nhập email', callback_data: `seat_cancel:${draft.id}` }, 'cancel'),
+        animatedKeyboardButton({ text: 'Xem lại gói', callback_data: `pkg:${key}` }, 'back')
+      ]
+    ]
+  };
+}
+
+export function seatEmailReviewMessage(product, emails) {
+  const normalized = normalizePublicProduct(product);
+  const quantity = emails.length;
+  return [
+    `${newsEmoji('check')} <b>Xác nhận email mua Seat</b>`,
+    `${newsEmoji('shopping-bag')} Sản phẩm: ${escapeHtml(normalized.name)}`,
+    `${newsEmoji('chart')} Số lượng: ${quantity}`,
+    `${newsEmoji('dollar')} Đơn giá: ${escapeHtml(money(normalized.price, normalized.currency))}`,
+    `${newsEmoji('dollar')} Tổng tiền: <b>${escapeHtml(money(normalized.price * quantity, normalized.currency))}</b>`,
+    '',
+    `${newsEmoji('tracking')} Email nhận Seat:`,
+    ...emails.map((email, index) => `${index + 1}. ${code(email)}`),
+    '',
+    `${newsEmoji('lock')} Chưa tạo đơn và chưa phát sinh thanh toán cho đến khi bạn xác nhận.`
+  ].join('\n');
+}
+
+export function buildSeatEmailReviewKeyboard(draft) {
+  const revision = Number(draft.revision || 0);
+  return {
+    inline_keyboard: [
+      [animatedKeyboardButton({ text: 'Xác nhận & thanh toán', callback_data: `seat_confirm:${draft.id}:${revision}` }, 'confirm')],
+      [
+        animatedKeyboardButton({ text: 'Nhập lại email', callback_data: `seat_edit:${draft.id}:${revision}` }, 'refresh'),
+        animatedKeyboardButton({ text: 'Hủy', callback_data: `seat_cancel:${draft.id}` }, 'cancel')
+      ]
+    ]
+  };
 }
 
 export function buildConfirmationKeyboard(product, quantity = 1) {
@@ -1924,7 +2021,7 @@ export function buildPaymentKeyboard(order, payment) {
     rows.push(paymentRow);
     rows.push([animatedKeyboardButton({ text: 'Hủy đơn', callback_data: `cancel:${order.id}` }, 'cancel')]);
   }
-  if (order.status === 'delivered') {
+  if (order.status === 'delivered' && !isSeatEmailFulfillment(order.productSnapshot)) {
     rows.push([animatedKeyboardButton(
       { text: 'Xem lại thông tin giao hàng', callback_data: `delivery:${order.id}` },
       'delivery'
@@ -1950,23 +2047,68 @@ export function buildCancelConfirmationKeyboard(order) {
 }
 
 export function orderMessage(order, payment) {
+  const seatEmail = isSeatEmailFulfillment(order.productSnapshot);
+  const recipients = orderRecipientEmails(order);
   return [
-    `${newsEmoji('search')} ${sloganTextEmoji('payment')} ${bannerTextEmoji('checkin')} <b>Đơn đã tạo - đã giữ hàng</b>`,
+    `${newsEmoji('search')} ${sloganTextEmoji('payment')} ${bannerTextEmoji('checkin')} <b>${seatEmail ? 'Đơn đã tạo - chờ thanh toán' : 'Đơn đã tạo - đã giữ hàng'}</b>`,
     `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
     `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
     `${bannerTextEmoji('stock')} Số lượng: ${escapeHtml(order.quantity)}`,
     `${roboEmoji('money', '🤑')} ${sloganTextEmoji('payment')} Tổng: ${escapeHtml(money(order.total, order.currency))}`,
-    `${sloganTextEmoji('delivery')} Giao hàng: ${deliveryModeLabel(order.productSnapshot?.deliveryMode)}`,
+    `${sloganTextEmoji('delivery')} Giao hàng: ${fulfillmentDeliveryLabel(order.productSnapshot)}`,
+    ...(seatEmail ? [
+      `${newsEmoji('tracking')} Email nhận Seat:`,
+      ...recipients.map((email, index) => `${index + 1}. ${code(email)}`)
+    ] : []),
     orderStatusLine(order.status),
     `${sloganTextEmoji('payment')} Nội dung CK: ${code(payment.reference)}`,
     payment.bankCode ? `${sloganTextEmoji('payment')} Ngân hàng: ${escapeHtml(payment.bankCode)}` : '',
     payment.accountNumber ? `${sloganTextEmoji('payment')} Số tài khoản: ${code(payment.accountNumber)}` : '',
     order.expiresAt
-      ? `${uiTextEmoji('automation-247')} Giữ hàng đến: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
+      ? `${uiTextEmoji('automation-247')} ${seatEmail ? 'Thanh toán trước' : 'Giữ hàng đến'}: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
       : '',
     '',
-    `${roboEmoji('ok', '👌')} Dùng các nút bên dưới và chuyển đúng số tiền, đúng nội dung để bot giao tự động tại đây.`
+    seatEmail
+      ? `${roboEmoji('ok', '👌')} Chuyển đúng số tiền và nội dung. Khi khớp thanh toán, đơn chuyển sang chờ cấp Seat theo email trên.`
+      : `${roboEmoji('ok', '👌')} Dùng các nút bên dưới và chuyển đúng số tiền, đúng nội dung để bot giao tự động tại đây.`
   ].filter(Boolean).join('\n');
+}
+
+export function seatAwaitingFulfillmentMessage(order) {
+  const recipients = orderRecipientEmails(order);
+  return [
+    `${newsEmoji('check')} <b>Đã nhận thanh toán - đang cấp Seat</b>`,
+    `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
+    `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
+    `${newsEmoji('tracking')} ${recipients.length} email đang chờ gửi lời mời:`,
+    ...recipients.map((email, index) => `${index + 1}. ${code(email)}`),
+    '',
+    'Bạn chưa cần gửi lại email hoặc thanh toán thêm. Bot sẽ báo khi admin hoàn tất lời mời.'
+  ].join('\n');
+}
+
+export function seatFulfillmentCompletedMessage(order) {
+  const recipients = orderRecipientEmails(order);
+  return [
+    `${sloganTextEmoji('delivery')} ${uiTextEmoji('security')} <b>Đã cấp Seat</b>`,
+    `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
+    `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
+    `${newsEmoji('tracking')} Đã xử lý ${recipients.length} email:`,
+    ...recipients.map((email, index) => `${index + 1}. ${code(email)}`),
+    '',
+    'Hãy kiểm tra hộp thư và thư rác để nhận lời mời. Nếu chưa thấy, dùng nút hỗ trợ bên dưới.'
+  ].join('\n');
+}
+
+export function orderRefundedMessage(order) {
+  return [
+    `${newsEmoji('check')} <b>Đơn đã được đánh dấu hoàn tiền</b>`,
+    `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
+    `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
+    `${sloganTextEmoji('payment')} Trạng thái: Đã hoàn tiền`,
+    '',
+    'Nếu cần kiểm tra thời gian tiền về tài khoản, hãy dùng nút hỗ trợ bên dưới.'
+  ].join('\n');
 }
 
 export function deliveryMessage(order, deliverySecrets) {
@@ -2052,17 +2194,23 @@ async function sendWelcome(chatId) {
 }
 
 function orderDetailMessage(order, payment) {
+  const seatEmail = isSeatEmailFulfillment(order.productSnapshot);
+  const recipients = orderRecipientEmails(order);
   return [
     `${newsEmoji('search')} <b>Chi tiết đơn hàng</b>`,
     `Mã đơn: ${code(order.id)}`,
     `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
     `${bannerTextEmoji('stock')} Số lượng: ${escapeHtml(order.quantity)}`,
     `${sloganTextEmoji('payment')} Tổng: ${escapeHtml(money(order.total, order.currency))}`,
-    `${sloganTextEmoji('delivery')} Giao hàng: ${deliveryModeLabel(order.productSnapshot?.deliveryMode)}`,
+    `${sloganTextEmoji('delivery')} Giao hàng: ${fulfillmentDeliveryLabel(order.productSnapshot)}`,
+    ...(seatEmail ? [
+      `${newsEmoji('tracking')} Email nhận Seat:`,
+      ...recipients.map((email, index) => `${index + 1}. ${code(email)}`)
+    ] : []),
     orderStatusLine(order.status),
     payment?.reference ? `${sloganTextEmoji('payment')} Nội dung CK: ${code(payment.reference)}` : '',
     order.expiresAt && order.status === 'pending_payment'
-      ? `${uiTextEmoji('automation-247')} Giữ hàng đến: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
+      ? `${uiTextEmoji('automation-247')} ${seatEmail ? 'Thanh toán trước' : 'Giữ hàng đến'}: ${escapeHtml(new Date(order.expiresAt).toLocaleString('vi-VN'))}`
       : ''
   ].filter(Boolean).join('\n');
 }
@@ -2104,6 +2252,157 @@ function customerFacingOrderError(error) {
   return 'Không thể tạo đơn lúc này. Vui lòng thử lại hoặc liên hệ hỗ trợ.';
 }
 
+function seatEmailInputError(error) {
+  if (error?.code === 'seat_email_invalid') {
+    return `Email không hợp lệ ở dòng: ${(error.invalidLines || []).join(', ')}. Mỗi dòng chỉ được chứa một email.`;
+  }
+  if (error?.code === 'seat_email_duplicate') {
+    return `Email bị trùng ở dòng: ${(error.duplicateLines || []).join(', ')}. Hãy xóa dòng trùng để số lượng và tổng tiền chính xác.`;
+  }
+  if (error?.code === 'seat_email_limit') {
+    return `Mỗi đơn được nhập tối đa ${error.maxQuantity || config.orders.maxQuantity} email.`;
+  }
+  if (error?.code === 'seat_email_payload_too_large') {
+    return 'Danh sách email quá dài để bot hiển thị an toàn. Hãy chia thành nhiều đơn nhỏ hơn.';
+  }
+  return 'Hãy gửi ít nhất một email, mỗi email đúng một dòng.';
+}
+
+async function discardSeatEmailDraft(userId, chatId) {
+  try {
+    await deleteSeatEmailDraft(userId, chatId);
+  } catch (error) {
+    console.warn(`[telegram] seat draft cleanup skipped: ${error.message}`);
+  }
+}
+
+function discardSeatEmailDraftSoon(userId, chatId) {
+  void discardSeatEmailDraft(userId, chatId);
+}
+
+function privateTelegramChat(chat = {}) {
+  return !chat.type || chat.type === 'private';
+}
+
+function seatPrivateChatMessage() {
+  return `${newsEmoji('lock')} Vì email là thông tin riêng tư, hãy mở cuộc trò chuyện riêng với bot rồi đặt Seat tại đó.`;
+}
+
+function seatDraftCallback(data, prefix) {
+  const [id = '', revisionRaw = ''] = String(data || '').slice(prefix.length).split(':');
+  const revision = Number(revisionRaw);
+  return {
+    id,
+    revision: Number.isSafeInteger(revision) && revision >= 1 ? revision : null
+  };
+}
+
+function seatDraftMatches(draft, callback) {
+  return Boolean(
+    draft
+    && draft.id === callback.id
+    && callback.revision !== null
+    && Number(draft.revision) === callback.revision
+  );
+}
+
+async function beginSeatEmailFlow(chatId, user, product, { messageId } = {}) {
+  try {
+    const draft = await createSeatEmailDraft({
+      userId: user.id,
+      telegramId: user.telegramId || '',
+      chatId,
+      productId: product.id || '',
+      productSku: product.sku
+    });
+    const options = { reply_markup: buildSeatEmailPromptKeyboard(product, draft) };
+    if (messageId) {
+      await presentCustomTelegramMessage(
+        chatId,
+        messageId,
+        seatEmailPromptMessage(product),
+        confirmationCustomEmojiCandidates(),
+        options
+      );
+    } else {
+      await sendCustomTelegramMessage(
+        chatId,
+        seatEmailPromptMessage(product),
+        confirmationCustomEmojiCandidates(),
+        options
+      );
+    }
+    return draft;
+  } catch (error) {
+    const text = error?.code === 'seat_draft_store_unavailable'
+      ? 'Luồng nhập email Seat đang tạm gián đoạn. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.'
+      : 'Không thể bắt đầu đơn Seat lúc này. Vui lòng thử lại.';
+    if (messageId) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} ${text}`, {
+        reply_markup: buildProductDetailKeyboard(product)
+      });
+    } else {
+      await sendAnimatedTelegramMessage(chatId, `${sloganTextEmoji('soldout')} ${text}`, {
+        reply_markup: buildProductDetailKeyboard(product)
+      });
+    }
+    return null;
+  }
+}
+
+async function handleSeatEmailText(chatId, user, text) {
+  let draft;
+  try {
+    draft = await getSeatEmailDraft(user.id, chatId);
+  } catch (error) {
+    await sendAnimatedTelegramMessage(
+      chatId,
+      `${sloganTextEmoji('soldout')} Luồng nhập email Seat đang tạm gián đoạn. Vui lòng thử lại sau.`
+    );
+    return true;
+  }
+  if (!draft || text.startsWith('/')) return false;
+
+  const products = await listProducts();
+  const product = findProduct(products, draft.productId || draft.productSku);
+  if (!product || !isSeatEmailFulfillment(product)) {
+    await discardSeatEmailDraft(user.id, chatId);
+    await sendAnimatedTelegramMessage(chatId, `${sloganTextEmoji('soldout')} Gói Seat này không còn mở bán.`, {
+      reply_markup: buildCategoryKeyboard(products)
+    });
+    return true;
+  }
+
+  try {
+    const emails = parseSeatEmailLines(text, { maxQuantity: config.orders.maxQuantity });
+    const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
+      stage: 'confirming',
+      emails
+    });
+    if (!updated) throw Object.assign(new Error('Seat draft expired'), { code: 'seat_draft_expired' });
+    await sendCustomTelegramMessage(
+      chatId,
+      seatEmailReviewMessage(product, emails),
+      confirmationCustomEmojiCandidates(),
+      { reply_markup: buildSeatEmailReviewKeyboard(updated) }
+    );
+  } catch (error) {
+    if (error?.code === 'seat_draft_expired') {
+      await sendAnimatedTelegramMessage(chatId, `${sloganTextEmoji('soldout')} Phiên nhập email đã hết hạn. Hãy bấm mua lại.`, {
+        reply_markup: buildProductDetailKeyboard(product)
+      });
+      return true;
+    }
+    await sendCustomTelegramMessage(
+      chatId,
+      `${newsEmoji('warning')} ${escapeHtml(seatEmailInputError(error))}\n\n${seatEmailPromptMessage(product)}`,
+      [newsEmojiCandidate('warning'), ...confirmationCustomEmojiCandidates()],
+      { reply_markup: buildSeatEmailPromptKeyboard(product, draft) }
+    );
+  }
+  return true;
+}
+
 async function handleTextMessage(message) {
   const chatId = message.chat.id;
   const text = String(message.text || '').trim();
@@ -2121,6 +2420,7 @@ async function handleTextMessage(message) {
 
   const startMatch = text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(.+))?$/i);
   if (startMatch) {
+    discardSeatEmailDraftSoon(user.id, chatId);
     const payload = String(startMatch[1] || '').trim();
     if (payload.startsWith('p_')) {
       const products = await listProducts();
@@ -2138,22 +2438,15 @@ async function handleTextMessage(message) {
 
   const menuAction = menuCommandAction(text);
   if (menuAction) {
+    discardSeatEmailDraftSoon(user.id, chatId);
     await sendMenuAction(chatId, user, menuAction);
     return;
   }
 
   if (text.startsWith('/buy')) {
-    const buyLimit = await consumeRateLimit(`tg:buy:${user.telegramId}`, config.traffic.telegramBuyPerMinute);
-    if (!buyLimit.allowed) {
-      await sendAnimatedTelegramMessage(
-        chatId,
-        `${uiTextEmoji('automation-247')} Tạo đơn quá nhanh. Thử lại sau ${buyLimit.retryAfterSeconds}s.`
-      );
-      return;
-    }
-
     const [, sku, qtyRaw] = text.split(/\s+/);
     if (!sku) {
+      discardSeatEmailDraftSoon(user.id, chatId);
       await sendCustomTelegramMessage(chatId, usageMessage(), [newsEmojiCandidate('info')]);
       return;
     }
@@ -2161,6 +2454,7 @@ async function handleTextMessage(message) {
     const products = await listProducts();
     const product = findProduct(products, sku);
     if (!product) {
+      discardSeatEmailDraftSoon(user.id, chatId);
       await sendAnimatedTelegramMessage(
         chatId,
         `${sloganTextEmoji('soldout')} Không tìm thấy gói sản phẩm này.`,
@@ -2168,12 +2462,34 @@ async function handleTextMessage(message) {
       );
       return;
     }
+    if (isSeatEmailFulfillment(product)) {
+      if (!privateTelegramChat(message.chat)) {
+        await sendCustomTelegramMessage(chatId, seatPrivateChatMessage(), [newsEmojiCandidate('lock')]);
+        return;
+      }
+      await beginSeatEmailFlow(chatId, user, product);
+      return;
+    }
+    discardSeatEmailDraftSoon(user.id, chatId);
     const quantity = normalizeOrderQuantity(qtyRaw || 1);
     await sendCustomTelegramMessage(chatId, confirmationMessage(product, quantity), confirmationCustomEmojiCandidates(), {
       reply_markup: buildConfirmationKeyboard(product, quantity)
     });
     return;
   }
+
+  if (/^\/cancel(?:@[A-Za-z0-9_]+)?$/i.test(text)) {
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    if (draft) {
+      await discardSeatEmailDraft(user.id, chatId);
+      await sendAnimatedTelegramMessage(chatId, `${newsEmoji('check')} Đã hủy nhập email Seat.`, {
+        reply_markup: buildMainMenuKeyboard()
+      });
+      return;
+    }
+  }
+
+  if (await handleSeatEmailText(chatId, user, text)) return;
 
   await sendAnimatedTelegramMessage(chatId, unknownCommandMessage(), { reply_markup: buildMainMenuKeyboard() });
 }
@@ -2187,6 +2503,22 @@ async function handleCallbackQuery(callbackQuery) {
   const user = await upsertTelegramUser(callbackQuery.from);
   const products = await listProducts();
   const categories = uniqueSorted(products.map((product) => normalizePublicProduct(product).category));
+
+  if (data.startsWith('seat_') && !privateTelegramChat(callbackQuery.message?.chat)) {
+    await answerCallbackQuery(callbackQuery.id, 'Hãy nhập email trong cuộc trò chuyện riêng với bot.');
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      seatPrivateChatMessage(),
+      [newsEmojiCandidate('lock')],
+      { reply_markup: buildMainMenuKeyboard() }
+    );
+    return;
+  }
+
+  if (!data.startsWith('seat_') && !data.startsWith('buy:')) {
+    discardSeatEmailDraftSoon(user.id, chatId);
+  }
 
   if (data.startsWith('soldout:')) {
     await trackTelegramClick(user, 'soldout', { sku: data.slice('soldout:'.length) });
@@ -2211,7 +2543,9 @@ async function handleCallbackQuery(callbackQuery) {
 
   await answerCallbackQuery(
     callbackQuery.id,
-    data.startsWith('confirm:') ? 'Đang tạo đơn và giữ hàng...' : ''
+    data.startsWith('seat_confirm:')
+      ? 'Đang tạo đơn Seat...'
+      : data.startsWith('confirm:') ? 'Đang tạo đơn và giữ hàng...' : ''
   );
 
   if (data === 'start:menu') {
@@ -2295,11 +2629,28 @@ async function handleCallbackQuery(callbackQuery) {
     const [, productId, qtyRaw] = data.split(':');
     const product = findProduct(products, productId);
     if (!product) {
+      discardSeatEmailDraftSoon(user.id, chatId);
       await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Gói sản phẩm này không còn tồn tại.`, {
         reply_markup: buildCategoryKeyboard(products)
       });
       return;
     }
+    if (isSeatEmailFulfillment(product)) {
+      if (!privateTelegramChat(callbackQuery.message?.chat)) {
+        await presentCustomTelegramMessage(
+          chatId,
+          messageId,
+          seatPrivateChatMessage(),
+          [newsEmojiCandidate('lock')],
+          { reply_markup: buildMainMenuKeyboard() }
+        );
+        return;
+      }
+      await trackTelegramClick(user, 'seat_email_start', { sku: product.sku });
+      await beginSeatEmailFlow(chatId, user, product, { messageId });
+      return;
+    }
+    discardSeatEmailDraftSoon(user.id, chatId);
     const quantity = normalizeOrderQuantity(qtyRaw || 1);
     await trackTelegramClick(user, 'buy_review', { sku: product.sku, quantity });
     await presentCustomTelegramMessage(
@@ -2309,6 +2660,111 @@ async function handleCallbackQuery(callbackQuery) {
       confirmationCustomEmojiCandidates(),
       { reply_markup: buildConfirmationKeyboard(product, quantity) }
     );
+    return;
+  }
+
+  if (data.startsWith('seat_cancel:')) {
+    const draftId = data.slice('seat_cancel:'.length).split(':')[0];
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    const product = draft && draft.id === draftId
+      ? findProduct(products, draft.productId || draft.productSku)
+      : null;
+    if (draft?.id === draftId) await discardSeatEmailDraft(user.id, chatId);
+    if (product) {
+      await presentCustomTelegramMessage(
+        chatId,
+        messageId,
+        productDetailMessage(product),
+        productCustomEmojiCandidates(product),
+        { reply_markup: buildProductDetailKeyboard(product) }
+      );
+    } else {
+      await presentTelegramMessage(chatId, messageId, `${newsEmoji('warning')} Nút hủy này đã hết hạn. Hãy dùng nút trong tin nhắn Seat mới nhất.`, {
+        reply_markup: buildCategoryKeyboard(products)
+      });
+    }
+    return;
+  }
+
+  if (data.startsWith('seat_edit:')) {
+    const callback = seatDraftCallback(data, 'seat_edit:');
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    const product = seatDraftMatches(draft, callback)
+      ? findProduct(products, draft.productId || draft.productSku)
+      : null;
+    if (!seatDraftMatches(draft, callback) || !product || !isSeatEmailFulfillment(product)) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên nhập email đã hết hạn. Hãy bấm mua lại.`, {
+        reply_markup: product ? buildProductDetailKeyboard(product) : buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
+      stage: 'awaiting_emails',
+      emails: []
+    });
+    if (!updated) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên nhập email đã hết hạn. Hãy bấm mua lại.`, {
+        reply_markup: buildProductDetailKeyboard(product)
+      });
+      return;
+    }
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      seatEmailPromptMessage(product),
+      confirmationCustomEmojiCandidates(),
+      { reply_markup: buildSeatEmailPromptKeyboard(product, updated) }
+    );
+    return;
+  }
+
+  if (data.startsWith('seat_confirm:')) {
+    const callback = seatDraftCallback(data, 'seat_confirm:');
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    const product = seatDraftMatches(draft, callback)
+      ? findProduct(products, draft.productId || draft.productSku)
+      : null;
+    if (!seatDraftMatches(draft, callback) || draft.stage !== 'confirming' || !product || !isSeatEmailFulfillment(product)) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên xác nhận Seat đã hết hạn. Hãy bấm mua lại.`, {
+        reply_markup: product ? buildProductDetailKeyboard(product) : buildCategoryKeyboard(products)
+      });
+      return;
+    }
+
+    const buyLimit = await consumeRateLimit(`tg:buy:${user.telegramId}`, config.traffic.telegramBuyPerMinute);
+    if (!buyLimit.allowed) {
+      await presentTelegramMessage(
+        chatId,
+        messageId,
+        `${uiTextEmoji('automation-247')} Tạo đơn quá nhanh. Thử lại sau ${buyLimit.retryAfterSeconds}s.`,
+        { reply_markup: buildSeatEmailReviewKeyboard(draft) }
+      );
+      return;
+    }
+
+    try {
+      const emails = parseSeatEmailLines(draft.emails, { maxQuantity: config.orders.maxQuantity });
+      await trackTelegramClick(user, 'seat_email_confirm', { sku: product.sku, quantity: emails.length });
+      const checkout = await createOrderForUser(user, product.id || product.sku, emails.length, {
+        recipientEmails: emails,
+        idempotencyKey: `telegram-seat:${user.id}:${chatId}:${draft.id}`
+      });
+      await discardSeatEmailDraft(user.id, chatId);
+      await presentCustomTelegramMessage(
+        chatId,
+        messageId,
+        orderMessage(checkout.order, checkout.payment),
+        orderCustomEmojiCandidates(),
+        { reply_markup: buildPaymentKeyboard(checkout.order, checkout.payment) }
+      );
+    } catch (error) {
+      const message = error?.code?.startsWith('seat_email_')
+        ? seatEmailInputError(error)
+        : customerFacingOrderError(error);
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} ${escapeHtml(message)}`, {
+        reply_markup: buildSeatEmailReviewKeyboard(draft)
+      });
+    }
     return;
   }
 
@@ -2383,7 +2839,7 @@ async function handleCallbackQuery(callbackQuery) {
       await presentTelegramMessage(
         chatId,
         messageId,
-        `${sloganTextEmoji('soldout')} <b>Xác nhận hủy đơn</b>\n\n${escapeHtml(context.order.productName)}\nMã đơn: ${code(context.order.id)}\n\nHủy đơn sẽ trả hàng về kho. Khoản chuyển đến sau khi hủy sẽ cần admin kiểm tra thủ công.`,
+        `${sloganTextEmoji('soldout')} <b>Xác nhận hủy đơn</b>\n\n${escapeHtml(context.order.productName)}\nMã đơn: ${code(context.order.id)}\n\n${isSeatEmailFulfillment(context.order.productSnapshot) ? 'Hủy đơn sẽ đóng yêu cầu cấp Seat; không có hàng kho nào bị giữ.' : 'Hủy đơn sẽ trả hàng về kho.'} Khoản chuyển đến sau khi hủy sẽ cần admin kiểm tra thủ công.`,
         { reply_markup: buildCancelConfirmationKeyboard(context.order) }
       );
     } catch {
@@ -2401,7 +2857,7 @@ async function handleCallbackQuery(callbackQuery) {
       await presentTelegramMessage(
         chatId,
         messageId,
-        `${bannerTextEmoji('checkin')} Đơn ${code(context.order.id)} đã được ${context.order.status === 'expired' ? 'đóng do hết hạn' : 'hủy'} và hàng đã trả về kho.`,
+        `${bannerTextEmoji('checkin')} Đơn ${code(context.order.id)} đã được ${context.order.status === 'expired' ? 'đóng do hết hạn' : 'hủy'}${isSeatEmailFulfillment(context.order.productSnapshot) ? '; yêu cầu email đã đóng và không có hàng kho bị giữ.' : ' và hàng đã trả về kho.'}`,
         { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
       );
     } catch (error) {
@@ -2450,9 +2906,37 @@ export async function handleTelegramUpdate(update) {
 
 export async function notifyDelivery(orderId) {
   const { order, deliverySecrets } = await getDeliveryForOrder(orderId);
-  if (!order.telegramId || !deliverySecrets.length) return;
+  if (!order.telegramId) return;
 
   const context = await getOrderCheckoutForUser(order.userId, order.id);
+  if (order.status === 'refunded') {
+    await sendCustomTelegramMessage(
+      order.telegramId,
+      orderRefundedMessage(order),
+      orderCustomEmojiCandidates(),
+      { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
+    );
+    return;
+  }
+  if (isSeatEmailFulfillment(order.productSnapshot)) {
+    if (order.status === 'awaiting_fulfillment') {
+      await sendCustomTelegramMessage(
+        order.telegramId,
+        seatAwaitingFulfillmentMessage(order),
+        orderCustomEmojiCandidates(),
+        { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
+      );
+    } else if (order.status === 'delivered') {
+      await sendCustomTelegramMessage(
+        order.telegramId,
+        seatFulfillmentCompletedMessage(order),
+        deliveryCustomEmojiCandidates(),
+        { reply_markup: buildPaymentKeyboard(context.order, context.payment) }
+      );
+    }
+    return;
+  }
+  if (!deliverySecrets.length) return;
   await sendDeliveryPayload(
     order.telegramId,
     order,

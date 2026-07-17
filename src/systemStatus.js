@@ -1,5 +1,5 @@
 import { config, nowIso } from './config.js';
-import { isDeliveryMode } from './catalog.js';
+import { isDeliveryMode, isSeatEmailFulfillment } from './catalog.js';
 import {
   decryptInventorySecret,
   inventoryEncryptionStatus,
@@ -102,23 +102,50 @@ function sepayWebhookAuthConfigured() {
 }
 
 function inventorySummary(db) {
+  const activeStockProducts = db.products.filter((product) => (
+    product.active !== false && !isSeatEmailFulfillment(product)
+  ));
+  const activeSeatProducts = db.products.filter((product) => (
+    product.active !== false && isSeatEmailFulfillment(product)
+  ));
+  const activeStockProductIds = new Set(activeStockProducts.map((product) => product.id));
   return db.inventory.reduce((summary, item) => {
     const status = String(item.status || 'unknown');
     summary[status] = Number(summary[status] || 0) + 1;
+    if (activeStockProductIds.has(item.productId)) {
+      summary.stockBacked[status] = Number(summary.stockBacked[status] || 0) + 1;
+    }
     return summary;
   }, {
     products: db.products.length,
+    activeStockProducts: activeStockProducts.length,
+    activeSeatProducts: activeSeatProducts.length,
     total: db.inventory.length,
     available: 0,
     reserved: 0,
-    sold: 0
+    sold: 0,
+    stockBacked: {
+      total: db.inventory.filter((item) => activeStockProductIds.has(item.productId)).length,
+      available: 0,
+      reserved: 0,
+      sold: 0
+    }
   });
+}
+
+function requiresInventory(db) {
+  return db.products.some((product) => (
+    product.active !== false && !isSeatEmailFulfillment(product)
+  ));
 }
 
 function inventoryPayloadSummary(db) {
   const summary = { available: 0, plaintext: 0, undecryptable: 0 };
+  const stockProductIds = new Set(db.products
+    .filter((product) => product.active !== false && !isSeatEmailFulfillment(product))
+    .map((product) => product.id));
   for (const item of db.inventory) {
-    if (item.status !== 'available') continue;
+    if (item.status !== 'available' || !stockProductIds.has(item.productId)) continue;
     summary.available += 1;
     if (!isEncryptedInventorySecret(item.secret)) {
       summary.plaintext += 1;
@@ -180,8 +207,11 @@ function buildChecks(db = null) {
   }
 
   const encryption = inventoryEncryptionStatus();
+  const inventoryRequired = !db || requiresInventory(db);
   if (encryption.valid) {
     addOk(checks, 'inventory_encryption', 'Inventory encryption', 'AES-256-GCM key configured');
+  } else if (!inventoryRequired) {
+    addOk(checks, 'inventory_encryption', 'Inventory encryption', 'Not required for active Seat email products.');
   } else {
     const status = production ? 'warning' : 'ok';
     checks.push(item(
@@ -227,8 +257,10 @@ function buildChecks(db = null) {
 
     if (db) {
       const inventory = inventorySummary(db);
-      if (inventory.available > 0) {
-        addOk(checks, 'inventory_available', 'Available inventory', `${inventory.available} item(s) ready`);
+      if (inventory.activeStockProducts === 0) {
+        addOk(checks, 'inventory_available', 'Available inventory', 'No active stock-backed products require inventory.');
+      } else if (inventory.stockBacked.available > 0) {
+        addOk(checks, 'inventory_available', 'Available inventory', `${inventory.stockBacked.available} item(s) ready`);
       } else {
         addWarning(checks, 'inventory_available', 'No inventory available', 'Import encrypted stock before opening sales.');
       }

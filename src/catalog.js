@@ -1,4 +1,10 @@
 const DELIVERY_MODES = new Set(['text', 'file']);
+const FULFILLMENT_MODES = new Set(['inventory', 'seat_email']);
+const LEGACY_SEAT_EMAIL_SKUS = new Set([
+  'chatgpt-business-seat-1m',
+  'claude-business-seat-1x-1m',
+  'claude-business-seat-6-5x-1m'
+]);
 
 export function isDeliveryMode(value) {
   return DELIVERY_MODES.has(String(value || '').trim().toLowerCase());
@@ -14,6 +20,28 @@ export function normalizeDeliveryMode(value, { strict = false } = {}) {
     );
   }
   return 'text';
+}
+
+export function isFulfillmentMode(value) {
+  return FULFILLMENT_MODES.has(String(value || '').trim().toLowerCase());
+}
+
+export function normalizeFulfillmentMode(value, { strict = false, sku = '' } = {}) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (isFulfillmentMode(raw)) return raw;
+  if (!raw && LEGACY_SEAT_EMAIL_SKUS.has(String(sku || '').trim().toLowerCase())) return 'seat_email';
+  if (!raw) return 'inventory';
+  if (strict) {
+    throw Object.assign(
+      new Error('Fulfillment mode must be inventory or seat_email'),
+      { statusCode: 400 }
+    );
+  }
+  return 'inventory';
+}
+
+export function isSeatEmailFulfillment(product = {}) {
+  return normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }) === 'seat_email';
 }
 
 export const DEFAULT_CATALOG_PRODUCTS = [
@@ -40,10 +68,12 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     price: 400000,
     currency: 'VND',
     sortOrder: 20,
+    hot: true,
     officialPriceNote: 'OpenAI ChatGPT Business: per-user pricing varies by billing interval and region',
     accountType: 'Seat thành viên ChatGPT Business trong workspace; không phải tài khoản ChatGPT riêng.',
     warrantyPolicy: 'Bảo hành quyền truy cập workspace trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do workspace của shop.',
     replacementPolicy: 'Đổi seat khi lời mời hoặc quyền truy cập lỗi do workspace của shop; không áp dụng nếu khách tự rời workspace, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách OpenAI.',
+    fulfillmentMode: 'seat_email',
     deliveryMode: 'text'
   },
   {
@@ -68,10 +98,12 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     price: 400000,
     currency: 'VND',
     sortOrder: 32,
+    hot: true,
     officialPriceNote: 'Anthropic business seat pricing and limits vary by plan, billing interval and region',
     accountType: 'Seat thành viên Claude Business 1x trong organization; không phải tài khoản Claude riêng.',
     warrantyPolicy: 'Bảo hành quyền truy cập organization trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do organization của shop.',
     replacementPolicy: 'Đổi seat khi lời mời hoặc quyền truy cập lỗi do organization của shop; không áp dụng nếu khách tự rời organization, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách Anthropic.',
+    fulfillmentMode: 'seat_email',
     deliveryMode: 'text'
   },
   {
@@ -84,10 +116,12 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     price: 1800000,
     currency: 'VND',
     sortOrder: 34,
+    hot: true,
     officialPriceNote: 'Shop tier "6.5x"; not an official Anthropic plan name. Anthropic plan limits and pricing vary by plan and region.',
     accountType: 'Seat thành viên Claude Business tier 6.5x của shop trong organization; không phải tài khoản Claude riêng.',
     warrantyPolicy: 'Bảo hành quyền truy cập organization trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do organization của shop.',
     replacementPolicy: 'Đổi seat khi lời mời, quyền truy cập hoặc tier bàn giao lỗi do organization của shop; không áp dụng nếu khách tự rời organization, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách Anthropic.',
+    fulfillmentMode: 'seat_email',
     deliveryMode: 'text'
   },
   {
@@ -320,6 +354,7 @@ export function normalizeProductInput(input = {}) {
     accountType: String(input.accountType || '').trim(),
     warrantyPolicy: String(input.warrantyPolicy || '').trim(),
     replacementPolicy: String(input.replacementPolicy || input.exchangePolicy || '').trim(),
+    fulfillmentMode: normalizeFulfillmentMode(input.fulfillmentMode, { strict: true, sku: input.sku }),
     deliveryMode: normalizeDeliveryMode(input.deliveryMode, { strict: true })
   };
 }
@@ -336,6 +371,7 @@ export function normalizePublicProduct(product = {}) {
     accountType: String(product.accountType || '').trim(),
     warrantyPolicy: String(product.warrantyPolicy || '').trim(),
     replacementPolicy: String(product.replacementPolicy || product.exchangePolicy || '').trim(),
+    fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),
     deliveryMode: normalizeDeliveryMode(product.deliveryMode)
   };
 }

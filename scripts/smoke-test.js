@@ -220,6 +220,91 @@ try {
   const cancelledAfterCrossProvider = await shop.getOrderCheckoutForUser(user.id, cancelOrder.order.id);
   assert.equal(cancelledAfterCrossProvider.order.status, 'cancelled');
 
+  const seatProduct = await shop.createProduct(actorId, {
+    sku: `smoke-seat-${runId}`,
+    name: 'Smoke Business Seat',
+    description: 'Seat supplied to customer email without inventory',
+    accountType: 'Business workspace seat',
+    warrantyPolicy: 'Smoke seat warranty',
+    replacementPolicy: 'Smoke seat replacement policy',
+    fulfillmentMode: 'seat_email',
+    price: 400000,
+    currency: 'VND'
+  });
+  assert.equal(seatProduct.fulfillmentMode, 'seat_email');
+  assert.equal(seatProduct.stock.available, 0);
+  await assert.rejects(
+    () => shop.importInventory(actorId, seatProduct.id, ['seat-secret-that-must-not-be-stored']),
+    /do not use inventory/
+  );
+  await assert.rejects(
+    () => shop.createOrderForUser(user, seatProduct.sku, 1, {
+      recipientEmails: ['not-an-email']
+    }),
+    /Invalid seat email/
+  );
+  for (const invalidEmail of ['a,b@example.com', '.leading@example.com', 'double..dot@example.com', 'user@-example.com']) {
+    await assert.rejects(
+      () => shop.createOrderForUser(user, seatProduct.sku, 1, {
+        recipientEmails: [invalidEmail]
+      }),
+      /Invalid seat email/
+    );
+  }
+  await assert.rejects(
+    () => shop.createOrderForUser(user, seatProduct.sku, 1, {
+      recipientEmails: ['seat-one@example.com', 'SEAT-ONE@example.com']
+    }),
+    /Duplicate seat email/
+  );
+
+  const seatCheckout = await shop.createOrderForUser(user, seatProduct.sku, 1, {
+    recipientEmails: 'seat-one@example.com\nseat-two@example.com',
+    idempotencyKey: `smoke-seat-${runId}`
+  });
+  assert.equal(seatCheckout.order.quantity, 2, 'Seat quantity should come from the number of email lines.');
+  assert.equal(seatCheckout.order.total, 800000);
+  assert.equal(seatCheckout.order.productSnapshot.fulfillmentMode, 'seat_email');
+  assert.deepEqual(
+    seatCheckout.order.fulfillment.recipients.map((recipient) => [recipient.email, recipient.status]),
+    [
+      ['seat-one@example.com', 'pending'],
+      ['seat-two@example.com', 'pending']
+    ]
+  );
+  assert.equal((await shop.listInventory(seatProduct.id)).length, 0, 'Seat checkout must not reserve inventory.');
+
+  const seatPaid = await shop.applyPaymentEvent(
+    paidEvent(`evt_smoke_seat_paid_${runId}`, seatCheckout.order, seatCheckout.payment)
+  );
+  assert.equal(seatPaid.order.status, 'awaiting_fulfillment');
+  assert.equal(seatPaid.payment.status, 'paid');
+  assert.equal(seatPaid.order.deliveredAt, null);
+  const seatBeforeCompletion = await shop.getDeliveryForOrder(seatCheckout.order.id);
+  assert.deepEqual(seatBeforeCompletion.deliverySecrets, []);
+  const awaitingSeatSummary = await shop.getDashboardSummary();
+  assert.equal(awaitingSeatSummary.awaitingFulfillmentOrders, 1);
+  assert.ok(awaitingSeatSummary.revenue >= 830000, 'Paid Seat revenue should be counted before manual fulfillment.');
+
+  const duplicateSeatPayment = await shop.applyPaymentEvent(
+    paidEvent(`evt_smoke_seat_paid_duplicate_${runId}`, seatCheckout.order, seatCheckout.payment)
+  );
+  assert.equal(duplicateSeatPayment.duplicate, true);
+  assert.equal(duplicateSeatPayment.order.status, 'awaiting_fulfillment');
+
+  const completedSeat = await shop.completeSeatFulfillment(actorId, seatCheckout.order.id, {
+    note: 'Smoke invitations sent'
+  });
+  assert.equal(completedSeat.order.status, 'delivered');
+  assert.equal(completedSeat.fulfilled, 2);
+  assert.ok(completedSeat.order.deliveredAt);
+  assert.deepEqual(
+    completedSeat.order.fulfillment.recipients.map((recipient) => recipient.status),
+    ['invited', 'invited']
+  );
+  assert.deepEqual((await shop.getDeliveryForOrder(seatCheckout.order.id)).deliverySecrets, []);
+  assert.equal((await shop.completeSeatFulfillment(actorId, seatCheckout.order.id)).duplicate, true);
+
   const summary = await shop.getDashboardSummary();
   assert.ok(summary.deliveredOrders >= 2, 'summary should count delivered smoke orders');
   assert.ok(summary.revenue >= 30000, 'summary should include delivered smoke revenue');

@@ -404,6 +404,8 @@ const {
   buildPackageKeyboard,
   buildPaymentKeyboard,
   buildProductDetailKeyboard,
+  buildSeatEmailPromptKeyboard,
+  buildSeatEmailReviewKeyboard,
   confirmationMessage,
   deliveryDocumentCaption,
   deliveryDocumentFilename,
@@ -420,6 +422,10 @@ const {
   orderMessage,
   productDetailMessage,
   productMessage,
+  seatAwaitingFulfillmentMessage,
+  seatEmailPromptMessage,
+  seatEmailReviewMessage,
+  seatFulfillmentCompletedMessage,
   sendTelegramMessage,
   sendTelegramPhotoFile,
   sloganCustomEmojiId,
@@ -562,6 +568,7 @@ try {
 
   assert.equal(formatOrderStatus('pending_payment'), '💳 Chờ thanh toán');
   assert.equal(formatOrderStatus('payment_review'), '📣 Cần kiểm tra');
+  assert.equal(formatOrderStatus('awaiting_fulfillment'), '🔍 Đã thanh toán · chờ cấp Seat');
   assert.equal(formatOrderStatus('delivered'), '📦 Đã giao hàng');
   assert.equal(formatStockStatus({ stock: { available: 2 } }), '📦 Còn 2');
   assert.equal(formatStockStatus({ stock: { available: 0 } }), '📣 Hết hàng');
@@ -607,14 +614,13 @@ try {
   assert.match(categoryText, /🎉/);
   assert.match(categoryText, /🎁/);
   assert.match(categoryText, /✨/);
-  assert.match(categoryText, /2 danh mục · 2 nhãn hàng · 📦 0 gói còn hàng/);
+  assert.match(categoryText, /2 danh mục · 2 nhãn hàng · 📦 0 gói đang nhận đơn/);
   assert.match(categoryText, /liên hệ admin/i);
   assert.match(categoryText, /@kaitoukit/);
-  assert.match(categoryText, /🔥 <b>Sản phẩm hot<\/b>/);
-  assert.match(categoryText, /📣 Đang cập nhật các gói nổi bật/);
   assert.match(categoryText, /Chọn một danh mục bên dưới/);
+  assert.match(categoryText, /🔥 <b>Sản phẩm hot<\/b> được liệt kê ngay dưới các nút danh mục/);
 
-  const hotCategoryText = categoryMenuMessage([
+  const hotCategoryProducts = [
     {
       sku: 'hot-sold-out',
       name: 'Hot hết hàng',
@@ -659,30 +665,32 @@ try {
       hot: true,
       stock: { available: 2 }
     }
-  ]);
-  assert.match(hotCategoryText, /🔥 <b>Sản phẩm hot<\/b>/);
-  assert.match(hotCategoryText, /🧠 <b>Hot còn nhiều<\/b> · 💳 129\.000 VND · 📦 Còn 3/);
-  assert.match(hotCategoryText, /🎨 <b>Hot còn một<\/b> · 💳 49\.000 VND · 📦 Còn 1/);
-  assert.match(hotCategoryText, /✈️ <b>Hot thứ tư<\/b> · 💳 79\.000 VND · 📦 Còn 2/);
-  assert.equal(hotCategoryText.includes('Hot hết hàng'), false, 'Catalog should prioritize in-stock hot products within the three-item limit.');
-  assert.ok(
-    hotCategoryText.indexOf('Hot còn nhiều') < hotCategoryText.indexOf('Hot còn một'),
-    'Hot products with more stock should be shown first.'
+  ];
+  const hotCategoryKeyboard = buildCategoryKeyboard(hotCategoryProducts);
+  const hotCategoryRows = hotCategoryKeyboard.inline_keyboard;
+  const hotProductRows = hotCategoryRows.filter((row) => row[0]?.callback_data?.startsWith('pkg:'));
+  assert.equal(hotProductRows.length, 4, 'Every flagged hot product should be listed as a package button.');
+  assert.deepEqual(
+    hotProductRows.map((row) => row[0].callback_data),
+    ['pkg:hot-in-stock-high', 'pkg:hot-fourth', 'pkg:hot-in-stock-low', 'pkg:hot-sold-out'],
+    'Hot buttons should prioritize stock availability and place sold-out products last.'
   );
-
-  const soldOutHotCategoryText = categoryMenuMessage([
-    {
-      sku: 'hot-sold-out',
-      name: 'Hot hết hàng',
-      category: 'AI Accounts',
-      brand: 'ChatGPT',
-      price: 99000,
-      currency: 'VND',
-      hot: true,
-      stock: { available: 0 }
-    }
-  ]);
-  assert.match(soldOutHotCategoryText, /🤖 <b>Hot hết hàng<\/b> · 💳 99\.000 VND · 📣 Hết hàng/);
+  assert.match(hotProductRows[0][0].text, /HOT · Hot còn nhiều · 129\.000 VND · Còn 3/);
+  assert.match(hotProductRows[1][0].text, /HOT · Hot thứ tư · 79\.000 VND · Còn 2/);
+  assert.match(hotProductRows[2][0].text, /HOT · Hot còn một · 49\.000 VND · Còn 1/);
+  assert.match(hotProductRows[3][0].text, /HOT · Hot hết hàng · 99\.000 VND · Hết hàng/);
+  const lastCategoryRowIndex = hotCategoryRows.reduce((lastIndex, row, index) => (
+    row.some((button) => button.callback_data?.startsWith('cat:')) ? index : lastIndex
+  ), -1);
+  const firstHotRowIndex = hotCategoryRows.findIndex((row) => row[0]?.callback_data?.startsWith('pkg:'));
+  const refreshRowIndex = hotCategoryRows.findIndex((row) => row[0]?.callback_data === 'catalog:all');
+  assert.ok(firstHotRowIndex > lastCategoryRowIndex, 'Hot product buttons should appear below every category button.');
+  assert.ok(refreshRowIndex > firstHotRowIndex + hotProductRows.length - 1, 'Refresh and home should remain below the hot product list.');
+  assert.ok(hotProductRows.every((row) => row.length === 1), 'Each hot product should use one full-width keyboard row.');
+  assert.ok(hotProductRows.every((row) => row[0].icon_custom_emoji_id), 'Each hot product should use its animated brand icon.');
+  assert.ok(hotProductRows.every((row) => [...row[0].text].length <= 64), 'Hot product labels should stay within Telegram button limits.');
+  assertAllKeyboardButtonsAnimated(hotCategoryKeyboard, 'hot category keyboard');
+  assert.ok(hotCategoryKeyboard.inline_keyboard.flat().every((button) => Buffer.byteLength(button.callback_data || '', 'utf8') <= 64));
 
   const categoryKeyboard = buildCategoryKeyboard([
     {
@@ -724,6 +732,11 @@ try {
   assert.ok(categoryKeyboard.inline_keyboard[0].every((button) => button.callback_data.startsWith('cat:')));
   assert.equal(categoryKeyboard.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_chatgpt_file');
   assert.equal(categoryKeyboard.inline_keyboard[0][1].icon_custom_emoji_id, 'ce_canva_motion');
+  assert.equal(
+    categoryKeyboard.inline_keyboard.flat().some((button) => button.callback_data?.startsWith('pkg:')),
+    false,
+    'Products that are not flagged hot should not be listed below the category rows.'
+  );
   assert.ok(categoryKeyboard.inline_keyboard.some((row) => (
     row[0].text === 'Làm mới'
     && row[0].callback_data === 'catalog:all'
@@ -876,6 +889,89 @@ try {
     && button.icon_custom_emoji_id === newsEmojiIds.adminchat
   )), 'Product support URL should use the News admin-chat emoji.');
   assertAllKeyboardButtonsAnimated(detailKeyboard, 'product detail keyboard');
+
+  const seatProduct = {
+    ...detailProduct,
+    id: 'prd_seat',
+    sku: 'chatgpt-business-seat-1m',
+    name: 'ChatGPT Business Seat 1M',
+    packageType: 'Business Seat 1M',
+    fulfillmentMode: 'seat_email',
+    deliveryMode: 'text',
+    price: 400000,
+    stock: { available: 0 }
+  };
+  assert.equal(formatStockStatus(seatProduct), '🔍 Nhận email để cấp Seat');
+  const seatDetailText = productDetailMessage(seatProduct);
+  assert.match(seatDetailText, /gửi 1 hoặc nhiều email, mỗi email một dòng/i);
+  assert.match(seatDetailText, /không cần chờ nhập kho/i);
+  assert.equal(seatDetailText.includes('Hết hàng'), false);
+  const seatDetailKeyboard = buildProductDetailKeyboard(seatProduct);
+  assert.ok(seatDetailKeyboard.inline_keyboard.flat().some((button) => (
+    button.text === 'Nhập email mua Seat'
+    && button.callback_data === 'buy:prd_seat:1'
+  )), 'A zero-stock Seat should still be orderable by email.');
+  assertAllKeyboardButtonsAnimated(seatDetailKeyboard, 'seat product detail keyboard');
+
+  const seatDraft = { id: 'draft_opaque_123', revision: 2 };
+  const seatPromptText = seatEmailPromptMessage(seatProduct);
+  assert.match(seatPromptText, /mỗi email đúng một dòng/i);
+  assert.match(seatPromptText, /email1@example\.com/);
+  const seatPromptKeyboard = buildSeatEmailPromptKeyboard(seatProduct, seatDraft);
+  assert.ok(seatPromptKeyboard.inline_keyboard.flat().some((button) => (
+    button.callback_data === 'seat_cancel:draft_opaque_123'
+  )));
+  assertAllKeyboardButtonsAnimated(seatPromptKeyboard, 'seat email prompt keyboard');
+
+  const seatEmails = ['seat-one@example.com', 'seat-two@example.com'];
+  const seatReviewText = seatEmailReviewMessage(seatProduct, seatEmails);
+  assert.match(seatReviewText, /Số lượng: 2/);
+  assert.match(seatReviewText, /800\.000 VND/);
+  assert.match(seatReviewText, /seat-one@example\.com/);
+  assert.match(seatReviewText, /seat-two@example\.com/);
+  const seatReviewKeyboard = buildSeatEmailReviewKeyboard(seatDraft);
+  for (const button of seatReviewKeyboard.inline_keyboard.flat()) {
+    assert.equal(button.callback_data.includes('@'), false, 'Seat callback data must not contain customer emails.');
+    assert.ok(Buffer.byteLength(button.callback_data, 'utf8') <= 64, 'Seat callback data must fit Telegram limits.');
+  }
+  assertAllKeyboardButtonsAnimated(seatReviewKeyboard, 'seat email review keyboard');
+
+  const seatOrderFixture = {
+    id: 'ord_seat_1',
+    productName: seatProduct.name,
+    quantity: 2,
+    total: 800000,
+    currency: 'VND',
+    status: 'pending_payment',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    productSnapshot: { fulfillmentMode: 'seat_email', deliveryMode: 'text' },
+    fulfillment: {
+      mode: 'seat_email',
+      recipients: seatEmails.map((email) => ({ email, status: 'pending' }))
+    }
+  };
+  const seatOrderText = orderMessage(seatOrderFixture, { reference: 'KAITOSEAT1' });
+  assert.match(seatOrderText, /Đơn đã tạo - chờ thanh toán/);
+  assert.match(seatOrderText, /seat-one@example\.com/);
+  assert.equal(seatOrderText.includes('đã giữ hàng'), false);
+  assert.equal(seatOrderText.includes('trả hàng về kho'), false);
+  assert.match(seatAwaitingFulfillmentMessage({
+    ...seatOrderFixture,
+    status: 'awaiting_fulfillment'
+  }), /Đã nhận thanh toán - đang cấp Seat/);
+  assert.match(seatFulfillmentCompletedMessage({
+    ...seatOrderFixture,
+    status: 'delivered'
+  }), /Đã cấp Seat/);
+  const deliveredSeatKeyboard = buildPaymentKeyboard({
+    ...seatOrderFixture,
+    status: 'delivered'
+  }, {});
+  assert.equal(
+    deliveredSeatKeyboard.inline_keyboard.flat().some((button) => button.callback_data?.startsWith('delivery:')),
+    false,
+    'Delivered Seat orders should not expose inventory secrets.'
+  );
 
   const confirmText = confirmationMessage(detailProduct, 2);
   assert.match(confirmText, /Xác nhận mua/);
@@ -1118,6 +1214,89 @@ try {
   assertEveryEmojiAnimated(fallbackDeliveryCall, 'text delivery fallback');
   assertAllKeyboardButtonsAnimated(fallbackDeliveryCall.body.reply_markup, 'text delivery fallback keyboard');
 
+  const seatNotificationUser = await shop.upsertTelegramUser({
+    id: '9102',
+    username: 'seat-notification-buyer',
+    first_name: 'Seat',
+    last_name: 'Buyer'
+  });
+  const seatNotificationProduct = await shop.createProduct('telegram-message-test', {
+    sku: 'telegram-seat-notification',
+    name: 'Telegram Business Seat',
+    description: 'Seat notification regression product',
+    accountType: 'Business workspace seat',
+    warrantyPolicy: 'Test warranty',
+    replacementPolicy: 'Test replacement',
+    fulfillmentMode: 'seat_email',
+    price: 400000,
+    currency: 'VND'
+  });
+  const seatNotificationCheckout = await shop.createOrderForUser(
+    seatNotificationUser,
+    seatNotificationProduct.sku,
+    1,
+    { recipientEmails: ['notify-one@example.com', 'notify-two@example.com'] }
+  );
+  await shop.applyPaymentEvent({
+    id: 'evt_telegram_seat_notification',
+    provider: seatNotificationCheckout.payment.provider,
+    providerPaymentId: seatNotificationCheckout.payment.providerPaymentId,
+    reference: seatNotificationCheckout.payment.reference,
+    amount: seatNotificationCheckout.order.total,
+    currency: seatNotificationCheckout.order.currency,
+    status: 'paid',
+    raw: { regression: true },
+    receivedAt: new Date().toISOString()
+  });
+
+  calls.length = 0;
+  await notifyDelivery(seatNotificationCheckout.order.id);
+  const seatAwaitingCall = calls.find((call) => (
+    call.url.includes('/sendMessage') && call.body.text?.includes('Đã nhận thanh toán - đang cấp Seat')
+  ));
+  assert.ok(seatAwaitingCall);
+  assertEveryEmojiAnimated(seatAwaitingCall, 'Seat awaiting fulfillment notification');
+  assertAllKeyboardButtonsAnimated(seatAwaitingCall.body.reply_markup, 'Seat awaiting fulfillment keyboard');
+
+  await shop.completeSeatFulfillment('telegram-message-test', seatNotificationCheckout.order.id, {
+    note: 'Invitations sent'
+  });
+  calls.length = 0;
+  await notifyDelivery(seatNotificationCheckout.order.id);
+  const seatCompletedCall = calls.find((call) => (
+    call.url.includes('/sendMessage') && call.body.text?.includes('Đã cấp Seat')
+  ));
+  assert.ok(seatCompletedCall, 'A completed Seat must have a resendable Telegram notice.');
+  assertEveryEmojiAnimated(seatCompletedCall, 'Seat completion notification');
+  assertAllKeyboardButtonsAnimated(seatCompletedCall.body.reply_markup, 'Seat completion keyboard');
+
+  const seatRefundCheckout = await shop.createOrderForUser(
+    seatNotificationUser,
+    seatNotificationProduct.sku,
+    1,
+    { recipientEmails: ['refund-seat@example.com'] }
+  );
+  await shop.applyPaymentEvent({
+    id: 'evt_telegram_seat_refund',
+    provider: seatRefundCheckout.payment.provider,
+    providerPaymentId: seatRefundCheckout.payment.providerPaymentId,
+    reference: seatRefundCheckout.payment.reference,
+    amount: seatRefundCheckout.order.total,
+    currency: seatRefundCheckout.order.currency,
+    status: 'paid',
+    raw: { regression: true },
+    receivedAt: new Date().toISOString()
+  });
+  await shop.markOrderRefunded('telegram-message-test', seatRefundCheckout.order.id, { note: 'Refunded' });
+  calls.length = 0;
+  await notifyDelivery(seatRefundCheckout.order.id);
+  const seatRefundCall = calls.find((call) => (
+    call.url.includes('/sendMessage') && call.body.text?.includes('Đơn đã được đánh dấu hoàn tiền')
+  ));
+  assert.ok(seatRefundCall, 'Refunded Seat orders should notify the customer.');
+  assertEveryEmojiAnimated(seatRefundCall, 'Seat refund notification');
+  assertAllKeyboardButtonsAnimated(seatRefundCall.body.reply_markup, 'Seat refund keyboard');
+
   calls.length = 0;
   await handleTelegramUpdate({
     message: {
@@ -1295,7 +1474,7 @@ try {
 
   assert.ok(calls.some((call) => call.url.includes('/answerCallbackQuery')));
   assert.equal(calls.some((call) => call.url.includes('/sendSticker') || call.url.includes('/sendAnimation')), false);
-  assert.ok(calls.some((call) => call.body.text?.includes('Thanh toán khớp sẽ được giao tự động 24/7.')));
+  assert.ok(calls.some((call) => call.body.text?.includes('Thanh toán khớp tự động; hàng kho giao ngay, Seat xử lý theo email.')));
   const catalogCall = calls.find((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => button.callback_data?.startsWith('cat:')));
   assert.ok(catalogCall);
   assert.equal(countCustomEmojiId(catalogCall, newsEmojiIds['shopping-bag']), 1, 'Catalog heading should use the News shopping-bag emoji.');
@@ -1304,9 +1483,29 @@ try {
   assert.equal(countCustomEmojiId(catalogCall, newsEmojiIds.party), 1, 'Catalog call-to-action should use the News party emoji.');
   assert.equal(hasCustomEmojiId(catalogCall, 'ce_ui_instant-delivery'), false, 'Catalog delivery copy should not fall back to the UI lightning emoji.');
   assert.match(catalogCall.body.text, /🔥 Sản phẩm hot/);
-  assert.match(catalogCall.body.text, /ChatGPT Plus - 1 tháng/);
   assert.ok(hasCustomEmojiId(catalogCall, newsEmojiIds.adminfire), 'Catalog hot heading should use the live News admin-fire emoji.');
-  assert.ok(hasCustomEmojiId(catalogCall, 'ce_chatgpt_file'), 'Catalog hot product should use its animated brand emoji.');
+  assert.equal(catalogCall.body.text.includes('ChatGPT Plus - 1 tháng'), false, 'Hot product details should move out of the catalog message text.');
+  const catalogRows = catalogCall.body.reply_markup.inline_keyboard;
+  const catalogHotButtons = catalogRows.flat().filter((button) => button.callback_data?.startsWith('pkg:'));
+  for (const expectedName of [
+    'ChatGPT Business Seat 1M',
+    'Claude Business Seat 1x 1M',
+    'Claude Business Seat 6.5x 1M'
+  ]) {
+    assert.ok(
+      catalogHotButtons.some((button) => button.text.includes(expectedName)),
+      `${expectedName} should appear as a hot product button below the categories.`
+    );
+  }
+  const chatGptHotButton = catalogHotButtons.find((button) => button.text.includes('ChatGPT Business Seat 1M'));
+  assert.equal(chatGptHotButton.icon_custom_emoji_id, 'ce_chatgpt_file', 'ChatGPT hot product should use its animated brand emoji.');
+  const lastCatalogCategoryRow = catalogRows.reduce((lastIndex, row, index) => (
+    row.some((button) => button.callback_data?.startsWith('cat:')) ? index : lastIndex
+  ), -1);
+  const firstCatalogHotRow = catalogRows.findIndex((row) => row[0]?.callback_data?.startsWith('pkg:'));
+  const catalogRefreshRow = catalogRows.findIndex((row) => row[0]?.callback_data === 'catalog:all');
+  assert.ok(firstCatalogHotRow > lastCatalogCategoryRow, 'Live catalog hot products should render below all category rows.');
+  assert.ok(catalogRefreshRow > firstCatalogHotRow, 'Live catalog navigation should remain below the hot product list.');
   assertEveryEmojiAnimated(catalogCall, 'catalog message');
   assertAllKeyboardButtonsAnimated(catalogCall.body.reply_markup, 'catalog callback keyboard');
   assert.equal(calls.some((call) => call.body.reply_markup?.inline_keyboard?.flat().some((button) => /^(buy|confirm):/.test(button.callback_data || ''))), false);
@@ -1390,7 +1589,7 @@ try {
   assert.ok(hasCustomEmojiId(brandCall, 'ce_chatgpt_file'));
   assert.ok(hasCustomEmojiId(brandCall, 'ce_chatgpt_file'));
   assertEveryEmojiAnimated(brandCall, 'brand package chooser message');
-  assert.match(brandCall.body.text, /giữ slot/i);
+  assert.match(brandCall.body.text, /Seat không cần tồn kho/i);
   assert.equal(brandCall.body.text.includes('SKU:'), false, 'Brand chooser text should not expose SKU; buying should be button-first.');
   assert.equal(calls.some((call) => call.url.includes('/sendSticker') || call.url.includes('/sendAnimation')), false);
   assert.equal(
@@ -1436,15 +1635,52 @@ try {
   ]) {
     assert.ok(hasCustomEmojiId(productDetailCall, id), `Product details should animate News ID ${id}.`);
   }
-  const productStockNewsId = productDetailCall.body.text.includes('Tồn kho: Còn')
-    ? newsEmojiIds.chart
-    : newsEmojiIds.warning;
+  const productStockNewsId = productDetailCall.body.text.includes('Cách đặt:')
+    ? newsEmojiIds.tracking
+    : productDetailCall.body.text.includes('Tồn kho: Còn')
+      ? newsEmojiIds.chart
+      : newsEmojiIds.warning;
   assert.ok(
     hasCustomEmojiId(productDetailCall, productStockNewsId),
     `Product stock state should animate News ID ${productStockNewsId}.`
   );
   assertEveryEmojiAnimated(productDetailCall, 'product-detail message');
   assertAllKeyboardButtonsAnimated(productDetailCall.body.reply_markup, 'product-detail callback keyboard');
+
+  const liveSeatProduct = (await shop.listProducts())
+    .find((product) => product.sku === 'chatgpt-business-seat-1m');
+  assert.ok(liveSeatProduct, 'Live catalog should expose the ChatGPT Business Seat flow.');
+  calls.length = 0;
+  await handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_seat_prompt_animated',
+      data: `buy:${liveSeatProduct.id}:1`,
+      message: { chat: { id: 9005 }, message_id: 47 },
+      from: { id: 9005, username: 'seat-animated-buyer' }
+    }
+  });
+  const liveSeatPrompt = calls.find((call) => (
+    isTelegramTextCall(call) && call.body.text?.includes('Nhập email nhận Seat')
+  ));
+  assert.ok(liveSeatPrompt);
+  assertEveryEmojiAnimated(liveSeatPrompt, 'seat email prompt message');
+  assertAllKeyboardButtonsAnimated(liveSeatPrompt.body.reply_markup, 'seat email prompt keyboard');
+
+  calls.length = 0;
+  await handleTelegramUpdate({
+    message: {
+      chat: { id: 9005 },
+      message_id: 48,
+      text: 'animated-one@example.com\nanimated-two@example.com',
+      from: { id: 9005, username: 'seat-animated-buyer' }
+    }
+  });
+  const liveSeatReview = calls.find((call) => (
+    isTelegramTextCall(call) && call.body.text?.includes('Xác nhận email mua Seat')
+  ));
+  assert.ok(liveSeatReview);
+  assertEveryEmojiAnimated(liveSeatReview, 'seat email review message');
+  assertAllKeyboardButtonsAnimated(liveSeatReview.body.reply_markup, 'seat email review keyboard');
 
   const trackedDb = await storage.readStore();
   assert.ok(

@@ -1,5 +1,10 @@
 import { config, nowIso } from '../config.js';
-import { normalizeDeliveryMode, normalizeProductInput } from '../catalog.js';
+import {
+  isSeatEmailFulfillment,
+  normalizeDeliveryMode,
+  normalizeFulfillmentMode,
+  normalizeProductInput
+} from '../catalog.js';
 import {
   assertInventoryEncryptionReadyForImport,
   assertInventorySecretsReadyForSale,
@@ -10,12 +15,23 @@ import {
 } from '../inventorySecrets.js';
 import { publicPaymentCheckout } from '../paymentView.js';
 import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
+import { parseSeatEmailLines } from '../seatFulfillment.js';
 import { addAudit, makeId, publicProduct, readStore, withWrite } from '../storage.js';
 import { paymentProvider } from '../payments.js';
 
 const orderTtlMs = config.orders.ttlMinutes * 60 * 1000;
 const finalOrderStatuses = new Set(['delivered', 'refunded']);
-const closedPaymentStatuses = new Set(['paid', 'amount_mismatch', 'paid_needs_review']);
+const closedPaymentStatuses = new Set(['paid', 'amount_mismatch', 'paid_needs_review', 'refunded']);
+
+function seatOrderRecipients(input) {
+  const emails = parseSeatEmailLines(input, { maxQuantity: config.orders.maxQuantity });
+  return emails.map((email) => ({ email, status: 'pending' }));
+}
+
+function isSeatOrder(order = {}) {
+  return [order.productSnapshot?.fulfillmentMode, order.fulfillment?.mode]
+    .some((value) => String(value || '').trim().toLowerCase() === 'seat_email');
+}
 
 function sanitizeInventoryItem(item) {
   const { secret, secretFingerprint, ...safe } = item;
@@ -62,19 +78,20 @@ export async function listProducts({ includeInactive = false } = {}) {
 
 export async function getDashboardSummary() {
   const db = await readStore();
-  const paidOrders = db.orders.filter((order) => order.status === 'delivered');
+  const paidOrders = db.orders.filter((order) => ['delivered', 'awaiting_fulfillment'].includes(order.status));
   const revenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
   return {
     products: db.products.length,
     availableInventory: db.inventory.filter((item) => item.status === 'available').length,
     pendingOrders: db.orders.filter((order) => order.status === 'pending_payment').length,
+    awaitingFulfillmentOrders: db.orders.filter((order) => order.status === 'awaiting_fulfillment').length,
     deliveredOrders: db.orders.filter((order) => order.status === 'delivered').length,
     reviewOrders: db.orders.filter((order) => order.status === 'payment_review').length,
     revenue,
     recentOrders: db.orders.slice(-8).reverse().map(publicOrder),
     lowStock: db.products
       .map((product) => publicProduct(product, db))
-      .filter((product) => product.active && product.stock.available <= 2)
+      .filter((product) => product.active && !isSeatEmailFulfillment(product) && product.stock.available <= 2)
   };
 }
 
@@ -154,6 +171,12 @@ export async function updateProduct(actorId, productId, input) {
     if (input.deliveryMode !== undefined) {
       product.deliveryMode = normalizeDeliveryMode(input.deliveryMode, { strict: true });
     }
+    if (input.fulfillmentMode !== undefined) {
+      product.fulfillmentMode = normalizeFulfillmentMode(input.fulfillmentMode, {
+        strict: true,
+        sku: product.sku
+      });
+    }
     if (!product.name || !Number.isSafeInteger(product.price) || product.price <= 0) {
       throw Object.assign(new Error('Name and positive integer price are required'), { statusCode: 400 });
     }
@@ -168,6 +191,9 @@ export async function importInventory(actorId, productId, lines) {
   return withWrite(async (db) => {
     const product = db.products.find((item) => item.id === productId);
     if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
+    if (isSeatEmailFulfillment(product)) {
+      throw Object.assign(new Error('Seat-email products do not use inventory'), { statusCode: 409 });
+    }
 
     assertInventoryEncryptionReadyForImport();
     const requested = [...new Set(lines.map((line) => String(line).trim()).filter(Boolean))];
@@ -215,12 +241,18 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
   return withWrite(async (db) => {
     expirePendingOrdersInDb(db, 'system');
 
-    const qty = normalizeOrderQuantity(quantity);
     const product = db.products.find((item) => item.id === productSkuOrId || item.sku === String(productSkuOrId).toLowerCase());
     if (!product || !product.active) {
       throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
     }
     assertSalesOrderAllowed(product, user);
+    const seatEmailOrder = isSeatEmailFulfillment(product);
+    const seatRecipients = seatEmailOrder
+      ? seatOrderRecipients(options.recipientEmails)
+      : [];
+    const qty = seatEmailOrder
+      ? normalizeOrderQuantity(seatRecipients.length)
+      : normalizeOrderQuantity(quantity);
 
     const checkoutKey = String(options.idempotencyKey || '').trim().slice(0, 200);
     if (checkoutKey) {
@@ -248,14 +280,17 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       throw Object.assign(new Error('Too many pending orders. Pay or cancel an existing order first.'), { statusCode: 429 });
     }
 
-    const availableItems = db.inventory
-      .filter((item) => item.productId === product.id && item.status === 'available')
-      .slice(0, qty);
+    let availableItems = [];
+    if (!seatEmailOrder) {
+      availableItems = db.inventory
+        .filter((item) => item.productId === product.id && item.status === 'available')
+        .slice(0, qty);
 
-    if (availableItems.length < qty) {
-      throw Object.assign(new Error('Not enough stock'), { statusCode: 409 });
+      if (availableItems.length < qty) {
+        throw Object.assign(new Error('Not enough stock'), { statusCode: 409 });
+      }
+      assertInventorySecretsReadyForSale(availableItems);
     }
-    assertInventorySecretsReadyForSale(availableItems);
 
     const order = {
       id: makeId('ord'),
@@ -277,8 +312,15 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         accountType: product.accountType || '',
         warrantyPolicy: product.warrantyPolicy || '',
         replacementPolicy: product.replacementPolicy || '',
-        deliveryMode: normalizeDeliveryMode(product.deliveryMode)
+        deliveryMode: normalizeDeliveryMode(product.deliveryMode),
+        fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku })
       },
+      ...(seatEmailOrder ? {
+        fulfillment: {
+          mode: 'seat_email',
+          recipients: seatRecipients
+        }
+      } : {}),
       status: 'pending_payment',
       paymentId: null,
       deliverySecrets: [],
@@ -292,7 +334,11 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         to: 'pending_payment',
         actorId: user.id,
         reason: 'order_created',
-        details: { sku: product.sku, quantity: qty },
+        details: {
+          sku: product.sku,
+          quantity: qty,
+          ...(seatEmailOrder ? { fulfillmentMode: 'seat_email', recipientCount: seatRecipients.length } : {})
+        },
         at: nowIso()
       }]
     };
@@ -466,7 +512,10 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       return { order: publicOrder(order), payment };
     }
 
-    if (closedPaymentStatuses.has(payment.status) && ['paid', 'delivered', 'payment_review'].includes(order.status)) {
+    if (
+      closedPaymentStatuses.has(payment.status)
+      && ['paid', 'delivered', 'payment_review', 'awaiting_fulfillment'].includes(order.status)
+    ) {
       return { duplicate: true, order: publicOrder(order), payment };
     }
 
@@ -484,7 +533,7 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       return { order: publicOrder(order), payment };
     }
 
-    if (['paid', 'delivered'].includes(order.status)) {
+    if (['paid', 'delivered', 'awaiting_fulfillment'].includes(order.status)) {
       return { duplicate: true, order: publicOrder(order), payment };
     }
 
@@ -510,6 +559,22 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       addAudit(db, actorId, 'payment.needs_review.expired', 'order', order.id, {
         amount: event.amount,
         expiresAt: order.expiresAt
+      });
+      return { order: publicOrder(order), payment };
+    }
+
+    if (isSeatOrder(order)) {
+      payment.status = 'paid';
+      payment.bankReference = event.bankReference || payment.bankReference || '';
+      order.paidAt = nowIso();
+      setOrderStatus(db, order, 'awaiting_fulfillment', actorId, 'payment_confirmed', {
+        amount: order.total,
+        fulfillmentMode: 'seat_email',
+        recipientCount: order.fulfillment?.recipients?.length || 0
+      });
+      addAudit(db, actorId, 'payment.paid', 'order', order.id, {
+        amount: order.total,
+        fulfillmentMode: 'seat_email'
       });
       return { order: publicOrder(order), payment };
     }
@@ -662,7 +727,7 @@ export async function cancelOrder(actorId, orderId) {
   return withWrite(async (db) => {
     const order = db.orders.find((item) => item.id === orderId);
     if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
-    if (finalOrderStatuses.has(order.status) || ['paid', 'payment_review'].includes(order.status)) {
+    if (finalOrderStatuses.has(order.status) || ['paid', 'payment_review', 'awaiting_fulfillment'].includes(order.status)) {
       throw Object.assign(new Error('This order cannot be cancelled from the normal flow'), { statusCode: 409 });
     }
     releaseReservedInventory(db, order.id);
@@ -680,10 +745,11 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
     }
 
     const payment = findPaymentForOrder(db, order);
-    const deliveryItems = allocateInventoryForReviewDelivery(db, order);
+    const seatEmailOrder = isSeatOrder(order);
+    const deliveryItems = seatEmailOrder ? [] : allocateInventoryForReviewDelivery(db, order);
     const note = String(input.note || '').trim();
     const resolution = {
-      type: 'delivered',
+      type: seatEmailOrder ? 'awaiting_fulfillment' : 'delivered',
       actorId,
       note,
       at: nowIso()
@@ -691,9 +757,23 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
 
     order.reviewResolution = resolution;
     if (payment) {
-      if (payment.status === 'paid_needs_review') payment.status = 'paid';
+      if (seatEmailOrder || payment.status === 'paid_needs_review') payment.status = 'paid';
       payment.reviewResolution = resolution;
       payment.updatedAt = nowIso();
+    }
+
+    if (seatEmailOrder) {
+      order.paidAt ||= nowIso();
+      setOrderStatus(db, order, 'awaiting_fulfillment', actorId, 'manual_review_approved', {
+        note,
+        fulfillmentMode: 'seat_email',
+        recipientCount: order.fulfillment?.recipients?.length || 0
+      });
+      addAudit(db, actorId, 'order.review.approve_fulfillment', 'order', order.id, {
+        recipientCount: order.fulfillment?.recipients?.length || 0,
+        note
+      });
+      return { order: publicOrder(order), payment, delivered: 0, awaitingFulfillment: true };
     }
 
     markInventorySold(db, order, deliveryItems, actorId, 'manual_review_delivery', { note });
@@ -706,12 +786,60 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
   });
 }
 
+export async function completeSeatFulfillment(actorId, orderId, input = {}) {
+  return withWrite(async (db) => {
+    const order = db.orders.find((item) => item.id === orderId);
+    if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    if (!isSeatOrder(order)) {
+      throw Object.assign(new Error('Only seat-email orders use this fulfillment flow'), { statusCode: 409 });
+    }
+
+    const recipients = Array.isArray(order.fulfillment?.recipients)
+      ? order.fulfillment.recipients
+      : [];
+    if (order.status === 'delivered') {
+      return { order: publicOrder(order), fulfilled: recipients.length, duplicate: true };
+    }
+    if (order.status !== 'awaiting_fulfillment') {
+      throw Object.assign(new Error('Only orders awaiting fulfillment can be completed'), { statusCode: 409 });
+    }
+    if (!recipients.length) {
+      throw Object.assign(new Error('Seat order has no fulfillment recipients'), { statusCode: 409 });
+    }
+
+    const completedAt = nowIso();
+    const note = String(input.note || '').trim();
+    order.fulfillment = {
+      ...order.fulfillment,
+      mode: 'seat_email',
+      recipients: recipients.map((recipient) => ({
+        ...recipient,
+        status: 'invited',
+        invitedAt: recipient.invitedAt || completedAt
+      })),
+      completedAt,
+      note
+    };
+    order.deliverySecrets = [];
+    order.deliveredAt = completedAt;
+    setOrderStatus(db, order, 'delivered', actorId, 'seat_fulfillment_completed', {
+      count: recipients.length,
+      note
+    });
+    addAudit(db, actorId, 'order.fulfillment.complete', 'order', order.id, {
+      count: recipients.length,
+      note
+    });
+    return { order: publicOrder(order), fulfilled: recipients.length };
+  });
+}
+
 export async function markOrderRefunded(actorId, orderId, input = {}) {
   return withWrite(async (db) => {
     const order = db.orders.find((item) => item.id === orderId);
     if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
-    if (order.status !== 'payment_review') {
-      throw Object.assign(new Error('Only review orders can be marked refunded'), { statusCode: 409 });
+    if (!['payment_review', 'awaiting_fulfillment'].includes(order.status)) {
+      throw Object.assign(new Error('Only review or awaiting-fulfillment orders can be marked refunded'), { statusCode: 409 });
     }
 
     const payment = findPaymentForOrder(db, order);

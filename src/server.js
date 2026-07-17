@@ -2,12 +2,14 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { config } from './config.js';
+import { isSeatEmailFulfillment } from './catalog.js';
 import { clearSessionCookie, loginForRequest, logout, makeSessionCookie, requireAdmin } from './auth.js';
 import { initStore, readStore } from './storage.js';
 import {
   applyPaymentEvent,
   approveReviewDelivery,
   cancelOrder,
+  completeSeatFulfillment,
   createOrderForUser,
   createProduct,
   expireOrders,
@@ -203,7 +205,7 @@ async function handleApi(req, res, url) {
     });
     const result = await applyPaymentEvent(event);
     sendJson(res, 200, { ok: true, result });
-    if (result.order?.id) {
+    if (result.order?.id && !result.duplicate) {
       setImmediate(() => notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message)));
     }
     return;
@@ -218,7 +220,7 @@ async function handleApi(req, res, url) {
     });
     const result = await applyPaymentEvent(event, 'sepay-webhook');
     sendJson(res, 200, { success: true });
-    if (result.order?.id) {
+    if (result.order?.id && !result.duplicate) {
       setImmediate(() => notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message)));
     }
     return;
@@ -299,10 +301,24 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, result);
   }
 
+  params = routeParams('/api/orders/:id/complete-fulfillment', pathname);
+  if (params && req.method === 'POST') {
+    const { body } = await readJson(req);
+    const result = await completeSeatFulfillment(admin.id, params.id, body);
+    if (result.order?.id && !result.duplicate) {
+      await notifyDelivery(result.order.id).catch((error) => console.error('[telegram] notify failed:', error.message));
+    }
+    return sendJson(res, 200, result);
+  }
+
   params = routeParams('/api/orders/:id/refund', pathname);
   if (params && req.method === 'POST') {
     const { body } = await readJson(req);
-    return sendJson(res, 200, await markOrderRefunded(admin.id, params.id, body));
+    const result = await markOrderRefunded(admin.id, params.id, body);
+    if (result.order?.id) {
+      await notifyDelivery(result.order.id).catch((error) => console.error('[telegram] refund notify failed:', error.message));
+    }
+    return sendJson(res, 200, result);
   }
 
   params = routeParams('/api/orders/:id/delivery', pathname);
@@ -313,7 +329,11 @@ async function handleApi(req, res, url) {
   params = routeParams('/api/orders/:id/resend-delivery', pathname);
   if (params && req.method === 'POST') {
     const delivery = await getDeliveryForOrder(params.id);
-    if (!delivery.deliverySecrets.length) {
+    const seatCompletionNotice = (
+      delivery.order?.status === 'delivered'
+      && isSeatEmailFulfillment(delivery.order?.productSnapshot)
+    );
+    if (!delivery.deliverySecrets.length && !seatCompletionNotice) {
       throw Object.assign(new Error('No delivery payload is available'), { statusCode: 409 });
     }
     await notifyDelivery(params.id);
@@ -347,7 +367,16 @@ async function handleApi(req, res, url) {
       first_name: 'Dashboard',
       last_name: 'Test'
     });
-    return sendJson(res, 201, await createOrderForUser(user, body.sku, body.quantity || 1));
+    const recipientEmailCount = (Array.isArray(body.recipientEmails)
+      ? body.recipientEmails
+      : String(body.recipientEmails || '').split(/\r?\n/))
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .length;
+    const quantity = body.quantity ?? (recipientEmailCount || 1);
+    return sendJson(res, 201, await createOrderForUser(user, body.sku, quantity, {
+      recipientEmails: body.recipientEmails
+    }));
   }
 
   sendJson(res, 404, { error: 'API route not found' });
@@ -442,6 +471,10 @@ async function handleSePayPage(req, res, pathname) {
         if (!response.ok) return;
         const data = await response.json();
         document.getElementById('paymentStatus').textContent = data.orderStatus || data.paymentStatus;
+        if (data.orderStatus === 'awaiting_fulfillment') {
+          document.getElementById('paymentNotice').textContent = 'Thanh toán đã được xác nhận. Shop đang cấp Seat vào email đã đăng ký.';
+          return;
+        }
         if (['paid', 'delivered'].includes(data.paymentStatus) || data.orderStatus === 'delivered') {
           document.getElementById('paymentNotice').textContent = 'Thanh toán đã được xác nhận. Kiểm tra Telegram để nhận hàng.';
           return;

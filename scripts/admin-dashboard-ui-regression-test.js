@@ -6,6 +6,7 @@ const html = await readFile(resolve(process.cwd(), 'public', 'index.html'), 'utf
 const js = await readFile(resolve(process.cwd(), 'public', 'admin.js'), 'utf8');
 const css = await readFile(resolve(process.cwd(), 'public', 'styles.css'), 'utf8');
 const server = await readFile(resolve(process.cwd(), 'src', 'server.js'), 'utf8');
+const catalogSeed = await readFile(resolve(process.cwd(), 'scripts', 'seed-catalog.js'), 'utf8');
 const brandAssets = await readFile(resolve(process.cwd(), 'public', 'brand-assets.js'), 'utf8');
 const { getBrandAsset } = await import('../public/brand-assets.js');
 
@@ -31,6 +32,7 @@ for (const fn of [
   'renderProductCard',
   'renderProductEditor',
   'renderOrderTable',
+  'renderOrderRecipients',
   'renderStatusPill',
   'refreshIcons'
 ]) {
@@ -47,7 +49,8 @@ assert.ok(js.includes("state.productBrand"), 'Admin JS should track product bran
 assert.ok(js.includes("state.orderStatus"), 'Admin JS should track order status filter.');
 assert.ok(js.includes("filteredProducts()"), 'Product rendering should use filteredProducts().');
 assert.ok(js.includes('data-product-editor'), 'Product cards should include an inline product editor form.');
-assert.ok(js.includes("actionButton('import-stock'"), 'Product cards should include a quick stock import action.');
+assert.ok(js.includes("actionButton('import-stock'"), 'Inventory-managed product cards should include a quick stock import action.');
+assert.ok(js.includes("seatEmail ? '' : actionButton('import-stock'"), 'Seat products should hide the stock import action.');
 assert.ok(js.includes("api(`/api/products/${id}`"), 'Product editor should save through the existing product PATCH API.');
 assert.ok(js.includes("method: 'PATCH'"), 'Product editor should patch product fields instead of recreating products.');
 assert.ok(js.includes("form.elements.price.value"), 'Product editor should expose editable pricing.');
@@ -55,7 +58,7 @@ assert.equal(server.includes('100000'), false, 'Dev order API must not create fa
 assert.ok(server.includes('TELEGRAM_OWNER_USER_ID'), 'Dev order API should fall back to the configured owner chat when no test chat is supplied.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
-for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode']) {
+for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
   assert.ok(html.includes(`name="${field}"`), `Create product form should expose ${field}.`);
   assert.ok(js.includes(`name="${field}"`), `Product editor should expose ${field}.`);
 }
@@ -63,6 +66,22 @@ assert.ok(html.includes('TXT file'), 'Create product form should expose TXT deli
 assert.ok(js.includes('Text message'), 'Product cards/editor should expose text delivery.');
 assert.ok(js.includes('data.hot ='), 'Product editor should save hot product flags.');
 assert.ok(js.includes("setTab('inventory')"), 'Import-stock action should jump to the Inventory tab.');
+assert.ok(html.includes('value="seat_email"'), 'Create product form should expose seat-email fulfillment.');
+assert.ok(html.includes('Seat via customer emails'), 'Create product form should explain seat-email fulfillment.');
+assert.ok(js.includes("filter((product) => !isSeatEmailProduct(product))"), 'Inventory selector should exclude seat-email products.');
+assert.ok(js.includes("return !isSeatEmailProduct(catalogProduct)"), 'Low-stock summary should exclude seat-email products.');
+assert.ok(html.includes('value="awaiting_fulfillment"'), 'Order filter should expose awaiting fulfillment status.');
+assert.ok(html.includes('id="statAwaitingSeat"'), 'Overview should expose the paid Seat fulfillment queue count.');
+assert.ok(html.includes('name="recipientEmails"'), 'Dev order form should accept Seat emails one per line.');
+assert.ok(server.includes('recipientEmails: body.recipientEmails'), 'Dev order API should forward Seat recipient emails.');
+assert.ok(js.includes('order.fulfillment?.recipients'), 'Order table should read recipient emails from fulfillment data.');
+assert.ok(js.includes('&status=${encodeURIComponent(state.orderStatus)}'), 'Order status filters should query the server before pagination.');
+assert.ok(js.includes("actionButton('complete-seat'"), 'Awaiting seat orders should expose Complete Seat.');
+assert.ok(js.includes("actionButton('mark-refunded'"), 'Awaiting seat orders should expose Refund.');
+assert.ok(js.includes('Resend Seat Notice'), 'Delivered Seat orders should expose a recoverable Telegram resend action.');
+assert.ok(js.includes("api(`/api/orders/${id}/complete-fulfillment`"), 'Complete Seat should call the fulfillment completion endpoint.');
+assert.ok(server.includes("isSeatEmailFulfillment(delivery.order?.productSnapshot)"), 'Seat completion notices should be resendable without inventory secrets.');
+assert.ok(catalogSeed.includes('fulfillmentMode: product.fulfillmentMode'), 'Catalog seed should synchronize fulfillment mode.');
 
 for (const selector of [
   '.toolbar',
@@ -76,7 +95,9 @@ for (const selector of [
   '.icon',
   '.nav-icon',
   '.icon-button',
-  '.brand-logo'
+  '.brand-logo',
+  '.seat-fulfillment-strip',
+  '.recipient-list'
 ]) {
   assert.ok(css.includes(selector), `Admin CSS should style ${selector}.`);
 }
