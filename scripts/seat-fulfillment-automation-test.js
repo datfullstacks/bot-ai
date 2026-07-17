@@ -53,6 +53,20 @@ function settings(overrides = {}) {
         requestTimeoutMs: 1000,
         operationTimeoutMs: 1000,
         pollIntervalMs: 0
+      },
+      claude: {
+        enabled: true,
+        serviceUrl: 'http://claude-member-api.railway.internal:3022/api/v1',
+        apiKey: 'gsk_claude_test',
+        accountRef: 'claude-default@example.com',
+        accountRefsBySku: {
+          'claude-business-seat-1x-1m': 'claude-standard@example.com',
+          'claude-business-seat-6-5x-1m': 'claude-premium@example.com'
+        },
+        skus: ['claude-business-seat-1x-1m', 'claude-business-seat-6-5x-1m'],
+        requestTimeoutMs: 1000,
+        operationTimeoutMs: 1000,
+        pollIntervalMs: 0
       }
     },
     ...overrides
@@ -118,7 +132,11 @@ function harness(order, memberSettings, clientFactory) {
 const chatgptOrder = seatOrder();
 assert.equal(memberIntegrationForOrder(chatgptOrder, settings()).provider, 'chatgpt');
 assert.equal(memberIntegrationForOrder(seatOrder({ sku: 'canva-pro-6m' }), settings()).provider, 'canva');
-assert.equal(memberIntegrationForOrder(seatOrder({ sku: 'claude-business-seat-1x-1m' }), settings()), null);
+assert.equal(memberIntegrationForOrder(seatOrder({ sku: 'claude-business-seat-1x-1m' }), settings()).provider, 'claude');
+assert.equal(
+  memberIntegrationForOrder(seatOrder({ sku: 'claude-business-seat-6-5x-1m' }), settings()).integration.accountRef,
+  'claude-premium@example.com'
+);
 assert.equal(memberIntegrationForOrder({ ...chatgptOrder, productSnapshot: { fulfillmentMode: 'inventory' }, fulfillment: {} }, settings()), null);
 {
   const lockedOrder = seatOrder({ id: 'ord_seat_access_busy' });
@@ -719,7 +737,7 @@ assert.throws(
 
 {
   const first = seatOrder({ id: 'ord_sweep_gpt' });
-  const manual = seatOrder({ id: 'ord_sweep_claude', sku: 'claude-business-seat-1x-1m' });
+  const manual = seatOrder({ id: 'ord_sweep_manual', sku: 'manual-seat-1m' });
   const test = harness(first, settings(), () => ({
     async submitOperation() {
       return {
@@ -734,14 +752,14 @@ assert.throws(
   }));
   test.dependencies.listOrders = async () => ({ items: [first, manual] });
   const results = await sweepSeatFulfillments({ dependencies: test.dependencies });
-  assert.equal(results.length, 1, 'Claude Seat must remain manual and stay out of automated sweeps.');
+  assert.equal(results.length, 1, 'Unrouted Seat products must remain manual and stay out of automated sweeps.');
   assert.equal(first.status, 'delivered');
   assert.equal(manual.status, 'awaiting_fulfillment');
 }
 
 {
   const newest = seatOrder({ id: 'ord_page_newest' });
-  const manual = seatOrder({ id: 'ord_page_manual', sku: 'claude-business-seat-1x-1m' });
+  const manual = seatOrder({ id: 'ord_page_manual', sku: 'manual-seat-1m' });
   const oldest = seatOrder({ id: 'ord_page_oldest' });
   const orders = new Map([[newest.id, newest], [manual.id, manual], [oldest.id, oldest]]);
   const pageRequests = [];
@@ -817,4 +835,4 @@ assert.throws(
   assert.equal(listCalls, 2, 'A completed sweep must release the single-flight lock.');
 }
 
-console.log(JSON.stringify({ ok: true, checked: 'automatic GPT and Canva Seat fulfillment orchestration' }, null, 2));
+console.log(JSON.stringify({ ok: true, checked: 'automatic GPT, Canva and Claude Seat fulfillment orchestration' }, null, 2));

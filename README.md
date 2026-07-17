@@ -172,8 +172,8 @@ Railway injects it.
 
 ### Automatic ChatGPT and Canva Seat fulfillment
 
-The bot calls the two API services over Railway private networking. It never
-calls `canva-member-worker` directly. Set a stable target port on each API
+The bot calls the three API services over Railway private networking. It never
+calls browser workers directly. Set a stable target port on each API
 service so the bot can address it privately:
 
 ```text
@@ -182,6 +182,9 @@ PORT=3002
 
 # canva-member-api
 PORT=3012
+
+# claude-member-api
+PORT=3022
 ```
 
 Then add these variables to `bot-ai`:
@@ -207,11 +210,19 @@ CANVA_MEMBER_SERVICE_URL=http://${{canva-member-api.RAILWAY_PRIVATE_DOMAIN}}:${{
 CANVA_MEMBER_SERVICE_API_KEY=<raw-gsk-key-with-members:add>
 CANVA_MEMBER_ACCOUNT_REF=<registered-Canva-account-id-or-login-email>
 CANVA_MEMBER_SKUS=canva-pro-1m,canva-pro-6m
+
+CLAUDE_MEMBER_SERVICE_ENABLED=true
+CLAUDE_MEMBER_SERVICE_URL=http://${{claude-member-api.RAILWAY_PRIVATE_DOMAIN}}:${{claude-member-api.PORT}}/api/v1
+CLAUDE_MEMBER_SERVICE_API_KEY=<raw-gsk-key-with-members:add>
+CLAUDE_MEMBER_ACCOUNT_REF=<registered-Claude-account-id-org-UUID-or-login-email>
+CLAUDE_MEMBER_SKUS=claude-business-seat-1x-1m,claude-business-seat-6-5x-1m
+# Optional when standard and premium SKUs use different organizations:
+CLAUDE_MEMBER_ACCOUNT_REFS_BY_SKU={"claude-business-seat-1x-1m":"standard-owner@example.com","claude-business-seat-6-5x-1m":"premium-owner@example.com"}
 ```
 
 Use a new least-privilege `gsk_...` key and copy its raw value when it is
-created; a stored API-key hash cannot be converted back to the raw key. GPT
-and Canva account references are explicit so an order cannot be assigned to
+created; a stored API-key hash cannot be converted back to the raw key. GPT,
+Canva and Claude account references are explicit so an order cannot be assigned to
 an unintended admin account.
 
 Each active order pins a fingerprint of its provider, private service URL,
@@ -228,8 +239,9 @@ all other old orders fail closed as **needs review**.
 The member APIs return durable asynchronous operations. The bot stores the
 operation id, polls until `succeeded`, and only then marks the order delivered.
 Network timeouts reuse the same idempotency generation; terminal or partial
-failures stay in `awaiting_fulfillment` for an admin retry. Claude Seat remains
-manual until a Claude member service is configured in code.
+failures stay in `awaiting_fulfillment` for an admin retry. Claude Seat orders
+use the same durable operation contract as Canva. A per-SKU account mapping can
+route the 1x and 6.5x products to different Claude organizations.
 
 The admin dashboard includes **Seat Guard** for the configured ChatGPT target.
 It reads live members and pending invitations, compares them with paid Seat
@@ -266,8 +278,7 @@ calling the member service. Fulfillment must reconcile that fence before it can
 invite the same email, so a timed-out old removal cannot delete a newly renewed
 Seat. The worker removes the live member or invitation, polls the durable
 operation, and verifies that `allowedMembers` no longer contains the email. It
-never replaces the whole upstream allow-list. Claude lifecycle management
-remains manual until a Claude member service is configured in code.
+never replaces the whole upstream allow-list.
 
 Generate separate values for `AUTH_SECRET`, `TELEGRAM_WEBHOOK_SECRET`,
 `SEPAY_WEBHOOK_SECRET`, and `INVENTORY_ENCRYPTION_KEY`:

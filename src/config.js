@@ -40,6 +40,30 @@ function enabled(value, fallback = false) {
   return String(value).trim().toLowerCase() === 'true';
 }
 
+function accountRefsBySku(value, name) {
+  const raw = String(value || '').trim();
+  if (!raw) return {};
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`${name} must be a JSON object mapping SKU to account reference`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`${name} must be a JSON object mapping SKU to account reference`);
+  }
+  const output = {};
+  for (const [skuValue, accountRefValue] of Object.entries(parsed)) {
+    const sku = String(skuValue || '').trim().toLowerCase();
+    const accountRef = String(accountRefValue || '').trim();
+    if (!sku || !accountRef || accountRef.length > 320) {
+      throw new Error(`${name} contains an invalid SKU or account reference`);
+    }
+    output[sku] = accountRef;
+  }
+  return output;
+}
+
 export function boundedInteger(value, fallback, { name = 'value', min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
   if (value === undefined || value === null || String(value).trim() === '') return fallback;
   const parsed = Number(value);
@@ -58,6 +82,9 @@ const gptMemberServiceUrl = String(
 ).trim();
 const canvaMemberServiceUrl = String(
   process.env.CANVA_MEMBER_SERVICE_URL || process.env.CANVA_MEMBER_SERVICE_BASE_URL || ''
+).trim();
+const claudeMemberServiceUrl = String(
+  process.env.CLAUDE_MEMBER_SERVICE_URL || process.env.CLAUDE_MEMBER_SERVICE_BASE_URL || ''
 ).trim();
 
 export const config = {
@@ -196,6 +223,25 @@ export const config = {
         requestTimeoutMs: boundedEnv('CANVA_MEMBER_REQUEST_TIMEOUT_MS', 10_000, { min: 1_000, max: 120_000 }),
         operationTimeoutMs: boundedEnv('CANVA_MEMBER_OPERATION_TIMEOUT_MS', 600_000, { min: 1_000, max: 1_800_000 }),
         pollIntervalMs: boundedEnv('CANVA_MEMBER_POLL_INTERVAL_MS', 2_000, { min: 100, max: 60_000 })
+      },
+      claude: {
+        enabled: enabled(process.env.CLAUDE_MEMBER_SERVICE_ENABLED, Boolean(claudeMemberServiceUrl)),
+        serviceUrl: claudeMemberServiceUrl,
+        apiKey: String(process.env.CLAUDE_MEMBER_SERVICE_API_KEY || '').trim(),
+        accountRef: String(
+          process.env.CLAUDE_MEMBER_ACCOUNT_REF || process.env.CLAUDE_MEMBER_SERVICE_ACCOUNT_REF || ''
+        ).trim(),
+        accountRefsBySku: accountRefsBySku(
+          process.env.CLAUDE_MEMBER_ACCOUNT_REFS_BY_SKU,
+          'CLAUDE_MEMBER_ACCOUNT_REFS_BY_SKU'
+        ),
+        skus: commaSeparated(
+          process.env.CLAUDE_MEMBER_SKUS,
+          'claude-business-seat-1x-1m,claude-business-seat-6-5x-1m'
+        ),
+        requestTimeoutMs: boundedEnv('CLAUDE_MEMBER_REQUEST_TIMEOUT_MS', 10_000, { min: 1_000, max: 120_000 }),
+        operationTimeoutMs: boundedEnv('CLAUDE_MEMBER_OPERATION_TIMEOUT_MS', 600_000, { min: 1_000, max: 1_800_000 }),
+        pollIntervalMs: boundedEnv('CLAUDE_MEMBER_POLL_INTERVAL_MS', 2_000, { min: 100, max: 60_000 })
       }
     }
   },

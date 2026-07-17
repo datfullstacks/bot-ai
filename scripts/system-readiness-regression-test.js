@@ -54,6 +54,10 @@ process.env.CANVA_MEMBER_SERVICE_ENABLED = 'true';
 process.env.CANVA_MEMBER_SERVICE_URL = 'http://canva-member-api.railway.internal:3012/api/v1';
 process.env.CANVA_MEMBER_SERVICE_API_KEY = 'gsk_readiness_canva';
 process.env.CANVA_MEMBER_ACCOUNT_REF = 'canva-admin@example.com';
+process.env.CLAUDE_MEMBER_SERVICE_ENABLED = 'true';
+process.env.CLAUDE_MEMBER_SERVICE_URL = 'http://claude-member-api.railway.internal:3022/api/v1';
+process.env.CLAUDE_MEMBER_SERVICE_API_KEY = 'gsk_readiness_claude';
+process.env.CLAUDE_MEMBER_ACCOUNT_REF = 'claude-admin@example.com';
 
 const storage = await import('../src/storage.js');
 const shop = await import('../src/shop.js');
@@ -182,6 +186,7 @@ try {
   assert.equal(readiness.webhooks.sepay, 'https://shop.example.test/api/public/payments/sepay-webhook');
   assert.equal(readiness.memberFulfillment.chatgpt.configured, true);
   assert.equal(readiness.memberFulfillment.canva.configured, true);
+  assert.equal(readiness.memberFulfillment.claude.configured, true);
   assert.equal(JSON.stringify(readiness).includes('gsk_readiness_'), false, 'Readiness must not expose member API keys.');
   assert.equal(JSON.stringify(readiness).includes('.railway.internal'), false, 'Public readiness must not expose private service hostnames.');
   const chatgptMemberCheck = readiness.checks.find((check) => check.id === 'member_service_chatgpt');
@@ -189,6 +194,7 @@ try {
   assert.match(chatgptMemberCheck?.detail || '', /configured/i);
   assert.doesNotMatch(chatgptMemberCheck?.detail || '', /\bconnected\b/i);
   assert.equal(readiness.checks.some((check) => check.id === 'member_service_canva' && check.status === 'ok'), true);
+  assert.equal(readiness.checks.some((check) => check.id === 'member_service_claude' && check.status === 'ok'), true);
   assert.ok(Array.isArray(readiness.checks));
   assert.equal(readiness.checks.some((check) => check.id === 'sepay_webhook_auth' && check.status === 'ok'), true);
   assert.equal(readiness.checks.some((check) => check.id === 'product_delivery_modes' && check.status === 'ok'), true);

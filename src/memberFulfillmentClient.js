@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 
 export const MEMBER_FULFILLMENT_PROVIDERS = Object.freeze({
   CHATGPT: 'chatgpt',
-  CANVA: 'canva'
+  CANVA: 'canva',
+  CLAUDE: 'claude'
 });
 
 export const MEMBER_OPERATION_ACTIVE_STATUSES = Object.freeze([
@@ -86,7 +87,7 @@ function boundedInteger(value, fallback, { min, max, name }) {
 function normalizeProvider(value) {
   const provider = String(value || '').trim().toLowerCase();
   if (!supportedProviders.has(provider)) {
-    throw new TypeError('Member fulfillment provider must be chatgpt or canva');
+    throw new TypeError('Member fulfillment provider must be chatgpt, canva, or claude');
   }
   return provider;
 }
@@ -217,7 +218,9 @@ export function buildMemberFulfillmentRequest(provider, options = {}) {
   }
   const prefix = normalizedProvider === MEMBER_FULFILLMENT_PROVIDERS.CHATGPT
     ? '/admin-accounts/'
-    : '/canva-accounts/';
+    : normalizedProvider === MEMBER_FULFILLMENT_PROVIDERS.CANVA
+      ? '/canva-accounts/'
+      : '/claude-accounts/';
   return {
     method: 'POST',
     path: `${prefix}${encodeURIComponent(accountRef)}/invitations`,

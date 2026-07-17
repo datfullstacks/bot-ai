@@ -343,7 +343,11 @@ function buildChecks(db = null) {
         ))
         .map((product) => product.sku);
       if (!activeSkus.length) continue;
-      const label = provider === 'chatgpt' ? 'ChatGPT member service' : 'Canva member API';
+      const label = {
+        chatgpt: 'ChatGPT member service',
+        canva: 'Canva member API',
+        claude: 'Claude member API'
+      }[provider] || `${provider} member API`;
       if (memberIntegrationReady(integration)) {
         addOk(
           checks,

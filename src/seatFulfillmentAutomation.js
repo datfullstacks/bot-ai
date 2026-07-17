@@ -17,6 +17,7 @@ import { withSeatAccessLocks } from './seatAccessLock.js';
 
 const activeOrders = new Set();
 const terminalAutomationStatuses = new Set(['failed', 'verification_required']);
+const memberProviders = Object.freeze(['chatgpt', 'canva', 'claude']);
 let sweepPromise = null;
 
 function normalizedSku(order = {}) {
@@ -31,15 +32,23 @@ function isSeatOrder(order = {}) {
 export function memberIntegrationForOrder(order, settings = config.memberFulfillment) {
   if (!isSeatOrder(order)) return null;
   const pinnedProvider = String(order.fulfillment?.automation?.provider || '').trim().toLowerCase();
-  if (['chatgpt', 'canva'].includes(pinnedProvider)) {
-    return { provider: pinnedProvider, integration: settings?.integrations?.[pinnedProvider] || {} };
+  if (memberProviders.includes(pinnedProvider)) {
+    return {
+      provider: pinnedProvider,
+      integration: integrationForSku(settings?.integrations?.[pinnedProvider] || {}, normalizedSku(order))
+    };
   }
   const sku = normalizedSku(order);
-  for (const provider of ['chatgpt', 'canva']) {
+  for (const provider of memberProviders) {
     const integration = settings?.integrations?.[provider];
-    if (integration?.skus?.includes(sku)) return { provider, integration };
+    if (integration?.skus?.includes(sku)) return { provider, integration: integrationForSku(integration, sku) };
   }
   return null;
+}
+
+function integrationForSku(integration = {}, sku = '') {
+  const mappedAccountRef = String(integration.accountRefsBySku?.[sku] || '').trim();
+  return mappedAccountRef ? { ...integration, accountRef: mappedAccountRef } : integration;
 }
 
 export function memberIntegrationTargetFingerprint(provider, integration = {}) {

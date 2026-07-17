@@ -77,6 +77,7 @@ assert.equal(
 const firstKey = createMemberFulfillmentIdempotencyKey({ id: 'ord_123' }, 'chatgpt');
 assert.equal(firstKey, createMemberFulfillmentIdempotencyKey('ord_123', 'chatgpt'));
 assert.notEqual(firstKey, createMemberFulfillmentIdempotencyKey('ord_123', 'canva'));
+assert.notEqual(firstKey, createMemberFulfillmentIdempotencyKey('ord_123', 'claude'));
 assert.notEqual(firstKey, createMemberFulfillmentIdempotencyKey('ord_123', 'chatgpt', 1));
 assert.match(firstKey, /^[A-Za-z0-9._:-]{8,128}$/);
 assert.ok(!firstKey.includes('ord_123'), 'Idempotency keys must not expose order ids.');
@@ -105,6 +106,19 @@ assert.deepEqual(
   }).body,
   { emails: ['canva@example.com'], accountRefs: ['canva-team'] }
 );
+assert.deepEqual(
+  buildMemberFulfillmentRequest('claude', {
+    mode: 'targeted',
+    emails: ['Claude@Example.com'],
+    accountRef: 'claude-admin@example.com'
+  }),
+  {
+    method: 'POST',
+    path: '/claude-accounts/claude-admin%40example.com/invitations',
+    body: { emails: ['claude@example.com'] },
+    emails: ['claude@example.com']
+  }
+);
 
 const parsedChatGpt = parseMemberOperationEnvelope('chatgpt', {
   data: operation('op_chatgpt_parse', 'queued'),
@@ -119,6 +133,15 @@ const parsedCanva = parseMemberOperationEnvelope('canva', {
 });
 assert.equal(parsedCanva.partiallySucceeded, true);
 assert.equal(parsedCanva.terminal, true);
+const parsedClaude = parseMemberOperationEnvelope('claude', {
+  operation: operation('op_claude_parse', 'succeeded', {
+    result: { invited: ['claude@example.com'], duplicates: [] }
+  }),
+  replayed: true
+});
+assert.equal(parsedClaude.operationId, 'op_claude_parse');
+assert.equal(parsedClaude.succeeded, true);
+assert.equal(parsedClaude.replayed, true);
 const parsedFailure = parseMemberOperationEnvelope('chatgpt', {
   data: operation('op_chatgpt_failed', 'failed', {
     error: { code: 'REMOTE_FAILED', retryable: true, message: 'Workspace session expired' }
@@ -672,7 +695,7 @@ await withServer(async (req, res) => {
 
 console.log(JSON.stringify({
   ok: true,
-  testedProviders: ['chatgpt', 'canva'],
+  testedProviders: ['chatgpt', 'canva', 'claude'],
   idempotency: 'deterministic',
   polling: 'bounded',
   redaction: 'verified'
