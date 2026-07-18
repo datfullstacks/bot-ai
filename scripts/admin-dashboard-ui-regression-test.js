@@ -14,6 +14,13 @@ for (const id of [
   'productSearch',
   'productBrandFilter',
   'productStatusFilter',
+  'productFilterReset',
+  'productCreateToggle',
+  'productCreateContent',
+  'adminSidebar',
+  'sidebarToggle',
+  'sidebarClose',
+  'sidebarBackdrop',
   'catalogPricingForm',
   'catalogPricingProducts',
   'telegramPricingUsername',
@@ -38,10 +45,17 @@ assert.ok(html.includes('data-tab="seatGuard"'), 'Admin nav should expose the Se
 assert.ok(html.includes('data-tab="pricing"'), 'Admin nav should expose Telegram username pricing.');
 assert.ok(html.includes('id="seatGuardTab"'), 'Admin HTML should include the Seat Guard panel.');
 assert.ok(html.includes('data-lucide="shield-check"'), 'Seat Guard nav should include a shield icon.');
-assert.ok(html.includes('configured 30-day term'), 'Seat Guard should explain its fixed 30-day entitlement term.');
+assert.ok(html.includes('thời hạn 30 ngày'), 'Seat Guard should explain its fixed 30-day entitlement term.');
+assert.ok(html.includes('<html lang="vi">'), 'Admin content should declare Vietnamese as its primary language.');
+assert.ok(html.includes('aria-controls="productCreateContent"'), 'Create-product accordion should expose its controlled region.');
+assert.ok(html.includes('id="productCreateContent" class="accordion-content hidden"'), 'Create-product accordion should start closed.');
 
 for (const fn of [
   'renderProductFilters',
+  'setSidebarOpen',
+  'setButtonBusy',
+  'setProductCreateOpen',
+  'toggleProductEditor',
   'filteredProducts',
   'renderProductCard',
   'renderProductEditor',
@@ -64,6 +78,11 @@ for (const fn of [
 }
 
 assert.ok(js.includes('lucide.createIcons'), 'Admin JS should refresh Lucide icons after dynamic renders.');
+assert.ok(js.includes("event.key === 'Escape'"), 'The mobile navigation drawer should close with Escape.');
+assert.ok(js.includes("setAttribute('aria-expanded'"), 'The mobile navigation trigger should expose its expanded state.');
+assert.ok(js.includes('closeSidebarAndRestoreFocus'), 'Closing the mobile drawer should return focus to its trigger.');
+assert.ok(html.includes('class="stat-icon"'), 'Overview statistics should include visual metric icons.');
+assert.ok(html.includes('class="auth-security"'), 'Login should expose the protected-admin trust cue.');
 assert.ok(js.includes("from './brand-assets.js'"), 'Admin JS should import shared brand assets.');
 assert.ok(js.includes('brandLogo('), 'Admin JS should render exact brand logos.');
 assert.ok(js.includes("icon('package'"), 'Product cards should render package icons.');
@@ -87,12 +106,14 @@ assert.ok(js.includes('expectedEmail: email, confirmation'), 'Seat Guard mutatio
 assert.ok(js.includes('actionRequestId'), 'Seat Guard mutations should preserve an explicit idempotency generation.');
 assert.ok(js.includes('/api/seat-guard/operations/${encodeURIComponent(operationId)}'), 'Seat Guard should poll the returned operation until terminal.');
 assert.ok(js.includes('seatGuardRiskSorted'), 'Seat Guard should sort dangerous access rows first.');
-assert.ok(js.includes('<strong>30-day expiry</strong>'), 'Seat Guard should surface automatic expiry status.');
-assert.ok(js.includes('PostgreSQL row mode required'), 'Seat Guard should explain when expiry cleanup storage is unsafe.');
+assert.ok(js.includes('30-day expiry</strong>'), 'Seat Guard should surface automatic expiry status.');
+assert.ok(js.includes('PostgreSQL row mode'), 'Seat Guard should explain when expiry cleanup storage is unsafe.');
 assert.ok(html.includes('id="seatGuardMemberSearch"'), 'Seat Guard should support searching large member workspaces.');
 assert.ok(html.includes('id="seatGuardInviteRiskCount"'), 'Seat Guard should surface risky invitations in its summary.');
 assert.ok(js.includes("filteredProducts()"), 'Product rendering should use filteredProducts().');
 assert.ok(js.includes('data-product-editor'), 'Product cards should include an inline product editor form.');
+assert.ok(js.includes('data-action="toggle-product-editor"'), 'Product editors should be controlled by accessible accordion buttons.');
+assert.ok(js.includes('closeProductEditors('), 'Opening a product editor should close other inline editors.');
 assert.ok(js.includes("actionButton('import-stock'"), 'Inventory-managed product cards should include a quick stock import action.');
 assert.ok(js.includes("seatEmail ? '' : actionButton('import-stock'"), 'Seat products should hide the stock import action.');
 assert.ok(js.includes("api(`/api/products/${id}`"), 'Product editor should save through the existing product PATCH API.');
@@ -109,12 +130,12 @@ for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacemen
   assert.ok(html.includes(`name="${field}"`), `Create product form should expose ${field}.`);
   assert.ok(js.includes(`name="${field}"`), `Product editor should expose ${field}.`);
 }
-assert.ok(html.includes('TXT file'), 'Create product form should expose TXT delivery.');
-assert.ok(js.includes('Text message'), 'Product cards/editor should expose text delivery.');
+assert.ok(html.includes('Tệp TXT'), 'Create product form should expose TXT delivery.');
+assert.ok(js.includes('Tin nhắn văn bản'), 'Product cards/editor should expose text delivery.');
 assert.ok(js.includes('data.hot ='), 'Product editor should save hot product flags.');
 assert.ok(js.includes("setTab('inventory')"), 'Import-stock action should jump to the Inventory tab.');
 assert.ok(html.includes('value="seat_email"'), 'Create product form should expose seat-email fulfillment.');
-assert.ok(html.includes('Seat via customer emails'), 'Create product form should explain seat-email fulfillment.');
+assert.ok(html.includes('Seat qua email khách hàng'), 'Create product form should explain seat-email fulfillment.');
 assert.ok(js.includes("filter((product) => !isSeatEmailProduct(product))"), 'Inventory selector should exclude seat-email products.');
 assert.ok(js.includes("return !isSeatEmailProduct(catalogProduct)"), 'Low-stock summary should exclude seat-email products.');
 assert.ok(html.includes('value="awaiting_fulfillment"'), 'Order filter should expose awaiting fulfillment status.');
@@ -126,7 +147,7 @@ assert.ok(js.includes('order.fulfillment?.recipients'), 'Order table should read
 assert.ok(js.includes('&status=${encodeURIComponent(state.orderStatus)}'), 'Order status filters should query the server before pagination.');
 assert.ok(js.includes("actionButton('complete-seat'"), 'Awaiting seat orders should expose Complete Seat.');
 assert.ok(js.includes("actionButton('mark-refunded'"), 'Awaiting seat orders should expose Refund.');
-assert.ok(js.includes('Resend Seat Notice'), 'Delivered Seat orders should expose a recoverable Telegram resend action.');
+assert.ok(js.includes('Gửi lại thông báo Seat'), 'Delivered Seat orders should expose a recoverable Telegram resend action.');
 assert.ok(js.includes("api(`/api/orders/${id}/complete-fulfillment`"), 'Complete Seat should call the fulfillment completion endpoint.');
 assert.ok(js.includes("actionButton('retry-fulfillment'"), 'Automatic Seat orders should expose a retry action.');
 assert.ok(js.includes("api(`/api/orders/${id}/retry-fulfillment`"), 'Retry Auto should call the asynchronous fulfillment retry endpoint.');
@@ -163,6 +184,9 @@ assert.ok(catalogSeed.includes('fulfillmentMode: product.fulfillmentMode'), 'Cat
 
 for (const selector of [
   '.toolbar',
+  '.auth-panel',
+  '.sidebar-backdrop',
+  'body.sidebar-open',
   '.product-card',
   '.product-editor',
   '.editor-grid',
@@ -181,10 +205,19 @@ for (const selector of [
   '.seat-guard-table',
   '.seat-guard-reference-list',
   '.pricing-base-panel',
-  '.pricing-table'
+  '.pricing-table',
+  '.accordion-toggle',
+  '.pricing-row.has-override',
+  '.responsive-table'
 ]) {
   assert.ok(css.includes(selector), `Admin CSS should style ${selector}.`);
 }
+
+assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'), 'Admin motion should respect reduced-motion preferences.');
+assert.ok(css.includes('content: attr(data-label)'), 'Responsive tables should expose cell labels in mobile card mode.');
+assert.ok(js.includes('class="data-table responsive-table payments-table"'), 'Payments should use the shared compact table and mobile card pattern.');
+assert.ok(js.includes('setButtonBusy(submit, true)'), 'Admin submit actions should expose a shared loading state.');
+assert.ok(js.includes("row?.classList.toggle('has-override'"), 'Telegram override rows should visibly reflect inheritance state.');
 
 for (const [brand, expected] of [
   ['ChatGPT', '/brand/ChatGPT.png'],

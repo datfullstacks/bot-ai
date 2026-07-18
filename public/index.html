@@ -1,87 +1,122 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
   <title>KAITO AI SHOP Admin</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <main id="app">
     <section id="loginView" class="login-shell">
+      <div class="login-ambient" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
       <form id="loginForm" class="panel auth-panel">
-        <div>
-          <h1>KAITO AI SHOP Admin</h1>
-          <p>Manage Telegram products, inventory, orders, and payments.</p>
+        <div class="auth-brand">
+          <span class="brand-mark">K</span>
+          <div>
+            <strong>KAITO AI SHOP</strong>
+            <small>Trung tâm vận hành · Operations Console</small>
+          </div>
+        </div>
+        <div class="auth-heading">
+          <span class="auth-kicker">Khu vực bảo mật · Secure workspace</span>
+          <h1>Chào mừng trở lại</h1>
+          <p>Quản lý sản phẩm, bảng giá, kho hàng, đơn hàng và thanh toán Telegram.</p>
         </div>
         <label>
-          Username
+          Tên đăng nhập · Username
           <input name="username" autocomplete="username" value="admin" required>
         </label>
         <label>
-          Password
+          Mật khẩu · Password
           <input name="password" type="password" autocomplete="current-password" required>
         </label>
-        <button type="submit">Sign in</button>
+        <button type="submit"><span data-lucide="log-in" aria-hidden="true"></span><span>Đăng nhập Dashboard</span></button>
         <p id="loginError" class="error"></p>
+        <div class="auth-security">
+          <span data-lucide="shield-check" aria-hidden="true"></span>
+          <span>Quyền truy cập Admin được bảo vệ</span>
+        </div>
       </form>
     </section>
 
     <section id="dashboardView" class="dashboard hidden">
-      <aside class="sidebar">
-        <div class="brand">
-          <span class="brand-mark">K</span>
-          <div>
-            <strong>KAITO AI SHOP</strong>
-            <small id="adminName">Admin</small>
+      <aside id="adminSidebar" class="sidebar" aria-label="Admin navigation">
+        <div class="sidebar-head">
+          <div class="brand">
+            <span class="brand-mark">K</span>
+            <div>
+              <strong>KAITO AI SHOP</strong>
+              <small id="adminName">Admin</small>
+            </div>
           </div>
+          <button id="sidebarClose" class="sidebar-close" type="button" aria-label="Close navigation">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
         </div>
-        <nav>
-          <button class="nav active" data-tab="overview"><span class="nav-icon" data-lucide="layout-dashboard" aria-hidden="true"></span><span>Overview</span></button>
-          <button class="nav" data-tab="products"><span class="nav-icon" data-lucide="package" aria-hidden="true"></span><span>Products</span></button>
-          <button class="nav" data-tab="pricing"><span class="nav-icon" data-lucide="badge-dollar-sign" aria-hidden="true"></span><span>Telegram Pricing</span></button>
-          <button class="nav" data-tab="inventory"><span class="nav-icon" data-lucide="boxes" aria-hidden="true"></span><span>Inventory</span></button>
+        <span class="nav-section-label">Không gian làm việc · Workspace</span>
+        <nav class="sidebar-nav">
+          <button class="nav active" data-tab="overview"><span class="nav-icon" data-lucide="layout-dashboard" aria-hidden="true"></span><span>Tổng quan</span></button>
+          <button class="nav" data-tab="products"><span class="nav-icon" data-lucide="package" aria-hidden="true"></span><span>Sản phẩm</span></button>
+          <button class="nav" data-tab="pricing"><span class="nav-icon" data-lucide="badge-dollar-sign" aria-hidden="true"></span><span>Bảng giá Telegram</span></button>
+          <button class="nav" data-tab="inventory"><span class="nav-icon" data-lucide="boxes" aria-hidden="true"></span><span>Kho hàng</span></button>
           <button class="nav" data-tab="seatGuard"><span class="nav-icon" data-lucide="shield-check" aria-hidden="true"></span><span>Seat Guard</span></button>
-          <button class="nav" data-tab="orders"><span class="nav-icon" data-lucide="shopping-cart" aria-hidden="true"></span><span>Orders</span></button>
-          <button class="nav" data-tab="payments"><span class="nav-icon" data-lucide="credit-card" aria-hidden="true"></span><span>Payments</span></button>
-          <button class="nav" data-tab="audit"><span class="nav-icon" data-lucide="scroll-text" aria-hidden="true"></span><span>Audit</span></button>
-          <button class="nav" data-tab="system"><span class="nav-icon" data-lucide="settings" aria-hidden="true"></span><span>System</span></button>
+          <button class="nav" data-tab="orders"><span class="nav-icon" data-lucide="shopping-cart" aria-hidden="true"></span><span>Đơn hàng</span></button>
+          <button class="nav" data-tab="payments"><span class="nav-icon" data-lucide="credit-card" aria-hidden="true"></span><span>Thanh toán</span></button>
+          <button class="nav" data-tab="audit"><span class="nav-icon" data-lucide="scroll-text" aria-hidden="true"></span><span>Nhật ký</span></button>
+          <button class="nav" data-tab="system"><span class="nav-icon" data-lucide="settings" aria-hidden="true"></span><span>Hệ thống</span></button>
         </nav>
-        <button id="logoutBtn" class="secondary icon-button"><span class="icon" data-lucide="log-out" aria-hidden="true"></span><span>Logout</span></button>
+        <div class="sidebar-footer">
+          <div class="sidebar-signal">
+            <span class="sidebar-signal-dot" aria-hidden="true"></span>
+            <div><strong>Hệ thống đang hoạt động</strong><small>Live admin workspace</small></div>
+          </div>
+          <button id="logoutBtn" class="secondary icon-button"><span class="icon" data-lucide="log-out" aria-hidden="true"></span><span>Đăng xuất</span></button>
+        </div>
       </aside>
+      <button id="sidebarBackdrop" class="sidebar-backdrop" type="button" aria-label="Close navigation"></button>
 
       <section class="content">
         <header class="topbar">
-          <div>
-            <h1 id="pageTitle">Overview</h1>
-            <p id="pageSubtitle">Operational snapshot</p>
+          <div class="topbar-heading">
+            <button id="sidebarToggle" class="mobile-menu-button secondary" type="button" aria-controls="adminSidebar" aria-expanded="false" aria-label="Open navigation">
+              <span data-lucide="menu" aria-hidden="true"></span>
+            </button>
+            <div>
+              <span class="page-eyebrow">Trung tâm quản trị · Admin console</span>
+              <h1 id="pageTitle">Tổng quan</h1>
+              <p id="pageSubtitle">Ảnh chụp vận hành · Operational snapshot</p>
+            </div>
           </div>
           <div class="topbar-actions">
             <div class="quick-status">
               <span id="systemStorageBadge" class="status-dot neutral">Storage</span>
               <span id="telegramStatusBadge" class="status-dot neutral">Telegram</span>
             </div>
-            <button id="refreshBtn" class="icon-button"><span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span><span>Refresh</span></button>
+            <button id="refreshBtn" class="icon-button"><span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span><span>Làm mới</span></button>
           </div>
         </header>
 
         <section id="overviewTab" class="tab active-tab">
           <div class="stats">
-            <div class="stat"><span>Products</span><strong id="statProducts">0</strong></div>
-            <div class="stat"><span>Available stock</span><strong id="statStock">0</strong></div>
-            <div class="stat"><span>Pending orders</span><strong id="statPending">0</strong></div>
-            <div class="stat"><span>Awaiting Seat</span><strong id="statAwaitingSeat">0</strong></div>
-            <div class="stat"><span>Delivered</span><strong id="statDelivered">0</strong></div>
-            <div class="stat"><span>Needs review</span><strong id="statReview">0</strong></div>
-            <div class="stat"><span>Revenue</span><strong id="statRevenue">0 VND</strong></div>
+            <div class="stat stat-products"><span class="stat-icon" data-lucide="package"></span><div class="stat-copy"><span>Sản phẩm · Products</span><strong id="statProducts">0</strong></div></div>
+            <div class="stat stat-stock"><span class="stat-icon" data-lucide="boxes"></span><div class="stat-copy"><span>Tồn kho khả dụng</span><strong id="statStock">0</strong></div></div>
+            <div class="stat stat-pending"><span class="stat-icon" data-lucide="clock-3"></span><div class="stat-copy"><span>Đơn chờ thanh toán</span><strong id="statPending">0</strong></div></div>
+            <div class="stat stat-seat"><span class="stat-icon" data-lucide="users"></span><div class="stat-copy"><span>Seat chờ xử lý</span><strong id="statAwaitingSeat">0</strong></div></div>
+            <div class="stat stat-delivered"><span class="stat-icon" data-lucide="circle-check-big"></span><div class="stat-copy"><span>Đã giao · Delivered</span><strong id="statDelivered">0</strong></div></div>
+            <div class="stat stat-review"><span class="stat-icon" data-lucide="shield-alert"></span><div class="stat-copy"><span>Cần kiểm tra</span><strong id="statReview">0</strong></div></div>
+            <div class="stat stat-revenue"><span class="stat-icon" data-lucide="chart-no-axes-combined"></span><div class="stat-copy"><span>Doanh thu · Revenue</span><strong id="statRevenue">0 VND</strong></div></div>
           </div>
           <div class="grid two">
             <section class="panel">
-              <h2>Recent Orders</h2>
+              <h2>Đơn hàng gần đây <small>Recent Orders</small></h2>
               <div id="recentOrders"></div>
             </section>
             <section class="panel">
-              <h2>Low Stock</h2>
+              <h2>Sắp hết hàng <small>Low Stock</small></h2>
               <div id="lowStock"></div>
             </section>
           </div>
@@ -89,62 +124,75 @@
 
         <section id="productsTab" class="tab">
           <div class="grid two">
-            <form id="productForm" class="panel">
-              <h2>Create Product</h2>
-              <label>Category<input name="category" placeholder="AI Accounts" value="AI Accounts" required></label>
-              <label>Brand<input name="brand" placeholder="ChatGPT" required></label>
-              <label>Package<input name="packageType" placeholder="Plus 1M"></label>
-              <label>SKU<input name="sku" placeholder="chatgpt-plus-1m" required></label>
-              <label>Name<input name="name" placeholder="ChatGPT Plus - 1 tháng" required></label>
-              <label>Description<textarea name="description" rows="3"></textarea></label>
-              <label>Account type<textarea name="accountType" rows="2" placeholder="Private account, shared slot, activation, or account pack"></textarea></label>
-              <label>Warranty policy<textarea name="warrantyPolicy" rows="3" placeholder="State the exact warranty period and coverage"></textarea></label>
-              <label>Replacement policy<textarea name="replacementPolicy" rows="3" placeholder="State when a faulty delivery is eligible for replacement"></textarea></label>
-              <label>Delivery mode
-                <select name="deliveryMode">
-                  <option value="text">Text message</option>
-                  <option value="file">TXT file</option>
-                </select>
-              </label>
-              <label>Fulfillment mode
-                <select name="fulfillmentMode">
-                  <option value="inventory">Inventory stock</option>
-                  <option value="seat_email">Seat via customer emails</option>
-                </select>
-              </label>
-              <label>Seat term (months)<input name="seatTermMonths" type="number" min="1" max="120" value="1"></label>
-              <label>Official price note<input name="officialPriceNote" placeholder="Official: $20/mo"></label>
-              <label>Price<input name="price" type="number" min="1" value="10000" required></label>
-              <label>Currency<input name="currency" value="VND" required></label>
-              <label><input name="hot" type="checkbox" value="true"> Hot product</label>
-              <button type="submit">Create</button>
+            <form id="productForm" class="panel accordion-panel product-create-panel">
+              <button id="productCreateToggle" class="accordion-toggle" type="button" aria-expanded="false" aria-controls="productCreateContent">
+                <span class="accordion-icon" data-lucide="package-plus" aria-hidden="true"></span>
+                <span class="accordion-heading"><strong>Thêm sản phẩm</strong><small>Create product</small></span>
+                <span class="accordion-chevron" data-lucide="chevron-down" aria-hidden="true"></span>
+              </button>
+              <div id="productCreateContent" class="accordion-content hidden">
+                <div class="editor-grid create-editor-grid">
+                  <label>Danh mục · Category<input name="category" placeholder="AI Accounts" value="AI Accounts" required></label>
+                  <label>Thương hiệu · Brand<input name="brand" placeholder="ChatGPT" required></label>
+                  <label>Gói · Package<input name="packageType" placeholder="Plus 1M"></label>
+                  <label>SKU<input name="sku" placeholder="chatgpt-plus-1m" required></label>
+                  <label class="editor-span-2">Tên sản phẩm<input name="name" placeholder="ChatGPT Plus - 1 tháng" required></label>
+                  <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3"></textarea></label>
+                  <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="2" placeholder="Tài khoản riêng, slot dùng chung, kích hoạt hoặc gói tài khoản"></textarea></label>
+                  <label class="editor-span-2">Chính sách bảo hành<textarea name="warrantyPolicy" rows="3" placeholder="Ghi rõ thời hạn và phạm vi bảo hành"></textarea></label>
+                  <label class="editor-span-2">Chính sách đổi mới<textarea name="replacementPolicy" rows="3" placeholder="Ghi rõ điều kiện được đổi khi giao hàng lỗi"></textarea></label>
+                  <label>Hình thức giao
+                    <select name="deliveryMode">
+                      <option value="text">Tin nhắn văn bản</option>
+                      <option value="file">Tệp TXT</option>
+                    </select>
+                  </label>
+                  <label>Fulfillment
+                    <select name="fulfillmentMode">
+                      <option value="inventory">Từ kho · Inventory</option>
+                      <option value="seat_email">Seat qua email khách hàng</option>
+                    </select>
+                  </label>
+                  <label>Thời hạn Seat (tháng)<input name="seatTermMonths" type="number" min="1" max="120" value="1"></label>
+                  <label>Giá hãng tham khảo<input name="officialPriceNote" placeholder="Official: $20/mo"></label>
+                  <label>Giá bán<input name="price" type="number" min="1" value="10000" required></label>
+                  <label>Tiền tệ · Currency<input name="currency" value="VND" required></label>
+                  <label class="checkbox-label"><input name="hot" type="checkbox" value="true"> Sản phẩm nổi bật · Hot</label>
+                </div>
+                <div class="actions accordion-actions">
+                  <button type="submit"><span class="icon" data-lucide="plus" aria-hidden="true"></span><span>Tạo sản phẩm</span></button>
+                </div>
+              </div>
             </form>
             <section class="panel">
               <div class="panel-head">
                 <div>
-                  <h2>Product Catalog</h2>
-                  <p class="panel-subtitle">Grouped by category and brand</p>
+                  <h2>Danh mục sản phẩm <small>Product Catalog</small></h2>
+                  <p class="panel-subtitle">Nhóm theo danh mục và thương hiệu</p>
                 </div>
                 <span id="productCountBadge" class="badge available">0 products</span>
               </div>
               <div class="toolbar">
                 <label>
-                  Search
-                  <input id="productSearch" placeholder="Search brand, package, SKU">
+                  Tìm kiếm
+                  <input id="productSearch" type="search" placeholder="Thương hiệu, gói hoặc SKU">
                 </label>
                 <label>
-                  Brand
+                  Thương hiệu
                   <select id="productBrandFilter"></select>
                 </label>
                 <label>
-                  Status
+                  Trạng thái
                   <select id="productStatusFilter">
-                    <option value="all">All</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="low-stock">Low stock</option>
+                    <option value="all">Tất cả</option>
+                    <option value="active">Đang bán</option>
+                    <option value="inactive">Đã tắt</option>
+                    <option value="low-stock">Sắp hết</option>
                   </select>
                 </label>
+                <button id="productFilterReset" class="secondary filter-reset" type="button">
+                  <span class="icon" data-lucide="rotate-ccw" aria-hidden="true"></span><span>Đặt lại</span>
+                </button>
               </div>
               <div id="productsList"></div>
             </section>
@@ -156,9 +204,9 @@
             <div class="panel-head">
               <div>
                 <h2>Bảng giá gốc</h2>
-                <p class="panel-subtitle">Default prices for every Telegram customer. Username prices override only the configured SKUs.</p>
+                <p class="panel-subtitle">Áp dụng cho mọi khách Telegram; giá theo username chỉ ghi đè những SKU được cấu hình.</p>
               </div>
-              <span class="badge available">Default</span>
+              <span class="badge available">Mặc định · Default</span>
             </div>
             <div id="catalogPricingProducts"></div>
             <div class="actions">
@@ -169,8 +217,8 @@
             <form id="telegramPricingForm" class="panel">
               <div class="panel-head">
                 <div>
-                  <h2>Price by Telegram username</h2>
-                  <p class="panel-subtitle">Blank SKU prices continue using the public catalog price.</p>
+                  <h2>Giá riêng theo Telegram username</h2>
+                  <p class="panel-subtitle">Ô SKU để trống sẽ tự kế thừa giá gốc.</p>
                 </div>
               </div>
               <label>Telegram username
@@ -179,15 +227,15 @@
               </label>
               <div id="telegramPricingProducts"></div>
               <div class="actions">
-                <button type="submit">Save price list</button>
-                <button id="telegramPricingResetBtn" class="secondary" type="button">New / reset form</button>
+                <button type="submit">Lưu bảng giá riêng</button>
+                <button id="telegramPricingResetBtn" class="secondary" type="button">Bảng giá mới</button>
               </div>
             </form>
             <section class="panel">
               <div class="panel-head">
                 <div>
-                  <h2>Configured usernames</h2>
-                  <p class="panel-subtitle">Select a username to edit or remove its custom price list.</p>
+                  <h2>Username đã cấu hình</h2>
+                  <p class="panel-subtitle">Chọn username để sửa hoặc xóa bảng giá riêng.</p>
                 </div>
                 <span id="telegramPricingCount" class="badge available">0 users</span>
               </div>
@@ -199,14 +247,14 @@
         <section id="inventoryTab" class="tab">
           <div class="grid two">
             <form id="inventoryForm" class="panel">
-              <h2>Import Inventory</h2>
-              <label>Product<select name="productId" required></select></label>
-              <label>Items<textarea name="items" rows="12" placeholder="one complete delivery payload per line&#10;email|password|recovery&#10;license-key" required></textarea></label>
-              <p class="panel-subtitle">Production imports require INVENTORY_ENCRYPTION_KEY. Duplicate lines are skipped.</p>
-              <button type="submit">Import</button>
+              <h2>Nhập kho <small>Import Inventory</small></h2>
+              <label>Sản phẩm<select name="productId" required></select></label>
+              <label>Dữ liệu kho<textarea name="items" rows="12" placeholder="mỗi dòng là một nội dung giao hoàn chỉnh&#10;email|password|recovery&#10;license-key" required></textarea></label>
+              <p class="panel-subtitle">Môi trường production cần INVENTORY_ENCRYPTION_KEY. Dòng trùng lặp sẽ được bỏ qua.</p>
+              <button type="submit">Nhập kho</button>
             </form>
             <section class="panel">
-              <h2>Latest Inventory</h2>
+              <h2>Kho mới nhất <small>Latest Inventory</small></h2>
               <div id="inventoryList"></div>
             </section>
           </div>
@@ -217,35 +265,35 @@
             <div class="panel-head">
               <div>
                 <h2>Seat Guard</h2>
-                <p class="panel-subtitle">Compare workspace access with paid Seat entitlements and enforce the configured 30-day term.</p>
+                <p class="panel-subtitle">Đối chiếu quyền workspace với Seat đã thanh toán và thời hạn 30 ngày được cấu hình.</p>
               </div>
               <button class="secondary icon-button" data-action="refresh-seat-guard">
                 <span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span>
-                <span>Refresh Seat Guard</span>
+                <span>Làm mới Seat Guard</span>
               </button>
             </div>
             <div id="seatGuardConnection" class="seat-guard-connection"></div>
             <div class="stats seat-guard-stats">
-              <div class="stat"><span>Members</span><strong id="seatGuardMembersCount">0</strong></div>
-              <div class="stat"><span>Pending invites</span><strong id="seatGuardPendingCount">0</strong></div>
-              <div class="stat"><span>Valid</span><strong id="seatGuardValidCount">0</strong></div>
-              <div class="stat warning-stat"><span>Unverified allow-list</span><strong id="seatGuardAllowedCount">0</strong></div>
-              <div class="stat"><span>Protected</span><strong id="seatGuardProtectedCount">0</strong></div>
-              <div class="stat danger-stat"><span>Unauthorized</span><strong id="seatGuardUnauthorizedCount">0</strong></div>
-              <div class="stat warning-stat"><span>Expired</span><strong id="seatGuardExpiredCount">0</strong></div>
-              <div class="stat warning-stat"><span>Needs review</span><strong id="seatGuardReviewCount">0</strong></div>
-              <div class="stat danger-stat"><span>Risk invites</span><strong id="seatGuardInviteRiskCount">0</strong></div>
-              <div class="stat warning-stat"><span>Missing access</span><strong id="seatGuardMissingCount">0</strong></div>
+              <div class="stat"><span>Thành viên</span><strong id="seatGuardMembersCount">0</strong></div>
+              <div class="stat"><span>Lời mời chờ</span><strong id="seatGuardPendingCount">0</strong></div>
+              <div class="stat"><span>Hợp lệ</span><strong id="seatGuardValidCount">0</strong></div>
+              <div class="stat warning-stat"><span>Allow-list chưa xác minh</span><strong id="seatGuardAllowedCount">0</strong></div>
+              <div class="stat"><span>Được bảo vệ</span><strong id="seatGuardProtectedCount">0</strong></div>
+              <div class="stat danger-stat"><span>Không hợp lệ</span><strong id="seatGuardUnauthorizedCount">0</strong></div>
+              <div class="stat warning-stat"><span>Hết hạn</span><strong id="seatGuardExpiredCount">0</strong></div>
+              <div class="stat warning-stat"><span>Cần kiểm tra</span><strong id="seatGuardReviewCount">0</strong></div>
+              <div class="stat danger-stat"><span>Lời mời rủi ro</span><strong id="seatGuardInviteRiskCount">0</strong></div>
+              <div class="stat warning-stat"><span>Thiếu quyền</span><strong id="seatGuardMissingCount">0</strong></div>
             </div>
           </section>
 
           <section class="panel seat-guard-section">
             <div class="panel-head">
               <div>
-                <h2>Workspace Members</h2>
-                <p class="panel-subtitle">Observed members classified against active orders and protected access.</p>
+                <h2>Thành viên workspace</h2>
+                <p class="panel-subtitle">Phân loại thành viên theo đơn đang hiệu lực và quyền được bảo vệ.</p>
               </div>
-              <input id="seatGuardMemberSearch" class="seat-guard-search" type="search" placeholder="Search member, risk, order..." autocomplete="off">
+              <input id="seatGuardMemberSearch" class="seat-guard-search" type="search" placeholder="Tìm thành viên, rủi ro, đơn..." autocomplete="off">
             </div>
             <div id="seatGuardMembers"></div>
           </section>
@@ -253,10 +301,10 @@
           <section class="panel seat-guard-section">
             <div class="panel-head">
               <div>
-                <h2>Pending Invitations</h2>
-                <p class="panel-subtitle">Invitations that have not become active workspace members.</p>
+                <h2>Lời mời đang chờ</h2>
+                <p class="panel-subtitle">Các lời mời chưa trở thành thành viên workspace.</p>
               </div>
-              <input id="seatGuardInvitationSearch" class="seat-guard-search" type="search" placeholder="Search invitation, risk, order..." autocomplete="off">
+              <input id="seatGuardInvitationSearch" class="seat-guard-search" type="search" placeholder="Tìm lời mời, rủi ro, đơn..." autocomplete="off">
             </div>
             <div id="seatGuardInvitations"></div>
           </section>
@@ -264,8 +312,8 @@
           <section class="panel seat-guard-section">
             <div class="panel-head">
               <div>
-                <h2>Seat Entitlements</h2>
-                <p class="panel-subtitle">Paid access expected from bot orders, including missing and expired Seat access.</p>
+                <h2>Quyền Seat đã thanh toán</h2>
+                <p class="panel-subtitle">Quyền dự kiến từ đơn bot, gồm Seat bị thiếu hoặc đã hết hạn.</p>
               </div>
             </div>
             <div id="seatGuardEntitlements"></div>
@@ -276,28 +324,28 @@
           <section class="panel">
             <div class="panel-head">
               <div>
-                <h2>Orders</h2>
-                <p class="panel-subtitle">Payment, review, and delivery queue</p>
+                <h2>Đơn hàng <small>Orders</small></h2>
+                <p class="panel-subtitle">Hàng đợi thanh toán, kiểm tra và giao hàng</p>
               </div>
               <form id="devOrderForm" class="inline-form">
                 <input name="sku" placeholder="SKU" required>
                 <input name="quantity" type="number" min="1" value="1">
-                <textarea name="recipientEmails" rows="2" placeholder="Seat emails: one per line (optional)"></textarea>
-                <button type="submit">Create Test Order</button>
+                <textarea name="recipientEmails" rows="2" placeholder="Email Seat: mỗi dòng một email (không bắt buộc)"></textarea>
+                <button type="submit">Tạo đơn thử</button>
               </form>
             </div>
             <div class="toolbar compact">
               <label>
-                Status
+                Trạng thái
                 <select id="orderStatusFilter">
-                  <option value="all">All orders</option>
-                  <option value="pending_payment">Pending payment</option>
-                  <option value="payment_review">Needs review</option>
-                  <option value="awaiting_fulfillment">Awaiting seat fulfillment</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="expired">Expired</option>
-                  <option value="refunded">Refunded</option>
+                  <option value="all">Tất cả đơn</option>
+                  <option value="pending_payment">Chờ thanh toán</option>
+                  <option value="payment_review">Cần kiểm tra</option>
+                  <option value="awaiting_fulfillment">Chờ giao Seat</option>
+                  <option value="delivered">Đã giao</option>
+                  <option value="cancelled">Đã hủy</option>
+                  <option value="expired">Hết hạn</option>
+                  <option value="refunded">Đã hoàn tiền</option>
                 </select>
               </label>
             </div>
@@ -307,14 +355,14 @@
 
         <section id="paymentsTab" class="tab">
           <section class="panel">
-            <h2>Payments</h2>
+            <h2>Thanh toán <small>Payments</small></h2>
             <div id="paymentsList"></div>
           </section>
         </section>
 
         <section id="auditTab" class="tab">
           <section class="panel">
-            <h2>Audit Log</h2>
+            <h2>Nhật ký hoạt động <small>Audit Log</small></h2>
             <div id="auditList"></div>
           </section>
         </section>
@@ -322,11 +370,11 @@
         <section id="systemTab" class="tab">
           <div class="grid two">
             <section class="panel">
-              <h2>Configuration Status</h2>
+              <h2>Trạng thái cấu hình</h2>
               <div id="systemChecks"></div>
             </section>
             <section class="panel">
-              <h2>Runtime</h2>
+              <h2>Môi trường chạy <small>Runtime</small></h2>
               <div id="systemRuntime"></div>
             </section>
           </div>

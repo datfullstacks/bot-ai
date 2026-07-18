@@ -82,24 +82,83 @@ async function api(path, options = {}) {
   return body;
 }
 
+function setSidebarOpen(open) {
+  const expanded = Boolean(open);
+  document.body.classList.toggle('sidebar-open', expanded);
+  $('#sidebarToggle').setAttribute('aria-expanded', String(expanded));
+}
+
+function closeSidebarAndRestoreFocus() {
+  setSidebarOpen(false);
+  $('#sidebarToggle')?.focus();
+}
+
+function setButtonBusy(button, busy) {
+  if (!button) return;
+  button.disabled = Boolean(busy);
+  button.classList.toggle('is-loading', Boolean(busy));
+  if (busy) button.setAttribute('aria-busy', 'true');
+  else button.removeAttribute('aria-busy');
+}
+
+function setProductCreateOpen(open) {
+  const toggle = $('#productCreateToggle');
+  const content = $('#productCreateContent');
+  if (!toggle || !content) return;
+  const expanded = Boolean(open);
+  toggle.setAttribute('aria-expanded', String(expanded));
+  content.classList.toggle('hidden', !expanded);
+  $('#productForm')?.classList.toggle('is-open', expanded);
+  if (expanded) closeProductEditors();
+}
+
+function closeProductEditors(exceptId = '') {
+  $$('[data-product-editor]').forEach((form) => {
+    if (form.id === exceptId) return;
+    form.classList.add('hidden');
+    form.closest('.product-card')?.classList.remove('editor-open');
+  });
+  $$('[data-action="toggle-product-editor"]').forEach((button) => {
+    if (button.getAttribute('aria-controls') !== exceptId) {
+      button.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+
+function toggleProductEditor(button) {
+  const editorId = button.getAttribute('aria-controls');
+  const form = editorId ? document.getElementById(editorId) : null;
+  if (!form) return;
+  const shouldOpen = form.classList.contains('hidden');
+  closeProductEditors(shouldOpen ? editorId : '');
+  setProductCreateOpen(false);
+  form.classList.toggle('hidden', !shouldOpen);
+  form.closest('.product-card')?.classList.toggle('editor-open', shouldOpen);
+  button.setAttribute('aria-expanded', String(shouldOpen));
+  if (shouldOpen) form.querySelector('input, textarea, select')?.focus({ preventScroll: true });
+}
+
 function setTab(tab) {
+  const drawerWasOpen = document.body.classList.contains('sidebar-open');
   state.tab = tab;
   $$('.nav').forEach((button) => button.classList.toggle('active', button.dataset.tab === tab));
   $$('.tab').forEach((section) => section.classList.remove('active-tab'));
   $(`#${tab}Tab`).classList.add('active-tab');
   const titles = {
-    overview: ['Overview', 'Operational snapshot'],
-    products: ['Products', 'Create and manage sellable items'],
-    pricing: ['Telegram Pricing', 'Set SKU prices for individual Telegram usernames'],
-    inventory: ['Inventory', 'Import account/code stock'],
-    seatGuard: ['Seat Guard', 'Reconcile paid Seat access with workspace members'],
-    orders: ['Orders', 'Track checkout and delivery'],
-    payments: ['Payments', 'Provider events and payment sessions'],
-    audit: ['Audit', 'Admin and system activity'],
-    system: ['System', 'Configuration and runtime readiness']
+    overview: ['Tổng quan', 'Ảnh chụp vận hành · Operational snapshot'],
+    products: ['Sản phẩm', 'Tạo và quản lý mặt hàng đang bán'],
+    pricing: ['Bảng giá Telegram', 'Giá gốc và giá riêng theo username'],
+    inventory: ['Kho hàng', 'Nhập tài khoản và mã giao hàng'],
+    seatGuard: ['Seat Guard', 'Đối chiếu Seat đã thanh toán với workspace'],
+    orders: ['Đơn hàng', 'Theo dõi thanh toán và giao hàng'],
+    payments: ['Thanh toán', 'Sự kiện provider và phiên thanh toán'],
+    audit: ['Nhật ký', 'Hoạt động Admin và hệ thống'],
+    system: ['Hệ thống', 'Cấu hình và trạng thái runtime']
   };
   $('#pageTitle').textContent = titles[tab][0];
   $('#pageSubtitle').textContent = titles[tab][1];
+  if (drawerWasOpen) closeSidebarAndRestoreFocus();
+  else setSidebarOpen(false);
 }
 
 function showDashboard(user) {
@@ -109,6 +168,7 @@ function showDashboard(user) {
 }
 
 function showLogin() {
+  setSidebarOpen(false);
   $('#dashboardView').classList.add('hidden');
   $('#loginView').classList.remove('hidden');
 }
@@ -139,7 +199,7 @@ function isSeatEmailProduct(product = {}) {
 }
 
 function fulfillmentModeLabel(product = {}) {
-  return isSeatEmailProduct(product) ? 'Seat via customer emails' : 'Inventory stock';
+  return isSeatEmailProduct(product) ? 'Seat qua email khách hàng' : 'Từ kho · Inventory';
 }
 
 function isSeatEmailOrder(order = {}) {
@@ -182,9 +242,9 @@ function automaticSeatRetryLabel(order = {}) {
   if (!automaticSeatProvider(order)) return '';
   const automation = order.fulfillment?.automation;
   if (!automation) return 'Start Auto';
-  if (automation.status === 'retrying') return 'Retry Now';
-  if (automation.status === 'verification_required') return 'Retry / Verify Auto';
-  if (['failed', 'blocked'].includes(automation.status)) return 'Retry Auto';
+  if (automation.status === 'retrying') return 'Thử lại ngay';
+  if (automation.status === 'verification_required') return 'Thử lại / xác minh Auto';
+  if (['failed', 'blocked'].includes(automation.status)) return 'Thử lại Auto';
   return '';
 }
 
@@ -233,7 +293,7 @@ function renderOrderRecipients(order) {
   const recipients = orderRecipientRows(order);
   if (!recipients.length) {
     return isSeatEmailOrder(order)
-      ? '<span class="meta">No recipient emails</span>'
+      ? '<span class="meta">Chưa có email nhận Seat</span>'
       : '<span class="meta">-</span>';
   }
   return `<div class="recipient-list">${recipients.map((recipient) => `
@@ -259,7 +319,7 @@ function seatGuardDate(value) {
 }
 
 function seatGuardAccountLabel(account) {
-  if (!account) return 'No account reported';
+  if (!account) return 'Chưa có thông tin tài khoản';
   if (typeof account === 'string') return account;
   const values = [
     account.name,
@@ -269,7 +329,7 @@ function seatGuardAccountLabel(account) {
     account.accountRef,
     account.id
   ].map((value) => String(value || '').trim()).filter(Boolean);
-  return [...new Set(values)].join(' · ') || 'Configured account';
+  return [...new Set(values)].join(' · ') || 'Tài khoản đã cấu hình';
 }
 
 function seatGuardPermissionsLabel(permissions) {
@@ -326,7 +386,7 @@ function renderSeatGuardReferences(values, empty = '-') {
 function renderSeatGuardIdentity(item = {}) {
   const email = String(item.email || '').trim();
   const name = String(item.name || '').trim();
-  return `<strong>${escapeHtml(name || email || 'Unknown member')}</strong>${name && email ? `<span>${escapeHtml(email)}</span>` : ''}`;
+  return `<strong>${escapeHtml(name || email || 'Không rõ thành viên')}</strong>${name && email ? `<span>${escapeHtml(email)}</span>` : ''}`;
 }
 
 function seatGuardAction(action, item, label, iconName) {
@@ -335,19 +395,19 @@ function seatGuardAction(action, item, label, iconName) {
 
 function renderSeatGuardMembers(items = [], capabilities = {}) {
   items = seatGuardFiltered(items, state.seatGuardMemberSearch);
-  if (!items.length) return '<p class="meta empty-state">No workspace members were returned.</p>';
+  if (!items.length) return '<p class="meta empty-state">Không có thành viên workspace.</p>';
   return `
     <div class="table-wrap">
-      <table class="data-table seat-guard-table">
+      <table class="data-table seat-guard-table responsive-table">
         <thead>
           <tr>
-            <th>Member</th>
-            <th>Role</th>
-            <th>Workspace status</th>
-            <th>Classification</th>
-            <th>Seat expires</th>
-            <th>Orders</th>
-            <th>Action</th>
+            <th>Thành viên</th>
+            <th>Vai trò</th>
+            <th>Trạng thái workspace</th>
+            <th>Phân loại</th>
+            <th>Seat hết hạn</th>
+            <th>Đơn hàng</th>
+            <th>Hành động</th>
           </tr>
         </thead>
         <tbody>
@@ -356,15 +416,15 @@ function renderSeatGuardMembers(items = [], capabilities = {}) {
             const canRemove = Boolean(capabilities.canRemove && item.removable);
             return `
               <tr>
-                <td>${renderSeatGuardIdentity(item)}</td>
-                <td>${escapeHtml(item.role || '-')}</td>
-                <td>${renderStatusPill(item.status || 'unknown')}</td>
-                <td>${renderStatusPill(classification, classification.replaceAll('_', ' '))}</td>
-                <td>${escapeHtml(seatGuardDate(item.expiresAt))}</td>
-                <td>${renderSeatGuardReferences(item.orderIds, 'No matching order')}</td>
-                <td>${canRemove
-                  ? seatGuardAction('seat-guard-remove-member', item, classification === 'manual_allowed' ? 'Remove unverified' : 'Remove member', 'user-minus')
-                  : '<span class="meta">Protected or read only</span>'}</td>
+                <td data-label="Thành viên">${renderSeatGuardIdentity(item)}</td>
+                <td data-label="Vai trò">${escapeHtml(item.role || '-')}</td>
+                <td data-label="Trạng thái workspace">${renderStatusPill(item.status || 'unknown')}</td>
+                <td data-label="Phân loại">${renderStatusPill(classification, classification.replaceAll('_', ' '))}</td>
+                <td data-label="Seat hết hạn">${escapeHtml(seatGuardDate(item.expiresAt))}</td>
+                <td data-label="Đơn hàng">${renderSeatGuardReferences(item.orderIds, 'Không có đơn khớp')}</td>
+                <td data-label="Hành động">${canRemove
+                  ? seatGuardAction('seat-guard-remove-member', item, classification === 'manual_allowed' ? 'Xóa mục chưa xác minh' : 'Xóa thành viên', 'user-minus')
+                  : '<span class="meta">Được bảo vệ hoặc chỉ đọc</span>'}</td>
               </tr>
             `;
           }).join('')}
@@ -376,18 +436,18 @@ function renderSeatGuardMembers(items = [], capabilities = {}) {
 
 function renderSeatGuardInvitations(items = [], capabilities = {}) {
   items = seatGuardFiltered(items, state.seatGuardInvitationSearch);
-  if (!items.length) return '<p class="meta empty-state">No pending invitations were returned.</p>';
+  if (!items.length) return '<p class="meta empty-state">Không có lời mời đang chờ.</p>';
   return `
     <div class="table-wrap">
-      <table class="data-table seat-guard-table">
+      <table class="data-table seat-guard-table responsive-table">
         <thead>
           <tr>
-            <th>Invitee</th>
-            <th>Status</th>
-            <th>Classification</th>
-            <th>Seat expires</th>
-            <th>Orders</th>
-            <th>Action</th>
+            <th>Người được mời</th>
+            <th>Trạng thái</th>
+            <th>Phân loại</th>
+            <th>Seat hết hạn</th>
+            <th>Đơn hàng</th>
+            <th>Hành động</th>
           </tr>
         </thead>
         <tbody>
@@ -396,14 +456,14 @@ function renderSeatGuardInvitations(items = [], capabilities = {}) {
             const canCancel = Boolean(capabilities.canRemove && item.cancelable);
             return `
               <tr>
-                <td>${renderSeatGuardIdentity(item)}</td>
-                <td>${renderStatusPill(item.status || 'pending')}</td>
-                <td>${renderStatusPill(classification, classification.replaceAll('_', ' '))}</td>
-                <td>${escapeHtml(seatGuardDate(item.expiresAt))}</td>
-                <td>${renderSeatGuardReferences(item.orderIds, 'No matching order')}</td>
-                <td>${canCancel
-                  ? seatGuardAction('seat-guard-cancel-invitation', item, classification === 'manual_allowed' ? 'Cancel unverified' : 'Cancel invite', 'mail-x')
-                  : '<span class="meta">Protected or read only</span>'}</td>
+                <td data-label="Người được mời">${renderSeatGuardIdentity(item)}</td>
+                <td data-label="Trạng thái">${renderStatusPill(item.status || 'pending')}</td>
+                <td data-label="Phân loại">${renderStatusPill(classification, classification.replaceAll('_', ' '))}</td>
+                <td data-label="Seat hết hạn">${escapeHtml(seatGuardDate(item.expiresAt))}</td>
+                <td data-label="Đơn hàng">${renderSeatGuardReferences(item.orderIds, 'Không có đơn khớp')}</td>
+                <td data-label="Hành động">${canCancel
+                  ? seatGuardAction('seat-guard-cancel-invitation', item, classification === 'manual_allowed' ? 'Hủy mục chưa xác minh' : 'Hủy lời mời', 'mail-x')
+                  : '<span class="meta">Được bảo vệ hoặc chỉ đọc</span>'}</td>
               </tr>
             `;
           }).join('')}
@@ -414,27 +474,27 @@ function renderSeatGuardInvitations(items = [], capabilities = {}) {
 }
 
 function renderSeatGuardEntitlements(items = []) {
-  if (!items.length) return '<p class="meta empty-state">No Seat entitlements were returned.</p>';
+  if (!items.length) return '<p class="meta empty-state">Không có quyền Seat đã thanh toán.</p>';
   return `
     <div class="table-wrap">
-      <table class="data-table seat-guard-table">
+      <table class="data-table seat-guard-table responsive-table">
         <thead>
           <tr>
             <th>Email</th>
-            <th>State</th>
-            <th>Expires</th>
-            <th>Products</th>
-            <th>Orders</th>
+            <th>Trạng thái</th>
+            <th>Hết hạn</th>
+            <th>Sản phẩm</th>
+            <th>Đơn hàng</th>
           </tr>
         </thead>
         <tbody>
           ${items.map((item) => `
             <tr>
-              <td><strong>${escapeHtml(item.email || '-')}</strong></td>
-              <td>${renderStatusPill(item.state || 'unknown')}</td>
-              <td>${escapeHtml(seatGuardDate(item.expiresAt))}</td>
-              <td>${renderSeatGuardReferences(item.productNames)}</td>
-              <td>${renderSeatGuardReferences(item.orderIds)}</td>
+              <td data-label="Email"><strong>${escapeHtml(item.email || '-')}</strong></td>
+              <td data-label="Trạng thái">${renderStatusPill(item.state || 'unknown')}</td>
+              <td data-label="Hết hạn">${escapeHtml(seatGuardDate(item.expiresAt))}</td>
+              <td data-label="Sản phẩm">${renderSeatGuardReferences(item.productNames)}</td>
+              <td data-label="Đơn hàng">${renderSeatGuardReferences(item.orderIds)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -466,25 +526,25 @@ function renderSeatGuardConnection(data = {}) {
   const expiry = data.expiryAutomation || {};
   const status = data.configured ? (capabilities.canRead ? 'ok' : 'warn') : 'warn';
   const title = data.configured
-    ? capabilities.canRead ? 'Connected' : 'Configured without member-read permission'
-    : 'Seat Guard is not configured';
+    ? capabilities.canRead ? 'Đã kết nối' : 'Đã cấu hình nhưng thiếu quyền đọc thành viên'
+    : 'Seat Guard chưa được cấu hình';
   const expiryStatus = !expiry.enabled
-    ? 'Automatic cleanup off'
+    ? 'Dọn dẹp tự động đang tắt'
     : expiry.storageReady
-      ? 'Automatic cleanup on'
+      ? 'Dọn dẹp tự động đang bật'
       : expiry.storageReason === 'database_pool_too_small'
-        ? `Blocked: DATABASE_POOL_MAX must be at least ${Number(expiry.requiredDatabasePoolMax || 0)}`
-        : 'Blocked: PostgreSQL row mode required';
+        ? `Bị chặn: DATABASE_POOL_MAX tối thiểu ${Number(expiry.requiredDatabasePoolMax || 0)}`
+        : 'Bị chặn: cần PostgreSQL row mode';
   $('#seatGuardConnection').innerHTML = `
     <div class="seat-guard-connection-head">
       <span class="status-dot ${status}">${escapeHtml(title)}</span>
-      <span class="meta">Observed: ${escapeHtml(seatGuardDate(data.observedAt))}</span>
+      <span class="meta">Ghi nhận: ${escapeHtml(seatGuardDate(data.observedAt))}</span>
     </div>
     <div class="seat-guard-connection-grid">
-      <span><strong>Account</strong>${escapeHtml(seatGuardAccountLabel(data.account))}</span>
-      <span><strong>Permissions</strong>${escapeHtml(seatGuardPermissionsLabel(data.permissions))}</span>
-      <span><strong>30-day expiry</strong>${escapeHtml(expiryStatus)}</span>
-      <span><strong>Capabilities</strong>Read ${capabilities.canRead ? 'yes' : 'no'} · Remove ${capabilities.canRemove ? 'yes' : 'no'}</span>
+      <span><strong>Tài khoản · Account</strong>${escapeHtml(seatGuardAccountLabel(data.account))}</span>
+      <span><strong>Quyền · Permissions</strong>${escapeHtml(seatGuardPermissionsLabel(data.permissions))}</span>
+      <span><strong>Hết hạn 30 ngày · 30-day expiry</strong>${escapeHtml(expiryStatus)}</span>
+      <span><strong>Khả năng · Capabilities</strong>Đọc ${capabilities.canRead ? 'có' : 'không'} · Xóa ${capabilities.canRemove ? 'có' : 'không'}</span>
     </div>
   `;
 }
@@ -582,11 +642,16 @@ function renderProductFilters(products) {
   const brands = [...new Set(products.map((product) => product.brand || 'Other'))].sort((left, right) => left.localeCompare(right));
   const current = state.productBrand;
   brandFilter.innerHTML = [
-    '<option value="all">All brands</option>',
+    '<option value="all">Tất cả thương hiệu</option>',
     ...brands.map((brand) => `<option value="${escapeHtml(brand)}">${escapeHtml(brand)}</option>`)
   ].join('');
   brandFilter.value = brands.includes(current) ? current : 'all';
   state.productBrand = brandFilter.value;
+  const reset = $('#productFilterReset');
+  if (reset) {
+    const hasFilters = Boolean(state.productSearch.trim()) || state.productBrand !== 'all' || state.productStatus !== 'all';
+    reset.disabled = !hasFilters;
+  }
 }
 
 function filteredProducts() {
@@ -618,46 +683,51 @@ function filteredProducts() {
   });
 }
 
+function productEditorDomId(productId) {
+  return `product-editor-${String(productId || '').replace(/[^a-z0-9_-]/gi, '-')}`;
+}
+
 function renderProductEditor(product) {
   const active = product.active !== false;
+  const editorId = productEditorDomId(product.id);
   return `
-    <form class="product-editor" data-product-editor data-id="${escapeHtml(product.id)}">
+    <form id="${escapeHtml(editorId)}" class="product-editor hidden" data-product-editor data-id="${escapeHtml(product.id)}">
       <div class="editor-grid">
-        <label>Category<input name="category" value="${escapeHtml(product.category || 'Accounts')}" required></label>
-        <label>Brand<input name="brand" value="${escapeHtml(product.brand || 'Other')}" required></label>
-        <label>Package<input name="packageType" value="${escapeHtml(product.packageType || '')}"></label>
-        <label>Name<input name="name" value="${escapeHtml(product.name || '')}" required></label>
-        <label>Description<textarea name="description" rows="3">${escapeHtml(product.description || '')}</textarea></label>
-        <label>Account type<textarea name="accountType" rows="3">${escapeHtml(product.accountType || '')}</textarea></label>
-        <label>Warranty policy<textarea name="warrantyPolicy" rows="3">${escapeHtml(product.warrantyPolicy || '')}</textarea></label>
-        <label>Replacement policy<textarea name="replacementPolicy" rows="3">${escapeHtml(product.replacementPolicy || '')}</textarea></label>
-        <label>Delivery mode
+        <label>Danh mục · Category<input name="category" value="${escapeHtml(product.category || 'Accounts')}" required></label>
+        <label>Thương hiệu · Brand<input name="brand" value="${escapeHtml(product.brand || 'Other')}" required></label>
+        <label>Gói · Package<input name="packageType" value="${escapeHtml(product.packageType || '')}"></label>
+        <label>Tên sản phẩm<input name="name" value="${escapeHtml(product.name || '')}" required></label>
+        <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3">${escapeHtml(product.description || '')}</textarea></label>
+        <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="3">${escapeHtml(product.accountType || '')}</textarea></label>
+        <label class="editor-span-2">Chính sách bảo hành<textarea name="warrantyPolicy" rows="3">${escapeHtml(product.warrantyPolicy || '')}</textarea></label>
+        <label class="editor-span-2">Chính sách đổi mới<textarea name="replacementPolicy" rows="3">${escapeHtml(product.replacementPolicy || '')}</textarea></label>
+        <label>Hình thức giao
           <select name="deliveryMode">
-            <option value="text" ${(product.deliveryMode || 'text') === 'text' ? 'selected' : ''}>Text message</option>
-            <option value="file" ${product.deliveryMode === 'file' ? 'selected' : ''}>TXT file</option>
+            <option value="text" ${(product.deliveryMode || 'text') === 'text' ? 'selected' : ''}>Tin nhắn văn bản</option>
+            <option value="file" ${product.deliveryMode === 'file' ? 'selected' : ''}>Tệp TXT</option>
           </select>
         </label>
-        <label>Fulfillment mode
+        <label>Fulfillment
           <select name="fulfillmentMode">
-            <option value="inventory" ${isSeatEmailProduct(product) ? '' : 'selected'}>Inventory stock</option>
-            <option value="seat_email" ${isSeatEmailProduct(product) ? 'selected' : ''}>Seat via customer emails</option>
+            <option value="inventory" ${isSeatEmailProduct(product) ? '' : 'selected'}>Từ kho · Inventory</option>
+            <option value="seat_email" ${isSeatEmailProduct(product) ? 'selected' : ''}>Seat qua email khách hàng</option>
           </select>
         </label>
-        <label>Seat term (months)<input name="seatTermMonths" type="number" min="1" max="120" value="${escapeHtml(product.seatTermMonths || 1)}"></label>
-        <label>Official price note<input name="officialPriceNote" value="${escapeHtml(product.officialPriceNote || '')}"></label>
-        <label>Price<input name="price" type="number" min="1" value="${escapeHtml(product.price)}" required></label>
-        <label>Currency<input name="currency" value="${escapeHtml(product.currency || 'VND')}" required></label>
-        <label>Sort<input name="sortOrder" type="number" min="1" value="${escapeHtml(product.sortOrder || 1000)}"></label>
-        <label><input name="hot" type="checkbox" value="true" ${product.hot ? 'checked' : ''}> Hot</label>
-        <label>Status
+        <label>Thời hạn Seat (tháng)<input name="seatTermMonths" type="number" min="1" max="120" value="${escapeHtml(product.seatTermMonths || 1)}"></label>
+        <label>Giá hãng tham khảo<input name="officialPriceNote" value="${escapeHtml(product.officialPriceNote || '')}"></label>
+        <label>Giá bán<input name="price" type="number" min="1" value="${escapeHtml(product.price)}" required></label>
+        <label>Tiền tệ · Currency<input name="currency" value="${escapeHtml(product.currency || 'VND')}" required></label>
+        <label>Thứ tự<input name="sortOrder" type="number" min="1" value="${escapeHtml(product.sortOrder || 1000)}"></label>
+        <label class="checkbox-label"><input name="hot" type="checkbox" value="true" ${product.hot ? 'checked' : ''}> Nổi bật · Hot</label>
+        <label>Trạng thái
           <select name="active">
-            <option value="true" ${active ? 'selected' : ''}>Active</option>
-            <option value="false" ${active ? '' : 'selected'}>Disabled</option>
+            <option value="true" ${active ? 'selected' : ''}>Đang bán</option>
+            <option value="false" ${active ? '' : 'selected'}>Đã tắt</option>
           </select>
         </label>
       </div>
       <div class="actions">
-        <button class="small" type="submit">${icon('save')}<span>Save product</span></button>
+        <button class="small" type="submit">${icon('save')}<span>Lưu sản phẩm</span></button>
       </div>
     </form>
   `;
@@ -669,22 +739,23 @@ function renderProductCard(product) {
   const available = Number(product.stock?.available || 0);
   const reserved = Number(product.stock?.reserved || 0);
   const sold = Number(product.stock?.sold || 0);
+  const editorId = productEditorDomId(product.id);
   return `
     <article class="product-card">
       <div class="product-main">
         <div>
           <div class="eyebrow">${icon('package')}<span>${escapeHtml(product.packageType || 'Package')}</span></div>
           <h3>${escapeHtml(product.name)}</h3>
-          <p>${escapeHtml(product.description || 'No description')}</p>
-          ${product.accountType ? `<p><strong>Account type:</strong> ${escapeHtml(product.accountType)}</p>` : ''}
-          ${product.warrantyPolicy ? `<p><strong>Warranty:</strong> ${escapeHtml(product.warrantyPolicy)}</p>` : ''}
-          ${product.replacementPolicy ? `<p><strong>Replacement:</strong> ${escapeHtml(product.replacementPolicy)}</p>` : ''}
-          <p><strong>Delivery:</strong> ${product.deliveryMode === 'file' ? 'TXT file' : 'Text message'}</p>
+          <p>${escapeHtml(product.description || 'Chưa có mô tả')}</p>
+          ${product.accountType ? `<p><strong>Loại tài khoản:</strong> ${escapeHtml(product.accountType)}</p>` : ''}
+          ${product.warrantyPolicy ? `<p><strong>Bảo hành:</strong> ${escapeHtml(product.warrantyPolicy)}</p>` : ''}
+          ${product.replacementPolicy ? `<p><strong>Đổi mới:</strong> ${escapeHtml(product.replacementPolicy)}</p>` : ''}
+          <p><strong>Giao hàng:</strong> ${product.deliveryMode === 'file' ? 'Tệp TXT' : 'Tin nhắn văn bản'}</p>
           <p><strong>Fulfillment:</strong> ${escapeHtml(fulfillmentModeLabel(product))}</p>
-          ${seatEmail ? `<p><strong>Seat term:</strong> ${escapeHtml(product.seatTermMonths || 1)} month(s)</p>` : ''}
+          ${seatEmail ? `<p><strong>Thời hạn Seat:</strong> ${escapeHtml(product.seatTermMonths || 1)} tháng</p>` : ''}
           ${product.officialPriceNote ? `<p>${escapeHtml(product.officialPriceNote)}</p>` : ''}
         </div>
-        ${renderStatusPill(active ? 'available' : 'cancelled', active ? 'active' : 'disabled')}
+        ${renderStatusPill(active ? 'available' : 'cancelled', active ? 'đang bán' : 'đã tắt')}
       </div>
       <div class="product-meta">
         <span>${brandLogo(product.brand)}${escapeHtml(product.brand || 'Other')}</span>
@@ -692,15 +763,16 @@ function renderProductCard(product) {
         <span>${icon('wallet')}${escapeHtml(money(product.price, product.currency))}</span>
       </div>
       ${seatEmail
-        ? `<div class="stock-strip seat-fulfillment-strip"><span>${icon('mail-check')}<strong>Seat</strong> via customer emails</span></div>`
+        ? `<div class="stock-strip seat-fulfillment-strip"><span>${icon('mail-check')}<strong>Seat</strong> qua email khách hàng</span></div>`
         : `<div class="stock-strip">
-            <span>${icon('circle-check')}<strong>${escapeHtml(available)}</strong> available</span>
-            <span>${icon('clock-3')}<strong>${escapeHtml(reserved)}</strong> reserved</span>
-            <span>${icon('archive')}<strong>${escapeHtml(sold)}</strong> sold</span>
+            <span>${icon('circle-check')}<strong>${escapeHtml(available)}</strong> khả dụng</span>
+            <span>${icon('clock-3')}<strong>${escapeHtml(reserved)}</strong> đã giữ</span>
+            <span>${icon('archive')}<strong>${escapeHtml(sold)}</strong> đã bán</span>
           </div>`}
       <div class="actions">
-        <button class="small secondary" data-action="toggle-product" data-id="${escapeHtml(product.id)}" data-active="${active}">${icon(active ? 'pause-circle' : 'play-circle')}<span>${active ? 'Disable' : 'Enable'}</span></button>
-        ${seatEmail ? '' : actionButton('import-stock', product.id, 'Import stock', 'small secondary', icon('boxes'))}
+        <button class="small secondary" data-action="toggle-product-editor" data-id="${escapeHtml(product.id)}" aria-expanded="false" aria-controls="${escapeHtml(editorId)}">${icon('pencil')}<span>Chỉnh sửa</span></button>
+        <button class="small secondary" data-action="toggle-product" data-id="${escapeHtml(product.id)}" data-active="${active}">${icon(active ? 'pause-circle' : 'play-circle')}<span>${active ? 'Tắt bán' : 'Bật bán'}</span></button>
+        ${seatEmail ? '' : actionButton('import-stock', product.id, 'Nhập kho', 'small secondary', icon('boxes'))}
       </div>
       ${renderProductEditor(product)}
     </article>
@@ -713,7 +785,7 @@ function renderProducts(products) {
   const list = $('#productsList');
   list.innerHTML = '';
   const filtered = filteredProducts();
-  $('#productCountBadge').textContent = `${filtered.length} products`;
+  $('#productCountBadge').textContent = `${filtered.length} sản phẩm`;
 
   let currentGroup = '';
   for (const product of filtered) {
@@ -737,7 +809,7 @@ function renderProducts(products) {
     list.appendChild(item);
   }
   if (!filtered.length) {
-    list.innerHTML = '<p class="meta empty-state">No products match the current filters.</p>';
+    list.innerHTML = '<p class="meta empty-state">Không có sản phẩm phù hợp bộ lọc hiện tại.</p>';
   }
 
   const select = $('#inventoryForm select[name="productId"]');
@@ -745,7 +817,7 @@ function renderProducts(products) {
   const inventoryProducts = sortedProducts(products).filter((product) => !isSeatEmailProduct(product));
   select.innerHTML = inventoryProducts.length
     ? inventoryProducts.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.brand || 'Other')} - ${escapeHtml(product.name)} (${escapeHtml(product.sku)})</option>`).join('')
-    : '<option value="">No inventory-managed products</option>';
+    : '<option value="">Không có sản phẩm quản lý bằng kho</option>';
   select.disabled = inventoryProducts.length === 0;
   if (inventoryProducts.some((product) => product.id === selectedProductId)) {
     select.value = selectedProductId;
@@ -770,21 +842,21 @@ function renderCatalogPricingProducts() {
     <div class="table-wrap pricing-table-wrap">
       <table class="data-table pricing-table">
         <thead>
-          <tr><th>Product</th><th>SKU</th><th>Base price</th></tr>
+          <tr><th>Sản phẩm</th><th>SKU</th><th>Giá gốc</th></tr>
         </thead>
         <tbody>
           ${products.map((product) => `
             <tr>
-              <td><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(product.brand || 'Other')}</span></td>
-              <td>${escapeHtml(product.sku)}</td>
-              <td>
+              <td data-label="Sản phẩm"><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(product.brand || 'Other')}</span></td>
+              <td data-label="SKU">${escapeHtml(product.sku)}</td>
+              <td data-label="Giá gốc">
                 <input
                   data-catalog-price-sku="${escapeHtml(product.sku)}"
                   type="number"
                   min="1"
                   step="1"
                   value="${escapeHtml(product.price)}"
-                  aria-label="Base price for ${escapeHtml(product.name)}"
+                  aria-label="Giá gốc cho ${escapeHtml(product.name)}"
                   required
                 >
               </td>
@@ -793,7 +865,7 @@ function renderCatalogPricingProducts() {
         </tbody>
       </table>
     </div>
-  ` : '<p class="meta empty-state">Create a product before configuring the base price list.</p>';
+  ` : '<p class="meta empty-state">Hãy tạo sản phẩm trước khi cấu hình bảng giá gốc.</p>';
 }
 
 function renderTelegramPricingProducts() {
@@ -804,33 +876,38 @@ function renderTelegramPricingProducts() {
     <div class="table-wrap pricing-table-wrap">
       <table class="data-table pricing-table">
         <thead>
-          <tr><th>Product</th><th>Catalog price</th><th>Custom price</th></tr>
+          <tr><th>Sản phẩm</th><th>Giá gốc</th><th>Giá riêng</th></tr>
         </thead>
         <tbody>
-          ${products.map((product) => `
-            <tr>
-              <td>
+          ${products.map((product) => {
+            const hasOverride = Object.prototype.hasOwnProperty.call(prices, product.sku);
+            return `
+            <tr class="pricing-row ${hasOverride ? 'has-override' : ''}">
+              <td data-label="Sản phẩm">
                 <strong>${escapeHtml(product.name)}</strong>
                 <span>${escapeHtml(product.sku)}</span>
               </td>
-              <td>${escapeHtml(money(product.price, product.currency))}</td>
-              <td>
+              <td data-label="Giá gốc">${escapeHtml(money(product.price, product.currency))}</td>
+              <td data-label="Giá riêng">
                 <input
+                  class="pricing-override-input"
                   data-telegram-price-sku="${escapeHtml(product.sku)}"
                   type="number"
                   min="1"
                   step="1"
-                  value="${escapeHtml(prices[product.sku] || '')}"
-                  placeholder="Catalog"
-                  aria-label="Custom price for ${escapeHtml(product.name)}"
+                  value="${escapeHtml(hasOverride ? prices[product.sku] : '')}"
+                  placeholder="Kế thừa giá gốc"
+                  aria-label="Giá riêng cho ${escapeHtml(product.name)}"
                 >
+                <span class="pricing-inheritance">${hasOverride ? 'Đang dùng giá riêng' : 'Kế thừa giá gốc'}</span>
               </td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
         </tbody>
       </table>
     </div>
-  ` : '<p class="meta empty-state">Create a product before configuring username pricing.</p>';
+  ` : '<p class="meta empty-state">Hãy tạo sản phẩm trước khi cấu hình giá theo username.</p>';
 }
 
 function renderTelegramPricing(pricing = state.telegramPricing) {
@@ -842,7 +919,7 @@ function renderTelegramPricing(pricing = state.telegramPricing) {
   $('#telegramPricingUsers').innerHTML = knownUsernames
     .map((username) => `<option value="@${escapeHtml(username)}"></option>`)
     .join('');
-  $('#telegramPricingCount').textContent = `${state.telegramPricing.priceLists.length} users`;
+  $('#telegramPricingCount').textContent = `${state.telegramPricing.priceLists.length} username`;
   $('#telegramPricingLists').innerHTML = state.telegramPricing.priceLists.length
     ? state.telegramPricing.priceLists.map((item) => {
       const username = normalizeTelegramUsername(item.username);
@@ -853,15 +930,15 @@ function renderTelegramPricing(pricing = state.telegramPricing) {
             <strong>${icon('user-round')}@${escapeHtml(username)}</strong>
             <span class="badge available">${escapeHtml(customPrices)} SKU</span>
           </div>
-          <div class="meta">Updated ${escapeHtml(new Date(item.updatedAt).toLocaleString())}</div>
+          <div class="meta">Cập nhật ${escapeHtml(new Date(item.updatedAt).toLocaleString('vi-VN'))}</div>
           <div class="actions">
-            <button class="small secondary" data-action="edit-telegram-pricing" data-username="${escapeHtml(username)}">${icon('pencil')}<span>Edit</span></button>
-            <button class="small danger" data-action="delete-telegram-pricing" data-username="${escapeHtml(username)}">${icon('trash-2')}<span>Remove</span></button>
+            <button class="small secondary" data-action="edit-telegram-pricing" data-username="${escapeHtml(username)}">${icon('pencil')}<span>Chỉnh sửa</span></button>
+            <button class="small danger" data-action="delete-telegram-pricing" data-username="${escapeHtml(username)}">${icon('trash-2')}<span>Xóa</span></button>
           </div>
         </div>
       `;
     }).join('')
-    : '<p class="meta empty-state">No custom username price lists yet.</p>';
+    : '<p class="meta empty-state">Chưa có bảng giá riêng theo username.</p>';
   $('#telegramPricingUsername').value = state.telegramPricingUsername
     ? `@${normalizeTelegramUsername(state.telegramPricingUsername)}`
     : '';
@@ -894,7 +971,7 @@ function renderSummary(summary) {
         <div class="meta">${escapeHtml(order.id)} | ${escapeHtml(money(order.total, order.currency))}</div>
       </div>
     `).join('')
-    : '<p class="meta">No orders yet.</p>';
+    : '<p class="meta empty-state">Chưa có đơn hàng.</p>';
 
   const lowStockProducts = (summary.lowStock || []).filter((product) => {
     const catalogProduct = state.products.find((item) => item.id === product.id || item.sku === product.sku) || product;
@@ -903,18 +980,18 @@ function renderSummary(summary) {
   $('#lowStock').innerHTML = lowStockProducts.length
     ? lowStockProducts.map((product) => `
       <div class="row">
-        <div class="row-title"><strong>${icon('package-x')}${escapeHtml(product.name)}</strong><span class="badge reserved">${escapeHtml(product.stock.available)} left</span></div>
+        <div class="row-title"><strong>${icon('package-x')}${escapeHtml(product.name)}</strong><span class="badge reserved">còn ${escapeHtml(product.stock.available)}</span></div>
         <div class="meta">${escapeHtml(product.sku)}</div>
       </div>
     `).join('')
-    : '<p class="meta">No low-stock products.</p>';
+    : '<p class="meta empty-state">Không có sản phẩm sắp hết.</p>';
   refreshIcons();
 }
 
 async function renderInventory() {
   const selected = $('#inventoryForm select[name="productId"]').value;
   if (!selected) {
-    $('#inventoryList').innerHTML = '<p class="meta">No inventory-managed products.</p>';
+    $('#inventoryList').innerHTML = '<p class="meta empty-state">Không có sản phẩm quản lý bằng kho.</p>';
     return;
   }
   const items = await api(`/api/products/${selected}/inventory`);
@@ -925,7 +1002,7 @@ async function renderInventory() {
         <div class="meta">${escapeHtml(item.secretPreview)} | order ${escapeHtml(item.orderId || '-')}</div>
       </div>
     `).join('')
-    : '<p class="meta">No inventory for this product.</p>';
+    : '<p class="meta empty-state">Sản phẩm này chưa có dữ liệu kho.</p>';
   refreshIcons();
 }
 
@@ -933,18 +1010,18 @@ function renderOrderActions(order) {
   const actions = [];
   const seatEmail = isSeatEmailOrder(order);
   if (order.status === 'pending_payment') {
-    actions.push(actionButton('mark-paid', order.id, 'Mark Paid', 'small', icon('shopping-cart')));
-    actions.push(actionButton('cancel-order', order.id, 'Cancel', 'small danger', icon('x-circle')));
+    actions.push(actionButton('mark-paid', order.id, 'Đánh dấu đã trả', 'small', icon('shopping-cart')));
+    actions.push(actionButton('cancel-order', order.id, 'Hủy đơn', 'small danger', icon('x-circle')));
   }
   if (order.status === 'payment_review') {
     actions.push(actionButton(
       'approve-review',
       order.id,
-      seatEmail ? 'Approve Seat Payment' : 'Approve Delivery',
+      seatEmail ? 'Duyệt thanh toán Seat' : 'Duyệt giao hàng',
       'small',
       icon('check-circle-2')
     ));
-    actions.push(actionButton('mark-refunded', order.id, 'Mark Refunded', 'small danger', icon('rotate-ccw')));
+    actions.push(actionButton('mark-refunded', order.id, 'Đã hoàn tiền', 'small danger', icon('rotate-ccw')));
   }
   if (order.status === 'awaiting_fulfillment') {
     const retryLabel = automaticSeatRetryLabel(order);
@@ -958,7 +1035,7 @@ function renderOrderActions(order) {
         actions.push(actionButton(
           'confirm-retarget-fulfillment',
           order.id,
-          'Confirm Target & Retry',
+          'Xác nhận đích & thử lại',
           'small',
           icon('refresh-cw')
         ));
@@ -968,27 +1045,27 @@ function renderOrderActions(order) {
     }
     const manualMode = automaticSeatManualMode(order);
     if (manualMode === 'safe') {
-      actions.push(actionButton('complete-seat', order.id, 'Complete Manually', 'small secondary', icon('mail-check')));
+      actions.push(actionButton('complete-seat', order.id, 'Hoàn tất thủ công', 'small secondary', icon('mail-check')));
     }
     if (manualMode === 'verification_required') {
-      actions.push(actionButton('complete-after-verification', order.id, 'Complete After Verification', 'small secondary', icon('shield-check')));
+      actions.push(actionButton('complete-after-verification', order.id, 'Hoàn tất sau xác minh', 'small secondary', icon('shield-check')));
     }
     const refundMode = automaticSeatRefundMode(order);
     if (refundMode === true || refundMode === 'safe') {
-      actions.push(actionButton('mark-refunded', order.id, 'Refund', 'small danger', icon('rotate-ccw')));
+      actions.push(actionButton('mark-refunded', order.id, 'Hoàn tiền', 'small danger', icon('rotate-ccw')));
     }
     if (refundMode === 'cleanup_required') {
-      actions.push(actionButton('refund-after-cleanup', order.id, 'Refund After Cleanup', 'small danger', icon('shield-alert')));
+      actions.push(actionButton('refund-after-cleanup', order.id, 'Hoàn tiền sau dọn dẹp', 'small danger', icon('shield-alert')));
     }
   }
   if (order.status === 'delivered') {
     if (!seatEmail) {
-      actions.push(actionButton('show-delivery', order.id, 'Delivery', 'small secondary', icon('key-round')));
+      actions.push(actionButton('show-delivery', order.id, 'Nội dung giao', 'small secondary', icon('key-round')));
     }
     actions.push(actionButton(
       'resend-delivery',
       order.id,
-      seatEmail ? 'Resend Seat Notice' : 'Resend Telegram',
+      seatEmail ? 'Gửi lại thông báo Seat' : 'Gửi lại Telegram',
       'small secondary',
       icon('send')
     ));
@@ -997,31 +1074,31 @@ function renderOrderActions(order) {
 }
 
 function renderOrderTable(orders) {
-  if (!orders.length) return '<p class="meta empty-state">No orders match the current filter.</p>';
+  if (!orders.length) return '<p class="meta empty-state">Không có đơn hàng phù hợp bộ lọc.</p>';
   return `
     <div class="table-wrap">
-      <table class="data-table">
+      <table class="data-table responsive-table orders-table">
         <thead>
           <tr>
-            <th>Order</th>
-            <th>Product</th>
-            <th>User</th>
-            <th>Recipient emails</th>
-            <th>Total</th>
-            <th>Status</th>
-            <th>Actions</th>
+            <th>Đơn hàng</th>
+            <th>Sản phẩm</th>
+            <th>Người dùng</th>
+            <th>Email nhận Seat</th>
+            <th>Tổng tiền</th>
+            <th>Trạng thái</th>
+            <th>Hành động</th>
           </tr>
         </thead>
         <tbody>
           ${orders.map((order) => `
             <tr>
-              <td><strong>${escapeHtml(order.id)}</strong><span>${escapeHtml(new Date(order.createdAt).toLocaleString())}</span></td>
-              <td><strong>${escapeHtml(order.productName)}</strong><span>${escapeHtml(order.productSku || order.productId)}</span></td>
-              <td>${escapeHtml(order.telegramId || order.userId)}</td>
-              <td>${renderOrderRecipients(order)}</td>
-              <td>${escapeHtml(money(order.total, order.currency))}<span>qty ${escapeHtml(order.quantity)}</span></td>
-              <td>${renderStatusPill(order.status)}${renderFulfillmentAutomation(order)}</td>
-              <td>${renderOrderActions(order) || '<span class="meta">No actions</span>'}</td>
+              <td data-label="Đơn hàng"><strong>${escapeHtml(order.id)}</strong><span>${escapeHtml(new Date(order.createdAt).toLocaleString('vi-VN'))}</span></td>
+              <td data-label="Sản phẩm"><strong>${escapeHtml(order.productName)}</strong><span>${escapeHtml(order.productSku || order.productId)}</span></td>
+              <td data-label="Người dùng">${escapeHtml(order.telegramId || order.userId)}</td>
+              <td data-label="Email nhận Seat">${renderOrderRecipients(order)}</td>
+              <td data-label="Tổng tiền">${escapeHtml(money(order.total, order.currency))}<span>SL ${escapeHtml(order.quantity)}</span></td>
+              <td data-label="Trạng thái">${renderStatusPill(order.status)}${renderFulfillmentAutomation(order)}</td>
+              <td data-label="Hành động">${renderOrderActions(order) || '<span class="meta">Không có hành động</span>'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -1036,7 +1113,7 @@ async function renderOrders() {
     : `&status=${encodeURIComponent(state.orderStatus)}`;
   const result = await api(`/api/orders?limit=500${statusQuery}`);
   const more = result.hasMore
-    ? `<p class="meta">Showing 500 of ${escapeHtml(result.total)} matching orders.</p>`
+    ? `<p class="meta">Đang hiển thị 500/${escapeHtml(result.total)} đơn phù hợp.</p>`
     : '';
   $('#ordersList').innerHTML = `${more}${renderOrderTable(result.items)}`;
   refreshIcons();
@@ -1045,15 +1122,38 @@ async function renderOrders() {
 async function renderPayments() {
   const result = await api('/api/payments?limit=100');
   $('#paymentsList').innerHTML = result.items.length
-    ? result.items.map((payment) => `
-      <div class="row">
-        <div class="row-title"><strong>${icon('credit-card')}${escapeHtml(payment.reference)}</strong><span class="badge ${escapeHtml(payment.status)}">${escapeHtml(payment.status)}</span></div>
-        <div class="meta">${escapeHtml(payment.providerPaymentId)} | order ${escapeHtml(payment.orderId)} | ${escapeHtml(money(payment.amount, payment.currency))}</div>
-        <div class="meta"><a href="${escapeHtml(payment.paymentUrl)}" target="_blank" rel="noreferrer">${escapeHtml(payment.paymentUrl)}</a></div>
-        ${payment.qrImageUrl ? `<div class="meta"><a href="${escapeHtml(payment.qrImageUrl)}" target="_blank" rel="noreferrer">Open QR image</a></div>` : ''}
+    ? `
+      <div class="table-wrap">
+        <table class="data-table responsive-table payments-table">
+          <thead>
+            <tr>
+              <th>Tham chiếu</th>
+              <th>Đơn hàng</th>
+              <th>Số tiền</th>
+              <th>Trạng thái</th>
+              <th>Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${result.items.map((payment) => `
+              <tr>
+                <td data-label="Tham chiếu"><strong>${icon('credit-card')}${escapeHtml(payment.reference)}</strong><span>${escapeHtml(payment.providerPaymentId)}</span></td>
+                <td data-label="Đơn hàng"><strong>${escapeHtml(payment.orderId)}</strong></td>
+                <td data-label="Số tiền">${escapeHtml(money(payment.amount, payment.currency))}</td>
+                <td data-label="Trạng thái">${renderStatusPill(payment.status)}</td>
+                <td data-label="Hành động">
+                  <div class="actions">
+                    <a class="table-action" href="${escapeHtml(payment.paymentUrl)}" target="_blank" rel="noreferrer">${icon('external-link')}<span>Mở thanh toán</span></a>
+                    ${payment.qrImageUrl ? `<a class="table-action" href="${escapeHtml(payment.qrImageUrl)}" target="_blank" rel="noreferrer">${icon('qr-code')}<span>Mở QR</span></a>` : ''}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
       </div>
-    `).join('')
-    : '<p class="meta">No payments yet.</p>';
+    `
+    : '<p class="meta empty-state">Chưa có thanh toán.</p>';
   refreshIcons();
 }
 
@@ -1066,7 +1166,7 @@ async function renderAudit() {
         <div class="meta">${escapeHtml(log.actorId)} | ${escapeHtml(log.entityType)}:${escapeHtml(log.entityId)}</div>
       </div>
     `).join('')
-    : '<p class="meta">No audit logs yet.</p>';
+    : '<p class="meta empty-state">Chưa có nhật ký hoạt động.</p>';
   refreshIcons();
 }
 
@@ -1092,7 +1192,7 @@ async function renderSystem(system = null) {
   $('#systemChecks').innerHTML = `
     <div class="system-head">
       <span class="badge ${system.status === 'ready' ? 'available' : 'payment_review'}">${escapeHtml(system.status)}</span>
-      <span class="meta">${escapeHtml(system.warnings)} warning(s)</span>
+      <span class="meta">${escapeHtml(system.warnings)} cảnh báo</span>
     </div>
     ${system.checks.map((check) => `
       <div class="row">
@@ -1106,26 +1206,26 @@ async function renderSystem(system = null) {
   `;
 
   $('#systemRuntime').innerHTML = `
-    ${systemLine('Environment', system.environment)}
+    ${systemLine('Môi trường · Environment', system.environment)}
     ${systemLine('Node', system.node)}
-    ${systemLine('Uptime', `${system.uptimeSeconds}s`)}
+    ${systemLine('Thời gian chạy · Uptime', `${system.uptimeSeconds}s`)}
     ${systemLine('Base URL', system.baseUrl)}
-    ${systemLine('Storage', system.storage.driver)}
-    ${system.storage.dataFile ? systemLine('Data file', system.storage.dataFile) : ''}
-    ${systemLine('Redis', system.traffic.redisConfigured ? 'configured' : 'memory fallback')}
-    ${system.sales ? systemLine('Sales', system.sales.enabled ? 'open' : 'closed') : ''}
-    ${system.sales ? systemLine('Inventory encryption', system.sales.inventoryEncryptionConfigured ? 'configured' : 'missing') : ''}
-    ${systemLine('Payment', system.payment.configuredProvider)}
-    ${systemLine('Telegram', system.telegram.tokenConfigured ? 'token configured' : 'not configured')}
+    ${systemLine('Lưu trữ · Storage', system.storage.driver)}
+    ${system.storage.dataFile ? systemLine('Tệp dữ liệu', system.storage.dataFile) : ''}
+    ${systemLine('Redis', system.traffic.redisConfigured ? 'đã cấu hình' : 'memory fallback')}
+    ${system.sales ? systemLine('Bán hàng · Sales', system.sales.enabled ? 'đang mở' : 'đã đóng') : ''}
+    ${system.sales ? systemLine('Mã hóa kho', system.sales.inventoryEncryptionConfigured ? 'đã cấu hình' : 'còn thiếu') : ''}
+    ${systemLine('Thanh toán · Payment', system.payment.configuredProvider)}
+    ${systemLine('Telegram', system.telegram.tokenConfigured ? 'đã cấu hình token' : 'chưa cấu hình')}
     ${system.telegramEmoji ? systemLine('Telegram emoji', system.telegramEmoji.enabled ? `${Object.values(system.telegramEmoji.packs || {}).filter((pack) => pack.loaded).length}/${system.telegramEmoji.requiredPacks.length} packs loaded` : 'disabled') : ''}
     ${systemLine('Telegram webhook', system.telegram.webhookUrl)}
     ${systemLine('SePay webhook', system.payment.sepayWebhookUrl)}
-    ${systemLine('Order TTL', `${system.orders.ttlMinutes} minutes`)}
-    ${systemLine('Max quantity', system.orders.maxQuantity)}
-    ${systemLine('Products', system.counts.products)}
-    ${systemLine('Inventory items', system.counts.inventory)}
-    ${systemLine('Orders', system.counts.orders)}
-    ${systemLine('Payments', system.counts.payments)}
+    ${systemLine('Order TTL', `${system.orders.ttlMinutes} phút`)}
+    ${systemLine('Số lượng tối đa', system.orders.maxQuantity)}
+    ${systemLine('Sản phẩm', system.counts.products)}
+    ${systemLine('Mục trong kho', system.counts.inventory)}
+    ${systemLine('Đơn hàng', system.counts.orders)}
+    ${systemLine('Thanh toán', system.counts.payments)}
   `;
   refreshIcons();
 }
@@ -1162,14 +1262,19 @@ async function boot() {
 
 $('#loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
+  const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
   $('#loginError').textContent = '';
-  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const data = Object.fromEntries(new FormData(form).entries());
+  setButtonBusy(submit, true);
   try {
     const result = await api('/api/auth/login', { method: 'POST', body: JSON.stringify(data) });
     showDashboard(result.user);
     await refresh();
   } catch (error) {
     $('#loginError').textContent = error.message;
+  } finally {
+    setButtonBusy(submit, false);
   }
 });
 
@@ -1178,7 +1283,32 @@ $('#logoutBtn').addEventListener('click', async () => {
   showLogin();
 });
 
-$('#refreshBtn').addEventListener('click', () => refresh().then(() => toast('Refreshed')).catch((error) => toast(error.message)));
+$('#refreshBtn').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  setButtonBusy(button, true);
+  try {
+    await refresh();
+    toast('Đã làm mới dữ liệu');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonBusy(button, false);
+  }
+});
+
+$('#sidebarToggle').addEventListener('click', () => setSidebarOpen(true));
+$('#sidebarClose').addEventListener('click', closeSidebarAndRestoreFocus);
+$('#sidebarBackdrop').addEventListener('click', closeSidebarAndRestoreFocus);
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
+    closeSidebarAndRestoreFocus();
+  }
+});
+
+$('#productCreateToggle').addEventListener('click', (event) => {
+  setProductCreateOpen(event.currentTarget.getAttribute('aria-expanded') !== 'true');
+});
 
 $('#productSearch').addEventListener('input', (event) => {
   state.productSearch = event.target.value;
@@ -1195,6 +1325,27 @@ $('#productStatusFilter').addEventListener('change', (event) => {
   renderProducts(state.products);
 });
 
+$('#productFilterReset').addEventListener('click', () => {
+  state.productSearch = '';
+  state.productBrand = 'all';
+  state.productStatus = 'all';
+  $('#productSearch').value = '';
+  $('#productBrandFilter').value = 'all';
+  $('#productStatusFilter').value = 'all';
+  renderProducts(state.products);
+  $('#productSearch').focus();
+});
+
+$('#telegramPricingProducts').addEventListener('input', (event) => {
+  const input = event.target.closest('.pricing-override-input');
+  if (!input) return;
+  const hasOverride = Boolean(String(input.value || '').trim());
+  const row = input.closest('.pricing-row');
+  row?.classList.toggle('has-override', hasOverride);
+  const note = row?.querySelector('.pricing-inheritance');
+  if (note) note.textContent = hasOverride ? 'Đang dùng giá riêng' : 'Kế thừa giá gốc';
+});
+
 $('#telegramPricingUsername').addEventListener('change', (event) => {
   selectTelegramPricingUsername(event.currentTarget.value);
 });
@@ -1202,19 +1353,23 @@ $('#telegramPricingUsername').addEventListener('change', (event) => {
 $('#catalogPricingForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
   const prices = {};
   form.querySelectorAll('[data-catalog-price-sku]').forEach((input) => {
     prices[input.dataset.catalogPriceSku] = Number(input.value);
   });
+  setButtonBusy(submit, true);
   try {
     await api('/api/catalog-pricing', {
       method: 'PUT',
       body: JSON.stringify({ prices })
     });
     await refresh();
-    toast('Base price list updated');
+    toast('Đã cập nhật bảng giá gốc');
   } catch (error) {
     toast(error.message);
+  } finally {
+    setButtonBusy(submit, false);
   }
 });
 
@@ -1226,9 +1381,10 @@ $('#telegramPricingResetBtn').addEventListener('click', () => {
 $('#telegramPricingForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
   const username = normalizeTelegramUsername(form.elements.username.value);
   if (!username) {
-    toast('Telegram username is required');
+    toast('Cần nhập Telegram username');
     return;
   }
   const prices = {};
@@ -1236,6 +1392,7 @@ $('#telegramPricingForm').addEventListener('submit', async (event) => {
     const value = String(input.value || '').trim();
     if (value) prices[input.dataset.telegramPriceSku] = Number(value);
   });
+  setButtonBusy(submit, true);
   try {
     await api(`/api/telegram-pricing/${encodeURIComponent(username)}`, {
       method: 'PUT',
@@ -1243,9 +1400,11 @@ $('#telegramPricingForm').addEventListener('submit', async (event) => {
     });
     state.telegramPricingUsername = username;
     await refresh();
-    toast(`Saved pricing for @${username}`);
+    toast(`Đã lưu bảng giá cho @${username}`);
   } catch (error) {
     toast(error.message);
+  } finally {
+    setButtonBusy(submit, false);
   }
 });
 
@@ -1264,24 +1423,31 @@ $$('.nav').forEach((button) => {
 $('#productForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
   const data = Object.fromEntries(new FormData(form).entries());
   data.price = Number(data.price);
   data.seatTermMonths = Number(data.seatTermMonths || 1);
   data.hot = data.hot === 'true';
+  setButtonBusy(submit, true);
   try {
     await api('/api/products', { method: 'POST', body: JSON.stringify(data) });
     form.reset();
+    setProductCreateOpen(false);
     await refresh();
-    toast('Product created');
+    toast('Đã tạo sản phẩm');
   } catch (error) {
     toast(error.message);
+  } finally {
+    setButtonBusy(submit, false);
   }
 });
 
 $('#inventoryForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
   const data = Object.fromEntries(new FormData(form).entries());
+  setButtonBusy(submit, true);
   try {
     const result = await api(`/api/products/${data.productId}/inventory`, {
       method: 'POST',
@@ -1289,9 +1455,11 @@ $('#inventoryForm').addEventListener('submit', async (event) => {
     });
     form.elements.items.value = '';
     await refresh();
-    toast(`Imported ${result.imported} items${result.skippedDuplicates ? `; skipped ${result.skippedDuplicates} duplicate(s)` : ''}`);
+    toast(`Đã nhập ${result.imported} mục${result.skippedDuplicates ? `; bỏ qua ${result.skippedDuplicates} dòng trùng` : ''}`);
   } catch (error) {
     toast(error.message);
+  } finally {
+    setButtonBusy(submit, false);
   }
 });
 
@@ -1309,15 +1477,20 @@ $('#seatGuardInvitationSearch').addEventListener('input', (event) => {
 
 $('#devOrderForm').addEventListener('submit', async (event) => {
   event.preventDefault();
-  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
+  const data = Object.fromEntries(new FormData(form).entries());
   data.quantity = Number(data.quantity || 1);
+  setButtonBusy(submit, true);
   try {
     await api('/api/dev/create-order', { method: 'POST', body: JSON.stringify(data) });
     await refresh();
     await renderOrders();
-    toast('Test order created');
+    toast('Đã tạo đơn thử');
   } catch (error) {
     toast(error.message);
+  } finally {
+    setButtonBusy(submit, false);
   }
 });
 
@@ -1326,21 +1499,25 @@ document.addEventListener('submit', async (event) => {
   if (!form) return;
   event.preventDefault();
   const id = form.dataset.id;
+  const submit = form.querySelector('button[type="submit"]');
   const data = Object.fromEntries(new FormData(form).entries());
   data.price = Number(form.elements.price.value);
   data.sortOrder = Number(form.elements.sortOrder.value || 1000);
   data.seatTermMonths = Number(form.elements.seatTermMonths.value || 1);
   data.active = form.elements.active.value === 'true';
   data.hot = form.elements.hot.checked;
+  setButtonBusy(submit, true);
   try {
     await api(`/api/products/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data)
     });
     await refresh();
-    toast('Product updated');
+    toast('Đã cập nhật sản phẩm');
   } catch (error) {
     toast(error.message);
+  } finally {
+    setButtonBusy(submit, false);
   }
 });
 
@@ -1349,6 +1526,10 @@ document.addEventListener('click', async (event) => {
   if (!target) return;
 
   const { action, id } = target.dataset;
+  if (action === 'toggle-product-editor') {
+    toggleProductEditor(target);
+    return;
+  }
   try {
     if (action === 'edit-telegram-pricing') {
       setTab('pricing');
