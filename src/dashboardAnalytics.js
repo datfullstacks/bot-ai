@@ -41,6 +41,18 @@ function dayKey(value, timeZone) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+function hourIndex(value, timeZone) {
+  const timestamp = Date.parse(String(value || ''));
+  if (!Number.isFinite(timestamp)) return -1;
+  const hour = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date(timestamp)).find((part) => part.type === 'hour')?.value;
+  const index = Number(hour);
+  return Number.isInteger(index) && index >= 0 && index <= 23 ? index : -1;
+}
+
 function dateKeys(days, now = new Date(), timeZone = 'Asia/Bangkok') {
   const currentKey = dayKey(now, timeZone);
   const today = new Date(`${currentKey}T12:00:00.000Z`);
@@ -51,22 +63,118 @@ function dateKeys(days, now = new Date(), timeZone = 'Asia/Bangkok') {
   });
 }
 
+function emptyFinancials() {
+  return {
+    revenue: 0,
+    coveredRevenue: 0,
+    cost: 0,
+    ordersWithCost: 0,
+    ordersMissingCost: 0
+  };
+}
+
+function orderCost(order = {}) {
+  const pricing = order.productSnapshot?.pricing || {};
+  const configured = pricing.costConfigured === true || pricing.basePriceConfigured === true;
+  const unitCost = Number(pricing.costUnitPrice ?? pricing.basePrice);
+  const quantity = Number(order.quantity || 0);
+  if (!configured || !Number.isFinite(unitCost) || unitCost <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+  return Math.round(unitCost * quantity);
+}
+
+function addOrderFinancials(target, order) {
+  const revenue = Number(order.total || 0);
+  target.revenue += revenue;
+  const cost = orderCost(order);
+  if (cost === null) {
+    target.ordersMissingCost += 1;
+    return;
+  }
+  target.coveredRevenue += revenue;
+  target.cost += cost;
+  target.ordersWithCost += 1;
+}
+
+function finalizedFinancials(target = {}) {
+  const revenue = Number(target.revenue || 0);
+  const coveredRevenue = Number(target.coveredRevenue || 0);
+  const cost = Number(target.cost || 0);
+  const grossProfit = coveredRevenue - cost;
+  return {
+    ...target,
+    revenue,
+    coveredRevenue,
+    cost,
+    grossProfit,
+    marginPercent: coveredRevenue
+      ? Math.round((grossProfit / coveredRevenue) * 1000) / 10
+      : null,
+    costCoveragePercent: revenue
+      ? Math.round((coveredRevenue / revenue) * 1000) / 10
+      : 0
+  };
+}
+
+export function buildOrderFinancialSummary(orders = []) {
+  const totals = emptyFinancials();
+  for (const order of orders) {
+    if (!REVENUE_ORDER_STATUSES.has(String(order.status || ''))) continue;
+    addOrderFinancials(totals, order);
+  }
+  return finalizedFinancials(totals);
+}
+
 function daySnapshot(orders, date, timeZone) {
-  const snapshot = { date, orders: 0, paidOrders: 0, deliveredOrders: 0, revenue: 0 };
+  const snapshot = { date, orders: 0, paidOrders: 0, deliveredOrders: 0, ...emptyFinancials() };
   for (const order of orders) {
     if (dayKey(order.createdAt, timeZone) === date) snapshot.orders += 1;
     const revenueOrder = REVENUE_ORDER_STATUSES.has(String(order.status || ''));
     const revenueAt = order.paidAt || order.deliveredAt || order.createdAt;
     if (revenueOrder && dayKey(revenueAt, timeZone) === date) {
       snapshot.paidOrders += 1;
-      snapshot.revenue += Number(order.total || 0);
+      addOrderFinancials(snapshot, order);
     }
     const deliveredAt = order.deliveredAt || order.paidAt || order.createdAt;
     if (String(order.status || '') === 'delivered' && dayKey(deliveredAt, timeZone) === date) {
       snapshot.deliveredOrders += 1;
     }
   }
-  return snapshot;
+  return finalizedFinancials(snapshot);
+}
+
+function hourlySnapshot(orders, date, timeZone) {
+  const buckets = Array.from({ length: 24 }, (_, hour) => ({
+    date,
+    hour,
+    label: `${String(hour).padStart(2, '0')}:00`,
+    orders: 0,
+    paidOrders: 0,
+    deliveredOrders: 0,
+    ...emptyFinancials()
+  }));
+  for (const order of orders) {
+    if (dayKey(order.createdAt, timeZone) === date) {
+      const createdHour = hourIndex(order.createdAt, timeZone);
+      if (createdHour >= 0) buckets[createdHour].orders += 1;
+    }
+    const revenueOrder = REVENUE_ORDER_STATUSES.has(String(order.status || ''));
+    const revenueAt = order.paidAt || order.deliveredAt || order.createdAt;
+    if (revenueOrder && dayKey(revenueAt, timeZone) === date) {
+      const revenueHour = hourIndex(revenueAt, timeZone);
+      if (revenueHour >= 0) {
+        buckets[revenueHour].paidOrders += 1;
+        addOrderFinancials(buckets[revenueHour], order);
+      }
+    }
+    const deliveredAt = order.deliveredAt || order.paidAt || order.createdAt;
+    if (String(order.status || '') === 'delivered' && dayKey(deliveredAt, timeZone) === date) {
+      const deliveredHour = hourIndex(deliveredAt, timeZone);
+      if (deliveredHour >= 0) buckets[deliveredHour].deliveredOrders += 1;
+    }
+  }
+  return buckets.map(finalizedFinancials);
 }
 
 function deltaPercent(current, previous) {
@@ -77,12 +185,17 @@ function deltaPercent(current, previous) {
 }
 
 function sumDaily(daily, start, end) {
-  return daily.slice(start, end).reduce((total, day) => ({
+  const totals = daily.slice(start, end).reduce((total, day) => ({
     orders: total.orders + day.orders,
     paidOrders: total.paidOrders + day.paidOrders,
     deliveredOrders: total.deliveredOrders + day.deliveredOrders,
-    revenue: total.revenue + day.revenue
-  }), { orders: 0, paidOrders: 0, deliveredOrders: 0, revenue: 0 });
+    revenue: total.revenue + day.revenue,
+    coveredRevenue: total.coveredRevenue + day.coveredRevenue,
+    cost: total.cost + day.cost,
+    ordersWithCost: total.ordersWithCost + day.ordersWithCost,
+    ordersMissingCost: total.ordersMissingCost + day.ordersMissingCost
+  }), { orders: 0, paidOrders: 0, deliveredOrders: 0, ...emptyFinancials() });
+  return finalizedFinancials(totals);
 }
 
 export function buildDashboardAnalytics({
@@ -104,42 +217,48 @@ export function buildDashboardAnalytics({
     orders: 0,
     paidOrders: 0,
     deliveredOrders: 0,
-    revenue: 0
+    ...emptyFinancials()
   }]));
   const topProducts = new Map();
 
   for (const order of orders) {
-    const date = dayKey(order.createdAt, timeZone);
-    if (!keySet.has(date)) continue;
-    const day = dailyByDate.get(date);
-    day.orders += 1;
+    const createdDate = dayKey(order.createdAt, timeZone);
+    if (keySet.has(createdDate)) dailyByDate.get(createdDate).orders += 1;
     const revenueOrder = REVENUE_ORDER_STATUSES.has(String(order.status || ''));
-    if (!revenueOrder) continue;
-    const revenue = Number(order.total || 0);
-    const quantity = Number(order.quantity || 0);
-    day.paidOrders += 1;
-    if (String(order.status || '') === 'delivered') day.deliveredOrders += 1;
-    day.revenue += revenue;
-    const sku = String(order.productSku || order.productId || 'unknown');
-    const product = topProducts.get(sku) || {
-      sku,
-      name: String(order.productName || sku),
-      orders: 0,
-      units: 0,
-      revenue: 0
-    };
-    product.orders += 1;
-    product.units += quantity;
-    product.revenue += revenue;
-    topProducts.set(sku, product);
+    const revenueAt = order.paidAt || order.deliveredAt || order.createdAt;
+    const revenueDate = dayKey(revenueAt, timeZone);
+    if (revenueOrder && keySet.has(revenueDate)) {
+      const revenueDay = dailyByDate.get(revenueDate);
+      const quantity = Number(order.quantity || 0);
+      revenueDay.paidOrders += 1;
+      addOrderFinancials(revenueDay, order);
+      const sku = String(order.productSku || order.productId || 'unknown');
+      const product = topProducts.get(sku) || {
+        sku,
+        name: String(order.productName || sku),
+        orders: 0,
+        units: 0,
+        ...emptyFinancials()
+      };
+      product.orders += 1;
+      product.units += quantity;
+      addOrderFinancials(product, order);
+      topProducts.set(sku, product);
+    }
+    if (String(order.status || '') === 'delivered') {
+      const deliveredAt = order.deliveredAt || order.paidAt || order.createdAt;
+      const deliveredDate = dayKey(deliveredAt, timeZone);
+      if (keySet.has(deliveredDate)) dailyByDate.get(deliveredDate).deliveredOrders += 1;
+    }
   }
 
-  const daily = [...dailyByDate.values()];
+  const daily = [...dailyByDate.values()].map(finalizedFinancials);
   const current7d = sumDaily(daily, Math.max(0, daily.length - 7), daily.length);
   const previous7d = sumDaily(daily, Math.max(0, daily.length - 14), Math.max(0, daily.length - 7));
   const period30d = sumDaily(daily, 0, daily.length);
   const todaySnapshot = daySnapshot(orders, keys.at(-1), timeZone);
   const yesterdaySnapshot = daySnapshot(orders, keys.at(-2), timeZone);
+  const hourlyToday = hourlySnapshot(orders, keys.at(-1), timeZone);
   const statuses = completeBreakdown(orderStatusBreakdown || countBy(orders, 'status'), ORDER_STATUSES);
   const inventoryCounts = completeBreakdown(inventoryBreakdown || countBy(inventory, 'status'), INVENTORY_STATUSES);
   const paymentCounts = completeBreakdown(paymentStatusBreakdown || countBy(payments, 'status'));
@@ -152,15 +271,18 @@ export function buildDashboardAnalytics({
     windowDays: days,
     timeZone,
     daily,
+    hourlyToday,
     today: {
       ...todaySnapshot,
       revenueDeltaPercent: deltaPercent(todaySnapshot.revenue, yesterdaySnapshot.revenue),
+      profitDeltaPercent: deltaPercent(todaySnapshot.grossProfit, yesterdaySnapshot.grossProfit),
       orderDeltaPercent: deltaPercent(todaySnapshot.orders, yesterdaySnapshot.orders)
     },
     yesterday: yesterdaySnapshot,
     current7d: {
       ...current7d,
       revenueDeltaPercent: deltaPercent(current7d.revenue, previous7d.revenue),
+      profitDeltaPercent: deltaPercent(current7d.grossProfit, previous7d.grossProfit),
       orderDeltaPercent: deltaPercent(current7d.orders, previous7d.orders)
     },
     previous7d,
@@ -196,7 +318,13 @@ export function buildDashboardAnalytics({
         : 0
     },
     topProducts: [...topProducts.values()]
+      .map(finalizedFinancials)
       .sort((left, right) => right.revenue - left.revenue || right.units - left.units)
+      .slice(0, 6),
+    topProductsByProfit: [...topProducts.values()]
+      .map(finalizedFinancials)
+      .filter((product) => product.ordersWithCost > 0)
+      .sort((left, right) => right.grossProfit - left.grossProfit || right.coveredRevenue - left.coveredRevenue)
       .slice(0, 6)
   };
 }

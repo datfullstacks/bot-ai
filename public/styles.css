@@ -919,6 +919,11 @@ a {
   color: #7c3aed;
 }
 
+.stat-profit .stat-icon {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
 .overview-today {
   display: grid;
   gap: 14px;
@@ -956,7 +961,7 @@ a {
 
 .overview-today-grid {
   display: grid;
-  grid-template-columns: 1.25fr repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, 1.2fr) repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1000,6 +1005,10 @@ a {
 
 .today-revenue > strong {
   color: #6d28d9;
+}
+
+.today-profit > strong {
+  color: var(--success);
 }
 
 /* Dashboard analytics */
@@ -1109,6 +1118,10 @@ a {
   background: #818cf8;
 }
 
+.chart-legend .legend-profit::before {
+  background: var(--success);
+}
+
 .chart-stage {
   min-width: 0;
 }
@@ -1161,6 +1174,21 @@ a {
 .revenue-dot {
   fill: #fff;
   stroke: #0f766e;
+  stroke-width: 2;
+}
+
+.profit-line {
+  fill: none;
+  stroke: var(--success);
+  stroke-dasharray: 6 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+}
+
+.profit-dot {
+  fill: #fff;
+  stroke: var(--success);
   stroke-width: 2;
 }
 
@@ -1314,6 +1342,28 @@ a {
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.top-product-financial {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: -2px 0 7px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.profit-bar span {
+  background: linear-gradient(90deg, #34d399, var(--success));
+}
+
+.top-product-row.is-loss .top-product-head > span:last-child strong {
+  color: var(--danger);
+}
+
+.top-product-row.is-loss .profit-bar span {
+  background: linear-gradient(90deg, #fda29b, var(--danger));
 }
 
 .horizontal-bar,

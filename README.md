@@ -72,7 +72,9 @@ The smoke test creates a temporary data file, then verifies admin login/logout, 
 
 The Admin overview includes a dedicated `Hôm nay` snapshot for orders created,
 payments recognized, revenue, and completed deliveries, plus a one-day chart
-range. Business-day boundaries use `ANALYTICS_TIME_ZONE` (default
+range split into 24 local-hour buckets from `00:00` through `23:59`. Order bars
+follow `createdAt`; revenue and gross profit follow the payment-recognition hour.
+Business-day boundaries use `ANALYTICS_TIME_ZONE` (default
 `Asia/Bangkok`); today's revenue follows `paidAt` and today's delivery follows
 `deliveredAt` instead of attributing both to the original order creation date.
 
@@ -388,16 +390,22 @@ Keep `SALES_ENABLED=false` during setup. In the admin dashboard:
 ### Telegram username pricing
 
 Use the admin dashboard's **Telegram Pricing** tab to maintain the base price
-list and assign per-SKU prices to a specific Telegram `@username`. The base list
-is stored separately from each product's current `price` and is the default for
-every Telegram customer. A base SKU left blank temporarily falls back to the
-product's current price; a username SKU left blank inherits the effective base
-price. Usernames are matched case-insensitively and without the leading `@`.
+list (the internal unit cost) and assign per-SKU prices to a specific Telegram
+`@username`. The base list is stored separately, is snapshotted into each new
+order for gross-profit reporting, and never changes the price rendered or charged
+by the bot. A username SKU left blank uses the product's current `price`.
+Usernames are matched case-insensitively and without the leading `@`.
 
 The personalized price is applied both when the bot renders the catalog and when
 the order is created. Existing orders keep their original price snapshot. Removing
-a username price list immediately restores the independent base price for future
-orders, or the product's current price when that base SKU has not been configured.
+a username price list immediately restores the product's current price for future
+catalog views and orders.
+
+Gross profit is calculated only for paid orders that contain a configured cost
+snapshot: `covered revenue - (unit cost * quantity)`. The Admin dashboard always
+shows cost coverage and the number of orders missing cost data; missing cost is
+never treated as zero. Existing orders without a cost snapshot remain excluded
+from profit instead of being retroactively recalculated from today's cost.
 
 ### One-time discount codes
 

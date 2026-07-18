@@ -1,5 +1,5 @@
 import { config, nowIso } from '../config.js';
-import { buildDashboardAnalytics } from '../dashboardAnalytics.js';
+import { buildDashboardAnalytics, buildOrderFinancialSummary } from '../dashboardAnalytics.js';
 import {
   isSeatEmailFulfillment,
   normalizeDeliveryMode,
@@ -41,6 +41,7 @@ import {
   catalogBasePriceList,
   normalizeTelegramPriceOverrides,
   normalizeTelegramUsername,
+  orderPricingSnapshot,
   resolveTelegramProductPricing
 } from '../telegramPricing.js';
 
@@ -192,7 +193,7 @@ export async function listProducts({ includeInactive = false, user = null } = {}
 export async function getDashboardSummary() {
   const db = await readStore();
   const paidOrders = db.orders.filter((order) => ['delivered', 'awaiting_fulfillment'].includes(order.status));
-  const revenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const financials = buildOrderFinancialSummary(paidOrders);
   return {
     products: db.products.length,
     availableInventory: db.inventory.filter((item) => item.status === 'available').length,
@@ -200,7 +201,8 @@ export async function getDashboardSummary() {
     awaitingFulfillmentOrders: db.orders.filter((order) => order.status === 'awaiting_fulfillment').length,
     deliveredOrders: db.orders.filter((order) => order.status === 'delivered').length,
     reviewOrders: db.orders.filter((order) => order.status === 'payment_review').length,
-    revenue,
+    revenue: financials.revenue,
+    financials,
     analytics: buildDashboardAnalytics({
       products: db.products,
       inventory: db.inventory,
@@ -909,16 +911,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         seatTermMonths: product.seatTermMonths || null,
         deliveryMode: normalizeDeliveryMode(product.deliveryMode),
         fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),
-        pricing: pricing.personalized ? {
-          source: pricing.source,
-          username: pricing.username,
-          basePrice: pricing.basePrice,
-          catalogPrice: pricing.catalogPrice
-        } : {
-          source: pricing.source,
-          basePrice: pricing.basePrice,
-          catalogPrice: pricing.catalogPrice
-        }
+        pricing: orderPricingSnapshot(pricing)
       },
       ...(seatEmailOrder ? {
         fulfillment: {

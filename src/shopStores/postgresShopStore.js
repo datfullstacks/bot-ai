@@ -43,6 +43,7 @@ import {
   catalogBasePriceList,
   normalizeTelegramPriceOverrides,
   normalizeTelegramUsername,
+  orderPricingSnapshot,
   resolveTelegramProductPricing
 } from '../telegramPricing.js';
 import { withPostgresClient, withPostgresTransaction } from '../postgresStore.js';
@@ -347,11 +348,35 @@ export async function getDashboardSummary() {
       WHERE collection IN ('products', 'inventory', 'orders', 'payments')
       GROUP BY collection, doc->>'status'
     `);
-    const receivedRevenue = await client.query(`
-      SELECT COALESCE(sum((doc->>'total')::numeric), 0)::float AS revenue
-      FROM app_documents
-      WHERE collection = 'orders'
-        AND doc->>'status' IN ('delivered', 'awaiting_fulfillment')
+    const receivedFinancials = await client.query(`
+      WITH financial_orders AS (
+        SELECT
+          (doc->>'total')::numeric AS revenue,
+          COALESCE(NULLIF(doc->>'quantity', '')::numeric, 0) AS quantity,
+          COALESCE(
+            NULLIF(doc #>> '{productSnapshot,pricing,costUnitPrice}', '')::numeric,
+            NULLIF(doc #>> '{productSnapshot,pricing,basePrice}', '')::numeric,
+            0
+          ) AS unit_cost,
+          ((doc #>> '{productSnapshot,pricing,costConfigured}') = 'true'
+            OR (doc #>> '{productSnapshot,pricing,basePriceConfigured}') = 'true')
+            AND COALESCE(
+              NULLIF(doc #>> '{productSnapshot,pricing,costUnitPrice}', '')::numeric,
+              NULLIF(doc #>> '{productSnapshot,pricing,basePrice}', '')::numeric,
+              0
+            ) > 0
+            AND COALESCE(NULLIF(doc->>'quantity', '')::numeric, 0) > 0 AS cost_known
+        FROM app_documents
+        WHERE collection = 'orders'
+          AND doc->>'status' IN ('delivered', 'awaiting_fulfillment')
+      )
+      SELECT
+        COALESCE(sum(revenue), 0)::float AS revenue,
+        COALESCE(sum(CASE WHEN cost_known THEN revenue ELSE 0 END), 0)::float AS covered_revenue,
+        COALESCE(sum(CASE WHEN cost_known THEN unit_cost * quantity ELSE 0 END), 0)::float AS cost,
+        count(*) FILTER (WHERE cost_known)::int AS orders_with_cost,
+        count(*) FILTER (WHERE NOT cost_known)::int AS orders_missing_cost
+      FROM financial_orders
     `);
     const recentOrders = await client.query(`
       SELECT doc
@@ -369,7 +394,11 @@ export async function getDashboardSummary() {
       `SELECT doc
        FROM app_documents
        WHERE collection = 'orders'
-         AND doc->>'createdAt' >= $1
+         AND (
+           doc->>'createdAt' >= $1
+           OR doc->>'paidAt' >= $1
+           OR doc->>'deliveredAt' >= $1
+         )
        ORDER BY doc->>'createdAt' ASC`,
       [analyticsStart.toISOString()]
     );
@@ -386,6 +415,21 @@ export async function getDashboardSummary() {
         .map((item) => [item.status, item.count])
     );
 
+    const financialRow = receivedFinancials.rows[0] || {};
+    const financialRevenue = Number(financialRow.revenue || 0);
+    const coveredRevenue = Number(financialRow.covered_revenue || 0);
+    const financialCost = Number(financialRow.cost || 0);
+    const grossProfit = coveredRevenue - financialCost;
+    const financials = {
+      revenue: financialRevenue,
+      coveredRevenue,
+      cost: financialCost,
+      grossProfit,
+      marginPercent: coveredRevenue ? Math.round((grossProfit / coveredRevenue) * 1000) / 10 : null,
+      costCoveragePercent: financialRevenue ? Math.round((coveredRevenue / financialRevenue) * 1000) / 10 : 0,
+      ordersWithCost: Number(financialRow.orders_with_cost || 0),
+      ordersMissingCost: Number(financialRow.orders_missing_cost || 0)
+    };
     return {
       products: count('products'),
       availableInventory: count('inventory', 'available'),
@@ -393,7 +437,8 @@ export async function getDashboardSummary() {
       awaitingFulfillmentOrders: count('orders', 'awaiting_fulfillment'),
       deliveredOrders: count('orders', 'delivered'),
       reviewOrders: count('orders', 'payment_review'),
-      revenue: receivedRevenue.rows[0]?.revenue || 0,
+      revenue: financials.revenue,
+      financials,
       analytics: buildDashboardAnalytics({
         products,
         orders: analyticsOrders.rows.map((row) => row.doc),
@@ -1313,16 +1358,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         seatTermMonths: product.seatTermMonths || null,
         deliveryMode: normalizeDeliveryMode(product.deliveryMode),
         fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),
-        pricing: pricing.personalized ? {
-          source: pricing.source,
-          username: pricing.username,
-          basePrice: pricing.basePrice,
-          catalogPrice: pricing.catalogPrice
-        } : {
-          source: pricing.source,
-          basePrice: pricing.basePrice,
-          catalogPrice: pricing.catalogPrice
-        }
+        pricing: orderPricingSnapshot(pricing)
       },
       ...(seatEmailOrder ? {
         fulfillment: {

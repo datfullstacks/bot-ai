@@ -62,21 +62,22 @@ export function resolveTelegramProductPricing(product = {}, user = {}, priceList
   const sku = String(product.sku || '').trim().toLowerCase();
   const customPrice = priceList?.prices?.[sku];
   const basePricing = resolveCatalogBasePrice(product, catalogPriceLists);
+  const catalogPrice = Number(product.price);
   if (!Number.isSafeInteger(Number(customPrice)) || Number(customPrice) <= 0) {
     return {
-      price: basePricing.price,
+      price: catalogPrice,
       basePrice: basePricing.price,
-      catalogPrice: Number(product.price),
+      catalogPrice,
       basePriceConfigured: basePricing.configured,
       personalized: false,
       username: '',
-      source: basePricing.configured ? 'catalog_base' : 'catalog'
+      source: 'catalog'
     };
   }
   return {
     price: Number(customPrice),
     basePrice: basePricing.price,
-    catalogPrice: Number(product.price),
+    catalogPrice,
     basePriceConfigured: basePricing.configured,
     personalized: true,
     username: normalizeTelegramUsername(priceList.username),
@@ -86,7 +87,7 @@ export function resolveTelegramProductPricing(product = {}, user = {}, priceList
 
 export function applyTelegramProductPricing(product = {}, user = {}, priceLists = [], catalogPriceLists = []) {
   const pricing = resolveTelegramProductPricing(product, user, priceLists, catalogPriceLists);
-  if (!pricing.personalized && !pricing.basePriceConfigured) return product;
+  if (!pricing.personalized) return product;
   return {
     ...product,
     price: pricing.price,
@@ -94,5 +95,21 @@ export function applyTelegramProductPricing(product = {}, user = {}, priceLists 
     catalogPrice: pricing.catalogPrice,
     basePriceConfigured: pricing.basePriceConfigured,
     personalizedPrice: pricing.personalized
+  };
+}
+
+export function orderPricingSnapshot(pricing = {}) {
+  const costConfigured = pricing.basePriceConfigured === true;
+  const costUnitPrice = costConfigured && Number.isSafeInteger(Number(pricing.basePrice)) && Number(pricing.basePrice) > 0
+    ? Number(pricing.basePrice)
+    : null;
+  return {
+    source: pricing.source || 'catalog',
+    ...(pricing.personalized ? { username: pricing.username || '' } : {}),
+    catalogPrice: Number(pricing.catalogPrice || 0),
+    basePrice: Number(pricing.basePrice || 0),
+    basePriceConfigured: costConfigured,
+    costUnitPrice,
+    costConfigured: costUnitPrice !== null
   };
 }

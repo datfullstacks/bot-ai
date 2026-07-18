@@ -111,6 +111,7 @@
             <div class="stat stat-delivered"><span class="stat-icon" data-lucide="circle-check-big"></span><div class="stat-copy"><span>Đã giao · Delivered</span><strong id="statDelivered">0</strong><small id="statDeliveredMeta">0 đơn đã thanh toán</small></div></div>
             <div class="stat stat-review"><span class="stat-icon" data-lucide="shield-alert"></span><div class="stat-copy"><span>Cần kiểm tra</span><strong id="statReview">0</strong><small id="statReviewMeta">0 hoàn tiền</small></div></div>
             <div class="stat stat-revenue"><span class="stat-icon" data-lucide="chart-no-axes-combined"></span><div class="stat-copy"><span>Doanh thu · Revenue</span><strong id="statRevenue">0 VND</strong><small id="statRevenueMeta">AOV 30 ngày: 0 VND</small></div></div>
+            <div class="stat stat-profit"><span class="stat-icon" data-lucide="circle-dollar-sign"></span><div class="stat-copy"><span>Lợi nhuận gộp</span><strong id="statProfit">—</strong><small id="statProfitMeta">Chờ dữ liệu giá gốc</small></div></div>
           </div>
           <section class="overview-today" aria-labelledby="todayOverviewTitle">
             <div class="overview-today-head">
@@ -120,6 +121,7 @@
             </div>
             <div class="overview-today-grid">
               <div class="today-metric today-revenue"><span>Doanh thu ghi nhận</span><strong id="todayRevenue">0 VND</strong><small id="todayRevenueMeta">So với hôm qua</small></div>
+              <div class="today-metric today-profit"><span>Lợi nhuận gộp</span><strong id="todayProfit">—</strong><small id="todayProfitMeta">Độ phủ giá vốn</small></div>
               <div class="today-metric"><span>Đơn được tạo</span><strong id="todayOrders">0</strong><small id="todayOrdersMeta">So với hôm qua</small></div>
               <div class="today-metric"><span>Đã thanh toán</span><strong id="todayPaidOrders">0</strong><small>Đơn phát sinh doanh thu hôm nay</small></div>
               <div class="today-metric"><span>Đã giao</span><strong id="todayDeliveredOrders">0</strong><small>Hoàn tất trong ngày</small></div>
@@ -130,7 +132,7 @@
               <div class="panel-head chart-panel-head">
                 <div>
                   <span class="chart-kicker">Hiệu suất bán hàng</span>
-                  <h2>Doanh thu và đơn hàng</h2>
+                  <h2>Doanh thu, lợi nhuận và đơn hàng</h2>
                   <p class="panel-subtitle" id="trendChartSummary">Theo dõi xu hướng vận hành theo ngày</p>
                 </div>
                 <div class="chart-range" aria-label="Chọn khoảng thời gian">
@@ -140,7 +142,7 @@
                   <button class="chart-range-button" type="button" data-dashboard-range="30" aria-pressed="false">30N</button>
                 </div>
               </div>
-              <div class="chart-legend" aria-hidden="true"><span class="legend-revenue">Doanh thu</span><span class="legend-orders">Đơn hàng</span></div>
+              <div class="chart-legend" aria-hidden="true"><span class="legend-revenue">Doanh thu</span><span class="legend-profit">Lợi nhuận</span><span class="legend-orders">Đơn hàng</span></div>
               <div id="revenueTrendChart" class="chart-stage trend-chart" aria-live="polite"></div>
             </section>
             <section class="panel chart-panel">
@@ -158,7 +160,7 @@
               <div class="panel-head chart-panel-head">
                 <div>
                   <span class="chart-kicker">30 ngày gần nhất</span>
-                  <h2>Top sản phẩm theo doanh thu</h2>
+                  <h2>Top sản phẩm theo lợi nhuận</h2>
                 </div>
               </div>
               <div id="topProductsChart" class="chart-stage top-products-chart" aria-live="polite"></div>
@@ -291,7 +293,7 @@
 
                     <fieldset class="editor-section">
                       <legend><span data-lucide="badge-dollar-sign" aria-hidden="true"></span>3. Giá bán &amp; vận hành</legend>
-                      <p>Giá bán là giá gốc của sản phẩm; bảng giá Telegram có thể ghi đè riêng.</p>
+                      <p>Giá bán là giá mặc định hiển thị và thanh toán trên bot; bảng giá Telegram chỉ ghi đè cho username được cấu hình.</p>
                       <div class="editor-grid create-editor-grid">
                         <label>Giá bán <span class="required-mark">*</span><span class="product-price-input"><input id="productPriceInput" name="price" type="number" min="1" step="1000" value="10000" inputmode="numeric" required><span id="productPriceCurrencySuffix">VND</span></span></label>
                         <label>Tiền tệ<select name="currency" required><option value="VND">VND · Việt Nam Đồng</option><option value="USD">USD · US Dollar</option></select></label>
@@ -395,14 +397,14 @@
           <form id="catalogPricingForm" class="panel pricing-base-panel">
             <div class="panel-head">
               <div>
-                <h2>Bảng giá gốc</h2>
-                <p class="panel-subtitle">Lưu độc lập với giá sản phẩm hiện tại. Khách Telegram dùng giá gốc, trừ SKU có giá riêng theo username.</p>
+                <h2>Giá gốc / giá vốn</h2>
+                <p class="panel-subtitle">Giá vốn nội bộ để tính lợi nhuận; không hiển thị và không dùng làm giá checkout trên bot.</p>
               </div>
               <span id="catalogBasePriceCount" class="badge reserved">Chưa cấu hình</span>
             </div>
             <div id="catalogPricingProducts"></div>
             <div class="actions">
-              <button type="submit">Lưu bảng giá gốc</button>
+              <button type="submit">Lưu giá vốn</button>
             </div>
           </form>
           <div class="grid two pricing-grid">
@@ -410,7 +412,7 @@
               <div class="panel-head">
                 <div>
                   <h2>Giá riêng theo Telegram username</h2>
-                  <p class="panel-subtitle">Ô SKU để trống sẽ tự kế thừa giá gốc.</p>
+                  <p class="panel-subtitle">Ô SKU để trống sẽ dùng giá bán hiện tại của sản phẩm; giá vốn chỉ phục vụ báo cáo lợi nhuận.</p>
                 </div>
               </div>
               <label>Telegram username

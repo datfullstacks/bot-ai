@@ -146,9 +146,9 @@ try {
     'The pricing overview should expose the independent base price list.'
   );
   assert.equal(catalogProductAfterBaseUpdate.price, 10000, 'Saving a base price must not overwrite product.price.');
-  assert.equal(defaultProductAfterBaseUpdate.price, 11000, 'Telegram users without an override should receive the configured base price.');
-  assert.equal(defaultProductAfterBaseUpdate.basePriceConfigured, true);
-  assert.equal(defaultProductAfterBaseUpdate.personalizedPrice, false);
+  assert.equal(defaultProductAfterBaseUpdate.price, 10000, 'Telegram users without an override should keep the product sale price.');
+  assert.equal(defaultProductAfterBaseUpdate.basePrice, undefined, 'Admin base pricing must not leak into the default Telegram catalog product.');
+  assert.equal(defaultProductAfterBaseUpdate.personalizedPrice, undefined);
   assert.equal(personalizedAfterBaseUpdate.price, 7500, 'A custom username price should override the updated base price.');
   assert.equal(personalizedAfterBaseUpdate.basePrice, 11000);
   assert.equal(personalizedAfterBaseUpdate.catalogPrice, 10000);
@@ -162,17 +162,22 @@ try {
     assert.equal(controlledOrder.order.unitPrice, 7500, 'Checkout must enforce the username-specific price.');
     assert.equal(controlledOrder.order.total, 7500);
     assert.equal(controlledOrder.order.productSnapshot.pricing.source, 'telegram_username');
+    assert.equal(controlledOrder.order.productSnapshot.pricing.costConfigured, true);
+    assert.equal(controlledOrder.order.productSnapshot.pricing.costUnitPrice, 11000);
     await shop.cancelOrderForUser(user.id, controlledOrder.order.id);
     await assert.rejects(
       () => shop.createOrderForUser(otherUser, controlledProduct.sku, 1),
       /Shop/
     );
     config.sales.testTelegramIds = [user.telegramId, otherUser.telegramId];
-    const basePriceOrder = await shop.createOrderForUser(otherUser, controlledProduct.sku, 1);
-    assert.equal(basePriceOrder.order.unitPrice, 11000, 'Checkout should use the independent base price without a username override.');
-    assert.equal(basePriceOrder.order.productSnapshot.pricing.source, 'catalog_base');
-    assert.equal(basePriceOrder.order.productSnapshot.pricing.catalogPrice, 10000);
-    await shop.cancelOrderForUser(otherUser.id, basePriceOrder.order.id);
+    const catalogPriceOrder = await shop.createOrderForUser(otherUser, controlledProduct.sku, 1);
+    assert.equal(catalogPriceOrder.order.unitPrice, 10000, 'Checkout should use the product sale price without a username override.');
+    assert.equal(catalogPriceOrder.order.productSnapshot.pricing.source, 'catalog');
+    assert.equal(catalogPriceOrder.order.productSnapshot.pricing.catalogPrice, 10000);
+    assert.equal(catalogPriceOrder.order.productSnapshot.pricing.basePrice, 11000, 'The Admin reference price may remain in the internal order snapshot.');
+    assert.equal(catalogPriceOrder.order.productSnapshot.pricing.costConfigured, true);
+    assert.equal(catalogPriceOrder.order.productSnapshot.pricing.costUnitPrice, 11000);
+    await shop.cancelOrderForUser(otherUser.id, catalogPriceOrder.order.id);
   } finally {
     config.sales.enabled = originalSalesEnabled;
     config.sales.testTelegramIds = originalTestTelegramIds;
@@ -186,13 +191,13 @@ try {
     .find((product) => product.sku === controlledProduct.sku);
   assert.equal(
     productAfterUsernameRemoval.price,
-    11000,
+    10000,
     'A removed Telegram username must not keep receiving pricing for the old username.'
   );
   await shop.deleteTelegramPriceList(actorId, user.username);
   const catalogAfterPricingDelete = (await shop.listProducts({ user }))
     .find((product) => product.sku === controlledProduct.sku);
-  assert.equal(catalogAfterPricingDelete.price, 11000, 'Removing a price list should restore the current base price.');
+  assert.equal(catalogAfterPricingDelete.price, 10000, 'Removing a price list should restore the current product sale price.');
 
   const paidProduct = await createStockedProduct(actorId, `smoke-paid-${runId}`, 2, {
     deliveryMode: 'file'
@@ -585,6 +590,9 @@ try {
   assert.ok(summary.revenue >= 30000, 'summary should include delivered smoke revenue');
   assert.equal(summary.analytics.daily.length, 30, 'dashboard should expose a 30-day trend series');
   assert.ok(summary.analytics.topProducts.length >= 1, 'dashboard should rank products with recent revenue');
+  assert.equal(summary.financials.revenue, summary.revenue, 'Profit summary should reconcile with recognized revenue.');
+  assert.ok(summary.financials.ordersMissingCost >= 1, 'Orders without a cost snapshot should remain visible as missing cost.');
+  assert.equal(summary.financials.grossProfit, summary.financials.coveredRevenue - summary.financials.cost);
   assert.equal(summary.analytics.products.total, summary.products, 'dashboard product detail should match the headline count');
   assert.equal(summary.analytics.inventory.available, summary.availableInventory, 'dashboard inventory detail should match the headline count');
 

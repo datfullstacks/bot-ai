@@ -1232,7 +1232,7 @@ function renderCatalogPricingProducts() {
     <div class="table-wrap pricing-table-wrap">
       <table class="data-table pricing-table">
         <thead>
-          <tr><th>Sản phẩm</th><th>SKU</th><th>Giá hiện tại</th><th>Giá gốc</th></tr>
+          <tr><th>Sản phẩm</th><th>SKU</th><th>Giá bán trên bot</th><th>Giá gốc / vốn</th></tr>
         </thead>
         <tbody>
           ${products.map((product) => {
@@ -1241,8 +1241,8 @@ function renderCatalogPricingProducts() {
             <tr class="base-price-row ${hasBasePrice ? 'has-base-price' : ''}">
               <td data-label="Sản phẩm"><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(product.brand || 'Other')}</span></td>
               <td data-label="SKU">${escapeHtml(product.sku)}</td>
-              <td data-label="Giá hiện tại">${escapeHtml(money(product.price, product.currency))}</td>
-              <td data-label="Giá gốc">
+              <td data-label="Giá bán trên bot">${escapeHtml(money(product.price, product.currency))}</td>
+              <td data-label="Giá gốc / vốn">
                 <input
                   class="catalog-base-price-input"
                   data-catalog-price-sku="${escapeHtml(product.sku)}"
@@ -1250,10 +1250,10 @@ function renderCatalogPricingProducts() {
                   min="1"
                   step="1"
                   value="${escapeHtml(hasBasePrice ? prices[product.sku] : '')}"
-                  placeholder="Nhập giá gốc"
-                  aria-label="Giá gốc cho ${escapeHtml(product.name)}"
+                  placeholder="Nhập giá vốn"
+                  aria-label="Giá vốn cho ${escapeHtml(product.name)}"
                 >
-                <span class="pricing-inheritance">${hasBasePrice ? 'Giá gốc đã cấu hình' : 'Chưa cấu hình · tạm dùng giá hiện tại'}</span>
+                <span class="pricing-inheritance">${hasBasePrice ? 'Đã có dữ liệu tính lợi nhuận' : 'Chưa có giá vốn · lợi nhuận sẽ thiếu'}</span>
               </td>
             </tr>
           `;
@@ -1272,7 +1272,7 @@ function renderTelegramPricingProducts() {
     <div class="table-wrap pricing-table-wrap">
       <table class="data-table pricing-table">
         <thead>
-          <tr><th>Sản phẩm</th><th>Giá gốc</th><th>Giá riêng</th></tr>
+          <tr><th>Sản phẩm</th><th>Giá bán trên bot</th><th>Giá gốc / vốn</th><th>Giá riêng</th></tr>
         </thead>
         <tbody>
           ${products.map((product) => {
@@ -1284,9 +1284,13 @@ function renderTelegramPricingProducts() {
                 <strong>${escapeHtml(product.name)}</strong>
                 <span>${escapeHtml(product.sku)}</span>
               </td>
-              <td data-label="Giá gốc">
-                <strong>${escapeHtml(money(basePricing.price, product.currency))}</strong>
-                <span>${basePricing.configured ? 'Đã cấu hình' : 'Tạm dùng giá hiện tại'}</span>
+              <td data-label="Giá bán trên bot">
+                <strong>${escapeHtml(money(product.price, product.currency))}</strong>
+                <span>Mặc định nếu không có giá riêng</span>
+              </td>
+              <td data-label="Giá gốc / vốn">
+                <strong>${basePricing.configured ? escapeHtml(money(basePricing.price, product.currency)) : '—'}</strong>
+                <span>${basePricing.configured ? 'Dùng tính lợi nhuận' : 'Chưa cấu hình'}</span>
               </td>
               <td data-label="Giá riêng">
                 <input
@@ -1296,10 +1300,10 @@ function renderTelegramPricingProducts() {
                   min="1"
                   step="1"
                   value="${escapeHtml(hasOverride ? prices[product.sku] : '')}"
-                  placeholder="Kế thừa giá gốc"
+                  placeholder="Dùng giá bán hiện tại"
                   aria-label="Giá riêng cho ${escapeHtml(product.name)}"
                 >
-                <span class="pricing-inheritance">${hasOverride ? 'Đang dùng giá riêng' : 'Kế thừa giá gốc'}</span>
+                <span class="pricing-inheritance">${hasOverride ? 'Bot dùng giá riêng' : 'Bot dùng giá bán hiện tại'}</span>
               </td>
             </tr>
           `;
@@ -1315,7 +1319,7 @@ function renderTelegramPricing(pricing = state.telegramPricing) {
   state.telegramPricing.basePriceList ||= { id: 'base', prices: {} };
   const configuredBasePrices = Object.keys(catalogBasePrices()).length;
   const basePriceBadge = $('#catalogBasePriceCount');
-  basePriceBadge.textContent = configuredBasePrices ? `${configuredBasePrices} SKU gốc` : 'Chưa cấu hình';
+  basePriceBadge.textContent = configuredBasePrices ? `${configuredBasePrices} SKU có giá vốn` : 'Chưa cấu hình';
   basePriceBadge.className = `badge ${configuredBasePrices ? 'available' : 'reserved'}`;
   const knownUsernames = [...new Set([
     ...(state.telegramPricing.users || []).map((user) => normalizeTelegramUsername(user.username)),
@@ -1810,15 +1814,27 @@ function renderRevenueTrendChart(analytics = state.dashboardAnalytics) {
   const target = $('#revenueTrendChart');
   if (!target) return;
   const days = Math.min(Number(state.dashboardRangeDays || 14), Number(analytics?.windowDays || 30));
-  const daily = days === 1 && analytics?.today
-    ? [analytics.today]
+  const hourly = days === 1 && Array.isArray(analytics?.hourlyToday) && analytics.hourlyToday.length === 24;
+  const daily = hourly
+    ? analytics.hourlyToday
     : (analytics?.daily || []).slice(-days);
   const totals = daily.reduce((sum, day) => ({
     orders: sum.orders + Number(day.orders || 0),
-    revenue: sum.revenue + Number(day.revenue || 0)
-  }), { orders: 0, revenue: 0 });
-  const rangeLabel = days === 1 ? 'Hôm nay' : `${days} ngày`;
-  $('#trendChartSummary').textContent = `${rangeLabel} · ${totals.orders.toLocaleString('vi-VN')} đơn · ${money(totals.revenue)}`;
+    revenue: sum.revenue + Number(day.revenue || 0),
+    coveredRevenue: sum.coveredRevenue + Number(day.coveredRevenue || 0),
+    grossProfit: sum.grossProfit + Number(day.grossProfit || 0),
+    ordersMissingCost: sum.ordersMissingCost + Number(day.ordersMissingCost || 0)
+  }), { orders: 0, revenue: 0, coveredRevenue: 0, grossProfit: 0, ordersMissingCost: 0 });
+  const rangeLabel = hourly ? 'Hôm nay 00:00–23:59' : `${days} ngày`;
+  const pointLabel = (point) => hourly ? String(point.label || `${String(point.hour || 0).padStart(2, '0')}:00`) : dashboardDateLabel(point.date);
+  const pointPeriod = (point) => hourly
+    ? `${pointLabel(point)}–${String(point.hour || 0).padStart(2, '0')}:59`
+    : pointLabel(point);
+  const costCoverage = totals.revenue ? Math.round((totals.coveredRevenue / totals.revenue) * 1000) / 10 : 0;
+  const profitSummary = totals.coveredRevenue
+    ? `LN gộp ${money(totals.grossProfit)} · phủ giá vốn ${costCoverage}%`
+    : 'Lợi nhuận chưa đủ dữ liệu giá gốc';
+  $('#trendChartSummary').textContent = `${rangeLabel} · ${totals.orders.toLocaleString('vi-VN')} đơn · DT ${money(totals.revenue)} · ${profitSummary}`;
   if (!daily.length || (!totals.orders && !totals.revenue)) {
     target.innerHTML = '<p class="meta empty-state">Chưa có giao dịch trong khoảng thời gian này.</p>';
     return;
@@ -1829,42 +1845,65 @@ function renderRevenueTrendChart(analytics = state.dashboardAnalytics) {
   const padding = { top: 18, right: 24, bottom: 38, left: 58 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-  const maxRevenue = Math.max(...daily.map((day) => Number(day.revenue || 0)), 1);
+  const maxMoney = Math.max(
+    ...daily.map((day) => Number(day.revenue || 0)),
+    ...daily.map((day) => Number(day.grossProfit || 0)),
+    1
+  );
+  const minMoney = Math.min(0, ...daily.map((day) => Number(day.grossProfit || 0)));
+  const moneyRange = Math.max(1, maxMoney - minMoney);
   const maxOrders = Math.max(...daily.map((day) => Number(day.orders || 0)), 1);
   const pointX = (index) => padding.left + (daily.length === 1 ? chartWidth / 2 : (index / (daily.length - 1)) * chartWidth);
-  const revenueY = (value) => padding.top + chartHeight - (Number(value || 0) / maxRevenue) * chartHeight;
+  const moneyY = (value) => padding.top + ((maxMoney - Number(value || 0)) / moneyRange) * chartHeight;
+  const zeroY = moneyY(0);
   const barWidth = Math.max(5, Math.min(18, chartWidth / Math.max(daily.length * 1.8, 1)));
-  const points = daily.map((day, index) => `${pointX(index)},${revenueY(day.revenue)}`).join(' ');
+  const points = daily.map((day, index) => `${pointX(index)},${moneyY(day.revenue)}`).join(' ');
+  let profitActive = false;
+  const profitPath = daily.map((day, index) => {
+    const hasCost = Number(day.ordersWithCost || 0) > 0;
+    if (!hasCost) {
+      profitActive = false;
+      return '';
+    }
+    const command = profitActive ? 'L' : 'M';
+    profitActive = true;
+    return `${command} ${pointX(index)} ${moneyY(day.grossProfit)}`;
+  }).filter(Boolean).join(' ');
   const areaPath = daily.length
-    ? `M ${pointX(0)} ${padding.top + chartHeight} L ${daily.map((day, index) => `${pointX(index)} ${revenueY(day.revenue)}`).join(' L ')} L ${pointX(daily.length - 1)} ${padding.top + chartHeight} Z`
+    ? `M ${pointX(0)} ${zeroY} L ${daily.map((day, index) => `${pointX(index)} ${moneyY(day.revenue)}`).join(' L ')} L ${pointX(daily.length - 1)} ${zeroY} Z`
     : '';
   const labelStep = Math.max(1, Math.ceil(daily.length / 6));
   const grid = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
     const y = padding.top + chartHeight - chartHeight * ratio;
     return `
       <line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" class="chart-grid-line"></line>
-      <text x="${padding.left - 10}" y="${y + 4}" class="chart-axis-label" text-anchor="end">${escapeHtml(compactMoney(maxRevenue * ratio))}</text>
+      <text x="${padding.left - 10}" y="${y + 4}" class="chart-axis-label" text-anchor="end">${escapeHtml(compactMoney(minMoney + (moneyRange * ratio)))}</text>
     `;
   }).join('');
   const bars = daily.map((day, index) => {
     const barHeight = (Number(day.orders || 0) / maxOrders) * chartHeight;
     const x = pointX(index) - barWidth / 2;
     const y = padding.top + chartHeight - barHeight;
-    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="4" class="orders-bar"><title>${escapeHtml(`${dashboardDateLabel(day.date)}: ${day.orders} đơn`)}</title></rect>`;
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="4" class="orders-bar"><title>${escapeHtml(`${pointPeriod(day)}: ${day.orders} đơn được tạo`)}</title></rect>`;
   }).join('');
   const dots = daily.map((day, index) => `
-    <circle cx="${pointX(index)}" cy="${revenueY(day.revenue)}" r="${daily.length > 20 ? 2.5 : 3.5}" class="revenue-dot">
-      <title>${escapeHtml(`${dashboardDateLabel(day.date)}: ${money(day.revenue)} · ${day.orders} đơn`)}</title>
+    <circle cx="${pointX(index)}" cy="${moneyY(day.revenue)}" r="${daily.length > 20 ? 2.5 : 3.5}" class="revenue-dot">
+      <title>${escapeHtml(`${pointPeriod(day)}: doanh thu ${money(day.revenue)} · ${day.paidOrders || 0} đơn thanh toán`)}</title>
     </circle>
   `).join('');
+  const profitDots = daily.map((day, index) => Number(day.ordersWithCost || 0) > 0 ? `
+    <circle cx="${pointX(index)}" cy="${moneyY(day.grossProfit)}" r="${daily.length > 20 ? 2.5 : 3.5}" class="profit-dot">
+      <title>${escapeHtml(`${pointPeriod(day)}: lợi nhuận ${money(day.grossProfit)} · phủ giá vốn ${day.costCoveragePercent || 0}%`)}</title>
+    </circle>
+  ` : '').join('');
   const xLabels = daily.map((day, index) => (
     index % labelStep === 0 || index === daily.length - 1
-      ? `<text x="${pointX(index)}" y="${height - 12}" class="chart-axis-label" text-anchor="middle">${escapeHtml(dashboardDateLabel(day.date))}</text>`
+      ? `<text x="${pointX(index)}" y="${height - 12}" class="chart-axis-label" text-anchor="middle">${escapeHtml(pointLabel(day))}</text>`
       : ''
   )).join('');
 
   target.innerHTML = `
-    <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`Biểu đồ ${rangeLabel.toLowerCase()}: ${totals.orders} đơn, doanh thu ${money(totals.revenue)}`)}">
+    <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`Biểu đồ ${rangeLabel.toLowerCase()}: ${totals.orders} đơn, doanh thu ${money(totals.revenue)}, lợi nhuận đã xác định ${money(totals.grossProfit)}`)}">
       <defs>
         <linearGradient id="revenueAreaGradient" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stop-color="#14b8a6" stop-opacity="0.24"></stop>
@@ -1875,7 +1914,9 @@ function renderRevenueTrendChart(analytics = state.dashboardAnalytics) {
       ${bars}
       <path d="${areaPath}" class="revenue-area"></path>
       <polyline points="${points}" class="revenue-line"></polyline>
+      ${profitPath ? `<path d="${profitPath}" class="profit-line"></path>` : ''}
       ${dots}
+      ${profitDots}
       ${xLabels}
     </svg>
   `;
@@ -1929,21 +1970,23 @@ function renderOrderStatusChart(analytics = state.dashboardAnalytics) {
 function renderTopProductsChart(analytics = state.dashboardAnalytics) {
   const target = $('#topProductsChart');
   if (!target) return;
-  const products = analytics?.topProducts || [];
+  const products = analytics?.topProductsByProfit || [];
   if (!products.length) {
-    target.innerHTML = '<p class="meta empty-state">Chưa có sản phẩm phát sinh doanh thu trong 30 ngày.</p>';
+    const hasRevenue = (analytics?.topProducts || []).some((product) => Number(product.revenue || 0) > 0);
+    target.innerHTML = `<p class="meta empty-state">${hasRevenue ? 'Có doanh thu nhưng chưa đủ giá gốc để xếp hạng lợi nhuận.' : 'Chưa có sản phẩm phát sinh doanh thu trong 30 ngày.'}</p>`;
     return;
   }
-  const maxRevenue = Math.max(...products.map((product) => Number(product.revenue || 0)), 1);
+  const maxProfit = Math.max(...products.map((product) => Math.abs(Number(product.grossProfit || 0))), 1);
   target.innerHTML = products.map((product, index) => `
-    <div class="top-product-row">
+    <div class="top-product-row ${Number(product.grossProfit || 0) < 0 ? 'is-loss' : ''}">
       <span class="top-product-rank">${index + 1}</span>
       <div class="top-product-main">
         <div class="top-product-head">
           <span><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.sku)}</small></span>
-          <span><strong>${escapeHtml(money(product.revenue))}</strong><small>${escapeHtml(`${product.units} lượt giao`)}</small></span>
+          <span><strong>${escapeHtml(money(product.grossProfit))}</strong><small>${escapeHtml(product.marginPercent === null ? 'Chưa có biên LN' : `Biên ${product.marginPercent}%`)}</small></span>
         </div>
-        <div class="horizontal-bar" aria-hidden="true"><span style="width: ${Math.max(4, (Number(product.revenue || 0) / maxRevenue) * 100)}%"></span></div>
+        <div class="top-product-financial"><span>DT có giá vốn ${escapeHtml(money(product.coveredRevenue))}</span><span>Giá vốn ${escapeHtml(money(product.cost))}</span><span>Phủ ${escapeHtml(`${product.costCoveragePercent || 0}%`)}</span></div>
+        <div class="horizontal-bar profit-bar" aria-hidden="true"><span style="width: ${Math.max(4, (Math.abs(Number(product.grossProfit || 0)) / maxProfit) * 100)}%"></span></div>
       </div>
     </div>
   `).join('');
@@ -2003,10 +2046,18 @@ function renderDashboardAnalytics(analytics = {}) {
   setStatMeta('statReviewMeta', `${statuses.refunded || 0} hoàn tiền · ${statuses.expired || 0} hết hạn`, Number(statuses.payment_review || 0) ? 'negative' : 'neutral');
   setStatMeta('statRevenueMeta', `7 ngày: ${compactMoney(current7d.revenue || 0)} · ${dashboardDeltaLabel(revenueDelta)}`, Number(revenueDelta || 0) >= 0 ? 'positive' : 'negative');
   $('#todayRevenue').textContent = money(today.revenue || 0);
+  $('#todayProfit').textContent = Number(today.ordersWithCost || 0) ? money(today.grossProfit || 0) : '—';
   $('#todayOrders').textContent = Number(today.orders || 0).toLocaleString('vi-VN');
   $('#todayPaidOrders').textContent = Number(today.paidOrders || 0).toLocaleString('vi-VN');
   $('#todayDeliveredOrders').textContent = Number(today.deliveredOrders || 0).toLocaleString('vi-VN');
   setStatMeta('todayRevenueMeta', todayDeltaLabel(today.revenueDeltaPercent, yesterday.revenue, compactMoney), Number(today.revenueDeltaPercent || 0) >= 0 ? 'positive' : 'negative');
+  setStatMeta(
+    'todayProfitMeta',
+    Number(today.ordersWithCost || 0)
+      ? `Biên ${today.marginPercent ?? 0}% · phủ ${today.costCoveragePercent || 0}%${today.ordersMissingCost ? ` · thiếu ${today.ordersMissingCost} đơn` : ''}`
+      : (Number(today.revenue || 0) ? `Thiếu giá gốc cho ${today.ordersMissingCost || today.paidOrders || 0} đơn` : 'Chưa phát sinh doanh thu'),
+    Number(today.ordersWithCost || 0) ? (Number(today.grossProfit || 0) < 0 ? 'negative' : 'positive') : 'neutral'
+  );
   setStatMeta('todayOrdersMeta', todayDeltaLabel(today.orderDeltaPercent, yesterday.orders), Number(today.orderDeltaPercent || 0) >= 0 ? 'positive' : 'negative');
   const generatedAt = analytics.generatedAt ? new Date(analytics.generatedAt) : null;
   $('#todayDateLabel').textContent = generatedAt
@@ -2022,6 +2073,7 @@ function renderDashboardAnalytics(analytics = {}) {
 }
 
 function renderSummary(summary) {
+  const financials = summary.financials || {};
   $('#statProducts').textContent = summary.products;
   $('#statStock').textContent = summary.availableInventory;
   $('#statPending').textContent = summary.pendingOrders;
@@ -2029,7 +2081,15 @@ function renderSummary(summary) {
   $('#statDelivered').textContent = summary.deliveredOrders;
   $('#statReview').textContent = summary.reviewOrders;
   $('#statRevenue').textContent = money(summary.revenue);
+  $('#statProfit').textContent = Number(financials.ordersWithCost || 0) ? money(financials.grossProfit || 0) : '—';
   renderDashboardAnalytics(summary.analytics || {});
+  setStatMeta(
+    'statProfitMeta',
+    Number(financials.ordersWithCost || 0)
+      ? `Biên ${financials.marginPercent ?? 0}% · phủ ${financials.costCoveragePercent || 0}%${financials.ordersMissingCost ? ` · thiếu ${financials.ordersMissingCost} đơn` : ''}`
+      : (Number(financials.revenue || 0) ? `${financials.ordersMissingCost || 0} đơn chưa có giá gốc` : 'Chưa phát sinh doanh thu'),
+    Number(financials.ordersWithCost || 0) ? (Number(financials.grossProfit || 0) < 0 ? 'negative' : 'positive') : 'neutral'
+  );
 
   $('#recentOrders').innerHTML = summary.recentOrders.length
     ? summary.recentOrders.map((order) => `
@@ -2546,7 +2606,7 @@ $('#telegramPricingProducts').addEventListener('input', (event) => {
   const row = input.closest('.pricing-row');
   row?.classList.toggle('has-override', hasOverride);
   const note = row?.querySelector('.pricing-inheritance');
-  if (note) note.textContent = hasOverride ? 'Đang dùng giá riêng' : 'Kế thừa giá gốc';
+  if (note) note.textContent = hasOverride ? 'Bot dùng giá riêng' : 'Bot dùng giá bán hiện tại';
 });
 
 $('#catalogPricingProducts').addEventListener('input', (event) => {
@@ -2556,7 +2616,7 @@ $('#catalogPricingProducts').addEventListener('input', (event) => {
   const row = input.closest('.base-price-row');
   row?.classList.toggle('has-base-price', hasBasePrice);
   const note = row?.querySelector('.pricing-inheritance');
-  if (note) note.textContent = hasBasePrice ? 'Giá gốc đã cấu hình' : 'Chưa cấu hình · tạm dùng giá hiện tại';
+  if (note) note.textContent = hasBasePrice ? 'Đã có dữ liệu tính lợi nhuận' : 'Chưa có giá vốn · lợi nhuận sẽ thiếu';
 });
 
 $('#discountGenerateBtn').addEventListener('click', () => {
@@ -2757,7 +2817,7 @@ $('#catalogPricingForm').addEventListener('submit', async (event) => {
       body: JSON.stringify({ prices })
     });
     await refresh();
-    toast('Đã cập nhật bảng giá gốc');
+    toast('Đã cập nhật giá vốn');
   } catch (error) {
     toast(error.message);
   } finally {

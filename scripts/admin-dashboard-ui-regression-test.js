@@ -124,10 +124,14 @@ for (const id of [
   'topProductsChart',
   'operationsFunnel',
   'analyticsGeneratedAt',
+  'statProfit',
+  'statProfitMeta',
   'todayOverviewTitle',
   'todayDateLabel',
   'todayRevenue',
   'todayRevenueMeta',
+  'todayProfit',
+  'todayProfitMeta',
   'todayOrders',
   'todayOrdersMeta',
   'todayPaidOrders',
@@ -231,7 +235,8 @@ assert.ok(html.includes('data-dashboard-range="1"'), 'Overview trend chart shoul
 assert.ok(html.includes('data-dashboard-range="30"'), 'Overview trend chart should expose a thirty-day range.');
 assert.ok(html.includes('Nhịp vận hành trong ngày'), 'Overview should expose a dedicated today snapshot.');
 assert.ok(js.includes('analytics.today'), 'Overview should render the backend today analytics contract.');
-assert.ok(js.includes("days === 1 && analytics?.today"), 'The today chart should use payment-time today metrics.');
+assert.ok(js.includes('analytics.hourlyToday'), 'The today chart should render all 24 local-hour buckets.');
+assert.ok(js.includes("'Hôm nay 00:00–23:59'"), 'The today chart should state its full-day time range.');
 assert.ok(html.includes('aria-pressed="true"'), 'The active chart range should expose its pressed state.');
 assert.ok(html.includes('class="stat-icon"'), 'Overview statistics should include visual metric icons.');
 assert.ok(html.includes('class="auth-security"'), 'Login should expose the protected-admin trust cue.');
@@ -244,7 +249,7 @@ assert.ok(js.includes("state.productBrand"), 'Admin JS should track product bran
 assert.ok(js.includes("productSort: 'priority'"), 'Admin JS should track the selected product catalog sort.');
 assert.ok(js.includes('state.telegramPricing'), 'Admin JS should retain Telegram username price lists.');
 assert.ok(js.includes('basePriceList'), 'Admin JS should retain the independent catalog base-price list.');
-assert.ok(js.includes('Giá hiện tại'), 'Base pricing should distinguish product price from the independent base price.');
+assert.ok(js.includes('Giá bán trên bot'), 'Base pricing should distinguish the bot sale price from the Admin reference price.');
 assert.ok(js.includes("api('/api/telegram-pricing')"), 'Admin refresh should load Telegram username pricing.');
 assert.ok(js.includes("api('/api/catalog-pricing'"), 'Admin should save the base price list through its authenticated API.');
 assert.ok(js.includes("method: 'PUT'"), 'Admin should save a username price list with PUT.');
@@ -308,6 +313,8 @@ assert.ok(discountCodes.includes('discountReservationIsLive'), 'Discount domain 
 assert.ok(discountCodes.includes('usageLimit: 1'), 'Public discount data should expose the fixed one-use limit.');
 assert.ok(discountCodes.includes('reservedByUserId'), 'Admin discount data should expose the user holding a code.');
 assert.ok(discountCodes.includes('usedByUserId'), 'Admin discount data should expose the user who consumed a code.');
+assert.ok(html.includes('Giá vốn nội bộ để tính lợi nhuận') && html.includes('không dùng làm giá checkout trên bot'), 'Base pricing should be described as internal cost data.');
+assert.ok(html.includes('Ô SKU để trống sẽ dùng giá bán hiện tại của sản phẩm'), 'Blank Telegram overrides should clearly retain the product sale price.');
 assert.ok(html.includes('name="campaignName"'), 'Discount creation should capture an internal campaign name.');
 assert.ok(html.includes('name="internalNote"'), 'Discount creation should capture a private operations note.');
 assert.ok(html.includes('id="discountCreateToggle"') && html.includes('aria-controls="discountCreatePanel"'), 'Discount creation should use an accessible reveal control.');
@@ -323,13 +330,25 @@ assert.ok(postgresStore.includes("discountCodes: 'discountCodes'"), 'Postgres do
 assert.ok(telegram.includes('discount_confirm:'), 'Telegram should support confirming a discounted checkout.');
 assert.ok(telegram.includes('seat_discount:'), 'Seat checkout should also support one-time discounts.');
 assert.ok(server.includes("routeParams('/api/telegram-pricing/:username'"), 'Server should expose per-username price-list mutations.');
-assert.ok(telegramPricing.includes('resolveCatalogBasePrice'), 'Telegram pricing should resolve the independent base price before product.price fallback.');
+assert.ok(telegramPricing.includes('resolveCatalogBasePrice'), 'Telegram pricing should retain the independent Admin reference price.');
+assert.ok(telegramPricing.includes('price: catalogPrice'), 'Telegram pricing without a username override should use product.price.');
+assert.equal(telegramPricing.includes("source: basePricing.configured ? 'catalog_base'"), false, 'Admin base pricing must never become the Telegram checkout source.');
+assert.ok(telegramPricing.includes('orderPricingSnapshot'), 'Order creation should use an immutable pricing and cost snapshot.');
+assert.ok(telegramPricing.includes('costUnitPrice') && telegramPricing.includes('costConfigured'), 'Pricing snapshots should distinguish configured cost from missing cost.');
+assert.ok(jsonShopStore.includes('pricing: orderPricingSnapshot(pricing)'), 'JSON orders should snapshot configured unit cost.');
+assert.ok(postgresShopStore.includes('pricing: orderPricingSnapshot(pricing)'), 'Postgres orders should snapshot configured unit cost.');
 assert.ok(jsonShopStore.includes('db.catalogPriceLists'), 'JSON storage should persist base prices separately from products.');
 assert.ok(postgresShopStore.includes("upsertDoc(client, 'catalogPriceLists'"), 'Postgres row mode should persist the independent base-price document.');
 assert.ok(postgresStore.includes("catalogPriceLists: 'catalogPriceLists'"), 'Postgres document mode should include base-price documents in snapshots.');
 assert.ok(dashboardAnalytics.includes('buildDashboardAnalytics'), 'Dashboard summary should use a deterministic analytics aggregation.');
+assert.ok(dashboardAnalytics.includes('buildOrderFinancialSummary'), 'Dashboard should calculate covered revenue, cost and gross profit.');
+assert.ok(dashboardAnalytics.includes('ordersMissingCost'), 'Profit analytics should report missing cost instead of treating it as zero.');
+assert.ok(dashboardAnalytics.includes('hourlySnapshot'), 'Dashboard analytics should build a 24-hour today series.');
+assert.ok(dashboardAnalytics.includes("label: `${String(hour).padStart(2, '0')}:00`"), 'Hourly analytics should label buckets from 00:00 through 23:00.');
 assert.ok(jsonShopStore.includes('buildDashboardAnalytics'), 'JSON dashboard summary should expose analytics.');
 assert.ok(postgresShopStore.includes('analyticsOrders'), 'Postgres dashboard summary should aggregate a bounded analytics window.');
+assert.ok(postgresShopStore.includes('cost_known'), 'Postgres overview should aggregate profit only for orders with cost snapshots.');
+assert.ok(postgresShopStore.includes("doc->>'paidAt' >= $1"), 'Postgres analytics should include orders paid during the reporting window even when created earlier.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
 for (const field of ['emoji', 'description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
@@ -463,9 +482,14 @@ for (const selector of [
   '.overview-today',
   '.overview-today-grid',
   '.today-metric',
+  '.stat-profit',
+  '.today-profit',
   '.trend-svg',
+  '.profit-line',
+  '.profit-dot',
   '.status-donut',
   '.top-products-chart',
+  '.top-product-financial',
   '.operations-funnel',
   '.responsive-table'
 ]) {
