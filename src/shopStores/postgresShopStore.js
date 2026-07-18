@@ -22,6 +22,7 @@ import { parseSeatEmailLines } from '../seatFulfillment.js';
 import { lockSeatAccessTransaction } from '../seatAccessLock.js';
 import {
   applyTelegramProductPricing,
+  catalogBasePriceList,
   normalizeTelegramPriceOverrides,
   normalizeTelegramUsername,
   resolveTelegramProductPricing
@@ -216,6 +217,16 @@ async function telegramPriceListsForUser(client, user = {}) {
   return result.rows.map((row) => row.doc);
 }
 
+async function catalogBasePriceLists(client) {
+  const result = await client.query(
+    `SELECT doc
+     FROM app_documents
+     WHERE collection = 'catalogPriceLists' AND id = 'base'
+     LIMIT 1`
+  );
+  return result.rows.map((row) => row.doc);
+}
+
 export async function listProducts({ includeInactive = false, user = null } = {}) {
   return withPostgresClient(async (client) => {
     const result = await client.query(
@@ -227,13 +238,19 @@ export async function listProducts({ includeInactive = false, user = null } = {}
       [includeInactive]
     );
 
-    const priceLists = user ? await telegramPriceListsForUser(client, user) : [];
+    const [priceLists, basePriceLists] = user
+      ? await Promise.all([
+        telegramPriceListsForUser(client, user),
+        catalogBasePriceLists(client)
+      ])
+      : [[], []];
     const products = [];
     for (const row of result.rows) {
       products.push(applyTelegramProductPricing(
         publicProduct(row.doc, await productStock(client, row.doc.id)),
         user || {},
-        priceLists
+        priceLists,
+        basePriceLists
       ));
     }
     return products;
@@ -321,7 +338,13 @@ export async function upsertTelegramUser(from) {
 
 export async function getTelegramPricingOverview() {
   return withPostgresClient(async (client) => {
-    const [priceLists, users] = await Promise.all([
+    const [basePriceLists, priceLists, users] = await Promise.all([
+      client.query(`
+        SELECT doc
+        FROM app_documents
+        WHERE collection = 'catalogPriceLists' AND id = 'base'
+        LIMIT 1
+      `),
       client.query(`
         SELECT doc
         FROM app_documents
@@ -336,6 +359,11 @@ export async function getTelegramPricingOverview() {
       `)
     ]);
     return {
+      basePriceList: catalogBasePriceList(basePriceLists.rows.map((row) => row.doc)) || {
+        id: 'base',
+        prices: {},
+        updatedAt: null
+      },
       priceLists: priceLists.rows.map((row) => row.doc),
       users: users.rows
         .map((row) => row.doc)
@@ -422,26 +450,29 @@ export async function setCatalogPriceList(actorId, input = {}) {
   return withPostgresTransaction(async (client) => {
     await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, ['catalog-pricing:base']);
     const productRows = await client.query(
-      `SELECT id, doc
+      `SELECT doc
        FROM app_documents
-       WHERE collection = 'products'
-       FOR UPDATE`
+       WHERE collection = 'products'`
     );
     const prices = normalizeTelegramPriceOverrides(
       input,
       productRows.rows.map((row) => row.doc.sku)
     );
-    for (const row of productRows.rows) {
-      const sku = String(row.doc.sku || '').trim().toLowerCase();
-      if (prices[sku] === undefined) continue;
-      row.doc.price = prices[sku];
-      row.doc.updatedAt = nowIso();
-      await upsertDoc(client, 'products', row.doc);
-    }
+    const existing = await getDoc(client, 'catalogPriceLists', 'base', { forUpdate: true });
+    const priceList = existing?.doc || {
+      id: 'base',
+      prices: {},
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+    priceList.prices = prices;
+    priceList.updatedAt = nowIso();
+    await upsertDoc(client, 'catalogPriceLists', priceList);
     await addAuditDoc(client, actorId, 'catalog_pricing.update', 'catalog_price_list', 'base', {
-      productCount: Object.keys(prices).length
+      productCount: Object.keys(prices).length,
+      created: !existing
     });
-    return { prices, updatedAt: nowIso() };
+    return priceList;
   });
 }
 
@@ -649,7 +680,11 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
     }
     assertSalesOrderAllowed(product, user);
-    const pricing = resolveTelegramProductPricing(product, user, await telegramPriceListsForUser(client, user));
+    const [telegramPriceLists, basePriceLists] = await Promise.all([
+      telegramPriceListsForUser(client, user),
+      catalogBasePriceLists(client)
+    ]);
+    const pricing = resolveTelegramProductPricing(product, user, telegramPriceLists, basePriceLists);
     const seatEmailOrder = isSeatEmailFulfillment(product);
     const seatRecipients = seatEmailOrder
       ? seatOrderRecipients(options.recipientEmails)
@@ -745,10 +780,15 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         deliveryMode: normalizeDeliveryMode(product.deliveryMode),
         fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),
         pricing: pricing.personalized ? {
-          source: 'telegram_username',
+          source: pricing.source,
           username: pricing.username,
-          basePrice: pricing.basePrice
-        } : { source: 'catalog' }
+          basePrice: pricing.basePrice,
+          catalogPrice: pricing.catalogPrice
+        } : {
+          source: pricing.source,
+          basePrice: pricing.basePrice,
+          catalogPrice: pricing.catalogPrice
+        }
       },
       ...(seatEmailOrder ? {
         fulfillment: {

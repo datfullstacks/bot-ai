@@ -6,7 +6,7 @@ const state = {
   productSearch: '',
   productBrand: 'all',
   productStatus: 'all',
-  telegramPricing: { priceLists: [], users: [] },
+  telegramPricing: { basePriceList: { id: 'base', prices: {} }, priceLists: [], users: [] },
   telegramPricingUsername: '',
   orderStatus: 'all',
   seatGuard: null,
@@ -836,32 +836,52 @@ function selectedTelegramPriceList() {
   ));
 }
 
+function catalogBasePrices() {
+  return state.telegramPricing.basePriceList?.prices || {};
+}
+
+function resolvedCatalogBasePrice(product) {
+  const prices = catalogBasePrices();
+  const configured = Object.prototype.hasOwnProperty.call(prices, product.sku);
+  return {
+    price: configured ? Number(prices[product.sku]) : Number(product.price),
+    configured
+  };
+}
+
 function renderCatalogPricingProducts() {
   const products = sortedProducts(state.products);
+  const prices = catalogBasePrices();
   $('#catalogPricingProducts').innerHTML = products.length ? `
     <div class="table-wrap pricing-table-wrap">
       <table class="data-table pricing-table">
         <thead>
-          <tr><th>Sản phẩm</th><th>SKU</th><th>Giá gốc</th></tr>
+          <tr><th>Sản phẩm</th><th>SKU</th><th>Giá hiện tại</th><th>Giá gốc</th></tr>
         </thead>
         <tbody>
-          ${products.map((product) => `
-            <tr>
+          ${products.map((product) => {
+            const hasBasePrice = Object.prototype.hasOwnProperty.call(prices, product.sku);
+            return `
+            <tr class="base-price-row ${hasBasePrice ? 'has-base-price' : ''}">
               <td data-label="Sản phẩm"><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(product.brand || 'Other')}</span></td>
               <td data-label="SKU">${escapeHtml(product.sku)}</td>
+              <td data-label="Giá hiện tại">${escapeHtml(money(product.price, product.currency))}</td>
               <td data-label="Giá gốc">
                 <input
+                  class="catalog-base-price-input"
                   data-catalog-price-sku="${escapeHtml(product.sku)}"
                   type="number"
                   min="1"
                   step="1"
-                  value="${escapeHtml(product.price)}"
+                  value="${escapeHtml(hasBasePrice ? prices[product.sku] : '')}"
+                  placeholder="Nhập giá gốc"
                   aria-label="Giá gốc cho ${escapeHtml(product.name)}"
-                  required
                 >
+                <span class="pricing-inheritance">${hasBasePrice ? 'Giá gốc đã cấu hình' : 'Chưa cấu hình · tạm dùng giá hiện tại'}</span>
               </td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
         </tbody>
       </table>
     </div>
@@ -881,13 +901,17 @@ function renderTelegramPricingProducts() {
         <tbody>
           ${products.map((product) => {
             const hasOverride = Object.prototype.hasOwnProperty.call(prices, product.sku);
+            const basePricing = resolvedCatalogBasePrice(product);
             return `
             <tr class="pricing-row ${hasOverride ? 'has-override' : ''}">
               <td data-label="Sản phẩm">
                 <strong>${escapeHtml(product.name)}</strong>
                 <span>${escapeHtml(product.sku)}</span>
               </td>
-              <td data-label="Giá gốc">${escapeHtml(money(product.price, product.currency))}</td>
+              <td data-label="Giá gốc">
+                <strong>${escapeHtml(money(basePricing.price, product.currency))}</strong>
+                <span>${basePricing.configured ? 'Đã cấu hình' : 'Tạm dùng giá hiện tại'}</span>
+              </td>
               <td data-label="Giá riêng">
                 <input
                   class="pricing-override-input"
@@ -911,7 +935,12 @@ function renderTelegramPricingProducts() {
 }
 
 function renderTelegramPricing(pricing = state.telegramPricing) {
-  state.telegramPricing = pricing || { priceLists: [], users: [] };
+  state.telegramPricing = pricing || { basePriceList: { id: 'base', prices: {} }, priceLists: [], users: [] };
+  state.telegramPricing.basePriceList ||= { id: 'base', prices: {} };
+  const configuredBasePrices = Object.keys(catalogBasePrices()).length;
+  const basePriceBadge = $('#catalogBasePriceCount');
+  basePriceBadge.textContent = configuredBasePrices ? `${configuredBasePrices} SKU gốc` : 'Chưa cấu hình';
+  basePriceBadge.className = `badge ${configuredBasePrices ? 'available' : 'reserved'}`;
   const knownUsernames = [...new Set([
     ...(state.telegramPricing.users || []).map((user) => normalizeTelegramUsername(user.username)),
     ...(state.telegramPricing.priceLists || []).map((item) => normalizeTelegramUsername(item.username))
@@ -1346,6 +1375,16 @@ $('#telegramPricingProducts').addEventListener('input', (event) => {
   if (note) note.textContent = hasOverride ? 'Đang dùng giá riêng' : 'Kế thừa giá gốc';
 });
 
+$('#catalogPricingProducts').addEventListener('input', (event) => {
+  const input = event.target.closest('.catalog-base-price-input');
+  if (!input) return;
+  const hasBasePrice = Boolean(String(input.value || '').trim());
+  const row = input.closest('.base-price-row');
+  row?.classList.toggle('has-base-price', hasBasePrice);
+  const note = row?.querySelector('.pricing-inheritance');
+  if (note) note.textContent = hasBasePrice ? 'Giá gốc đã cấu hình' : 'Chưa cấu hình · tạm dùng giá hiện tại';
+});
+
 $('#telegramPricingUsername').addEventListener('change', (event) => {
   selectTelegramPricingUsername(event.currentTarget.value);
 });
@@ -1356,7 +1395,8 @@ $('#catalogPricingForm').addEventListener('submit', async (event) => {
   const submit = form.querySelector('button[type="submit"]');
   const prices = {};
   form.querySelectorAll('[data-catalog-price-sku]').forEach((input) => {
-    prices[input.dataset.catalogPriceSku] = Number(input.value);
+    const value = String(input.value || '').trim();
+    if (value) prices[input.dataset.catalogPriceSku] = Number(value);
   });
   setButtonBusy(submit, true);
   try {

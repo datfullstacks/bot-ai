@@ -133,12 +133,25 @@ try {
   await shop.setCatalogPriceList(actorId, {
     prices: { [controlledProduct.sku]: 11000 }
   });
-  const updatedBaseProduct = (await shop.listProducts()).find((product) => product.sku === controlledProduct.sku);
+  const pricingOverviewAfterBaseUpdate = await shop.getTelegramPricingOverview();
+  const catalogProductAfterBaseUpdate = (await shop.listProducts())
+    .find((product) => product.sku === controlledProduct.sku);
+  const defaultProductAfterBaseUpdate = (await shop.listProducts({ user: otherUser }))
+    .find((product) => product.sku === controlledProduct.sku);
   const personalizedAfterBaseUpdate = (await shop.listProducts({ user }))
     .find((product) => product.sku === controlledProduct.sku);
-  assert.equal(updatedBaseProduct.price, 11000, 'The base price list should update the public catalog price.');
+  assert.equal(
+    pricingOverviewAfterBaseUpdate.basePriceList.prices[controlledProduct.sku],
+    11000,
+    'The pricing overview should expose the independent base price list.'
+  );
+  assert.equal(catalogProductAfterBaseUpdate.price, 10000, 'Saving a base price must not overwrite product.price.');
+  assert.equal(defaultProductAfterBaseUpdate.price, 11000, 'Telegram users without an override should receive the configured base price.');
+  assert.equal(defaultProductAfterBaseUpdate.basePriceConfigured, true);
+  assert.equal(defaultProductAfterBaseUpdate.personalizedPrice, false);
   assert.equal(personalizedAfterBaseUpdate.price, 7500, 'A custom username price should override the updated base price.');
   assert.equal(personalizedAfterBaseUpdate.basePrice, 11000);
+  assert.equal(personalizedAfterBaseUpdate.catalogPrice, 10000);
   const originalSalesEnabled = config.sales.enabled;
   const originalTestTelegramIds = config.sales.testTelegramIds;
   try {
@@ -154,6 +167,12 @@ try {
       () => shop.createOrderForUser(otherUser, controlledProduct.sku, 1),
       /Shop/
     );
+    config.sales.testTelegramIds = [user.telegramId, otherUser.telegramId];
+    const basePriceOrder = await shop.createOrderForUser(otherUser, controlledProduct.sku, 1);
+    assert.equal(basePriceOrder.order.unitPrice, 11000, 'Checkout should use the independent base price without a username override.');
+    assert.equal(basePriceOrder.order.productSnapshot.pricing.source, 'catalog_base');
+    assert.equal(basePriceOrder.order.productSnapshot.pricing.catalogPrice, 10000);
+    await shop.cancelOrderForUser(otherUser.id, basePriceOrder.order.id);
   } finally {
     config.sales.enabled = originalSalesEnabled;
     config.sales.testTelegramIds = originalTestTelegramIds;

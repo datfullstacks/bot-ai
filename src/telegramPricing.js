@@ -42,33 +42,57 @@ export function telegramPriceListForUser(priceLists = [], user = {}) {
   return priceLists.find((item) => normalizeTelegramUsername(item?.username) === username) || null;
 }
 
-export function resolveTelegramProductPricing(product = {}, user = {}, priceLists = []) {
+export function catalogBasePriceList(priceLists = []) {
+  const entries = Array.isArray(priceLists) ? priceLists : [priceLists];
+  return entries.find((item) => item?.id === 'base') || null;
+}
+
+export function resolveCatalogBasePrice(product = {}, catalogPriceLists = []) {
+  const sku = String(product.sku || '').trim().toLowerCase();
+  const configuredPrice = catalogBasePriceList(catalogPriceLists)?.prices?.[sku];
+  const configured = Number.isSafeInteger(Number(configuredPrice)) && Number(configuredPrice) > 0;
+  return {
+    price: configured ? Number(configuredPrice) : Number(product.price),
+    configured
+  };
+}
+
+export function resolveTelegramProductPricing(product = {}, user = {}, priceLists = [], catalogPriceLists = []) {
   const priceList = telegramPriceListForUser(priceLists, user);
   const sku = String(product.sku || '').trim().toLowerCase();
   const customPrice = priceList?.prices?.[sku];
+  const basePricing = resolveCatalogBasePrice(product, catalogPriceLists);
   if (!Number.isSafeInteger(Number(customPrice)) || Number(customPrice) <= 0) {
     return {
-      price: Number(product.price),
-      basePrice: Number(product.price),
+      price: basePricing.price,
+      basePrice: basePricing.price,
+      catalogPrice: Number(product.price),
+      basePriceConfigured: basePricing.configured,
       personalized: false,
-      username: ''
+      username: '',
+      source: basePricing.configured ? 'catalog_base' : 'catalog'
     };
   }
   return {
     price: Number(customPrice),
-    basePrice: Number(product.price),
+    basePrice: basePricing.price,
+    catalogPrice: Number(product.price),
+    basePriceConfigured: basePricing.configured,
     personalized: true,
-    username: normalizeTelegramUsername(priceList.username)
+    username: normalizeTelegramUsername(priceList.username),
+    source: 'telegram_username'
   };
 }
 
-export function applyTelegramProductPricing(product = {}, user = {}, priceLists = []) {
-  const pricing = resolveTelegramProductPricing(product, user, priceLists);
-  if (!pricing.personalized) return product;
+export function applyTelegramProductPricing(product = {}, user = {}, priceLists = [], catalogPriceLists = []) {
+  const pricing = resolveTelegramProductPricing(product, user, priceLists, catalogPriceLists);
+  if (!pricing.personalized && !pricing.basePriceConfigured) return product;
   return {
     ...product,
     price: pricing.price,
     basePrice: pricing.basePrice,
-    personalizedPrice: true
+    catalogPrice: pricing.catalogPrice,
+    basePriceConfigured: pricing.basePriceConfigured,
+    personalizedPrice: pricing.personalized
   };
 }

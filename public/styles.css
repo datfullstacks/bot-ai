@@ -1419,6 +1419,23 @@ a {
   box-shadow: inset 3px 0 var(--primary);
 }
 
+.base-price-row.has-base-price {
+  background: #f0fdf4 !important;
+  box-shadow: inset 3px 0 var(--success);
+}
+
+.base-price-row.has-base-price .catalog-base-price-input {
+  border-color: #6ce9a6;
+  background: #fff;
+  color: #05603a;
+  font-weight: 760;
+}
+
+.base-price-row.has-base-price .pricing-inheritance {
+  color: var(--success);
+  font-weight: 720;
+}
+
 .pricing-row.has-override .pricing-override-input {
   border-color: #8b83f6;
   background: #fff;

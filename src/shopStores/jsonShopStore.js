@@ -20,6 +20,7 @@ import { addAudit, makeId, publicProduct, readStore, withWrite } from '../storag
 import { paymentProvider } from '../payments.js';
 import {
   applyTelegramProductPricing,
+  catalogBasePriceList,
   normalizeTelegramPriceOverrides,
   normalizeTelegramUsername,
   resolveTelegramProductPricing
@@ -107,11 +108,16 @@ export async function listProducts({ includeInactive = false, user = null } = {}
   const db = await readStore();
   return db.products
     .filter((product) => includeInactive || product.active)
-    .map((product) => applyTelegramProductPricing(
-      publicProduct(product, db),
-      user || {},
-      db.telegramPriceLists || []
-    ));
+    .map((product) => {
+      const visibleProduct = publicProduct(product, db);
+      if (!user) return visibleProduct;
+      return applyTelegramProductPricing(
+        visibleProduct,
+        user,
+        db.telegramPriceLists || [],
+        db.catalogPriceLists || []
+      );
+    });
 }
 
 export async function getDashboardSummary() {
@@ -160,6 +166,11 @@ export async function upsertTelegramUser(from) {
 export async function getTelegramPricingOverview() {
   const db = await readStore();
   return {
+    basePriceList: catalogBasePriceList(db.catalogPriceLists || []) || {
+      id: 'base',
+      prices: {},
+      updatedAt: null
+    },
     priceLists: (db.telegramPriceLists || [])
       .slice()
       .sort((left, right) => String(left.username).localeCompare(String(right.username))),
@@ -226,15 +237,25 @@ export async function deleteTelegramPriceList(actorId, rawUsername) {
 export async function setCatalogPriceList(actorId, input = {}) {
   return withWrite(async (db) => {
     const prices = normalizeTelegramPriceOverrides(input, db.products.map((product) => product.sku));
-    for (const [sku, price] of Object.entries(prices)) {
-      const product = db.products.find((item) => item.sku === sku);
-      product.price = price;
-      product.updatedAt = nowIso();
+    db.catalogPriceLists ||= [];
+    let priceList = catalogBasePriceList(db.catalogPriceLists);
+    const created = !priceList;
+    if (!priceList) {
+      priceList = {
+        id: 'base',
+        prices: {},
+        createdAt: nowIso(),
+        updatedAt: nowIso()
+      };
+      db.catalogPriceLists.push(priceList);
     }
+    priceList.prices = prices;
+    priceList.updatedAt = nowIso();
     addAudit(db, actorId, 'catalog_pricing.update', 'catalog_price_list', 'base', {
-      productCount: Object.keys(prices).length
+      productCount: Object.keys(prices).length,
+      created
     });
-    return { prices, updatedAt: nowIso() };
+    return priceList;
   });
 }
 
@@ -383,7 +404,12 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
     }
     assertSalesOrderAllowed(product, user);
-    const pricing = resolveTelegramProductPricing(product, user, db.telegramPriceLists || []);
+    const pricing = resolveTelegramProductPricing(
+      product,
+      user,
+      db.telegramPriceLists || [],
+      db.catalogPriceLists || []
+    );
     const seatEmailOrder = isSeatEmailFulfillment(product);
     const seatRecipients = seatEmailOrder
       ? seatOrderRecipients(options.recipientEmails)
@@ -454,10 +480,15 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         deliveryMode: normalizeDeliveryMode(product.deliveryMode),
         fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),
         pricing: pricing.personalized ? {
-          source: 'telegram_username',
+          source: pricing.source,
           username: pricing.username,
-          basePrice: pricing.basePrice
-        } : { source: 'catalog' }
+          basePrice: pricing.basePrice,
+          catalogPrice: pricing.catalogPrice
+        } : {
+          source: pricing.source,
+          basePrice: pricing.basePrice,
+          catalogPrice: pricing.catalogPrice
+        }
       },
       ...(seatEmailOrder ? {
         fulfillment: {

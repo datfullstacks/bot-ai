@@ -8,6 +8,10 @@ const css = await readFile(resolve(process.cwd(), 'public', 'styles.css'), 'utf8
 const server = await readFile(resolve(process.cwd(), 'src', 'server.js'), 'utf8');
 const catalogSeed = await readFile(resolve(process.cwd(), 'scripts', 'seed-catalog.js'), 'utf8');
 const brandAssets = await readFile(resolve(process.cwd(), 'public', 'brand-assets.js'), 'utf8');
+const telegramPricing = await readFile(resolve(process.cwd(), 'src', 'telegramPricing.js'), 'utf8');
+const jsonShopStore = await readFile(resolve(process.cwd(), 'src', 'shopStores', 'jsonShopStore.js'), 'utf8');
+const postgresShopStore = await readFile(resolve(process.cwd(), 'src', 'shopStores', 'postgresShopStore.js'), 'utf8');
+const postgresStore = await readFile(resolve(process.cwd(), 'src', 'postgresStore.js'), 'utf8');
 const { getBrandAsset } = await import('../public/brand-assets.js');
 
 for (const id of [
@@ -23,6 +27,7 @@ for (const id of [
   'sidebarBackdrop',
   'catalogPricingForm',
   'catalogPricingProducts',
+  'catalogBasePriceCount',
   'telegramPricingUsername',
   'telegramPricingProducts',
   'telegramPricingLists',
@@ -60,6 +65,8 @@ for (const fn of [
   'renderProductCard',
   'renderProductEditor',
   'renderCatalogPricingProducts',
+  'catalogBasePrices',
+  'resolvedCatalogBasePrice',
   'renderTelegramPricing',
   'renderTelegramPricingProducts',
   'renderOrderTable',
@@ -90,6 +97,8 @@ assert.ok(js.includes("icon('shopping-cart'"), 'Order action buttons should rend
 assert.ok(js.includes("state.productSearch"), 'Admin JS should track product search state.');
 assert.ok(js.includes("state.productBrand"), 'Admin JS should track product brand filter.');
 assert.ok(js.includes('state.telegramPricing'), 'Admin JS should retain Telegram username price lists.');
+assert.ok(js.includes('basePriceList'), 'Admin JS should retain the independent catalog base-price list.');
+assert.ok(js.includes('Giá hiện tại'), 'Base pricing should distinguish product price from the independent base price.');
 assert.ok(js.includes("api('/api/telegram-pricing')"), 'Admin refresh should load Telegram username pricing.');
 assert.ok(js.includes("api('/api/catalog-pricing'"), 'Admin should save the base price list through its authenticated API.');
 assert.ok(js.includes("method: 'PUT'"), 'Admin should save a username price list with PUT.');
@@ -124,6 +133,10 @@ assert.ok(server.includes('TELEGRAM_OWNER_USER_ID'), 'Dev order API should fall 
 assert.ok(server.includes("pathname === '/api/telegram-pricing'"), 'Server should expose the authenticated Telegram pricing overview.');
 assert.ok(server.includes("pathname === '/api/catalog-pricing'"), 'Server should expose the authenticated base price-list update.');
 assert.ok(server.includes("routeParams('/api/telegram-pricing/:username'"), 'Server should expose per-username price-list mutations.');
+assert.ok(telegramPricing.includes('resolveCatalogBasePrice'), 'Telegram pricing should resolve the independent base price before product.price fallback.');
+assert.ok(jsonShopStore.includes('db.catalogPriceLists'), 'JSON storage should persist base prices separately from products.');
+assert.ok(postgresShopStore.includes("upsertDoc(client, 'catalogPriceLists'"), 'Postgres row mode should persist the independent base-price document.');
+assert.ok(postgresStore.includes("catalogPriceLists: 'catalogPriceLists'"), 'Postgres document mode should include base-price documents in snapshots.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
 for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
@@ -208,6 +221,7 @@ for (const selector of [
   '.pricing-table',
   '.accordion-toggle',
   '.pricing-row.has-override',
+  '.base-price-row.has-base-price',
   '.responsive-table'
 ]) {
   assert.ok(css.includes(selector), `Admin CSS should style ${selector}.`);

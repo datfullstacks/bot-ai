@@ -339,13 +339,15 @@ Keep `SALES_ENABLED=false` during setup. In the admin dashboard:
 
 Use the admin dashboard's **Telegram Pricing** tab to maintain the base price
 list and assign per-SKU prices to a specific Telegram `@username`. The base list
-is the default for every customer. Leave a username SKU blank to inherit its
-current base price. Usernames are matched case-insensitively and without the
-leading `@`.
+is stored separately from each product's current `price` and is the default for
+every Telegram customer. A base SKU left blank temporarily falls back to the
+product's current price; a username SKU left blank inherits the effective base
+price. Usernames are matched case-insensitively and without the leading `@`.
 
 The personalized price is applied both when the bot renders the catalog and when
 the order is created. Existing orders keep their original price snapshot. Removing
-a username price list immediately restores public catalog prices for future orders.
+a username price list immediately restores the independent base price for future
+orders, or the product's current price when that base SKU has not been configured.
 
 ## System Status
 
