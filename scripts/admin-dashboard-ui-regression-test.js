@@ -68,6 +68,12 @@ for (const id of [
   'productMetricSeat',
   'productFilterSummary',
   'productGroupSummary',
+  'productArtworkDialog',
+  'productArtworkDialogTitle',
+  'productArtworkDialogMeta',
+  'productArtworkDialogClose',
+  'productArtworkDialogImage',
+  'productArtworkDialogOriginal',
   'discountsTab',
   'discountForm',
   'discountCreateToggle',
@@ -208,6 +214,7 @@ for (const fn of [
   'renderProductCreateExperience',
   'resetProductCreateForm',
   'toggleProductEditor',
+  'openProductArtworkPreview',
   'filteredProducts',
   'renderProductCard',
   'renderProductEditor',
@@ -255,6 +262,10 @@ assert.ok(html.includes('class="auth-security"'), 'Login should expose the prote
 assert.ok(js.includes("from './brand-assets.js'"), 'Admin JS should import shared brand assets.');
 assert.ok(js.includes('brandLogo('), 'Admin JS should render exact brand logos.');
 assert.ok(js.includes('productArtwork('), 'Admin JS should render product-specific plan artwork.');
+assert.ok(js.includes('data-action="preview-product-artwork"'), 'Product cards should expose artwork as an explicit preview action.');
+assert.ok(js.includes('<span class="product-brand-mark">${brandLogo(product.brand)}</span>'), 'Product rows should keep a compact brand mark instead of embedding marketing artwork.');
+assert.equal(css.includes('.product-brand-mark.has-artwork'), false, 'Marketing artwork should not enlarge the compact Product Catalog identity column.');
+assert.match(css, /\.product-artwork-dialog::backdrop/, 'Product artwork should open in a focused modal with a backdrop.');
 assert.ok(js.includes("icon('package'"), 'Product cards should render package icons.');
 assert.ok(js.includes("icon('shopping-cart'"), 'Order action buttons should render action icons.');
 assert.ok(js.includes("state.productSearch"), 'Admin JS should track product search state.');

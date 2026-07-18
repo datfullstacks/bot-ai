@@ -782,6 +782,25 @@
       </section>
     </section>
   </main>
+  <dialog id="productArtworkDialog" class="product-artwork-dialog" aria-labelledby="productArtworkDialogTitle" aria-describedby="productArtworkDialogMeta">
+    <form method="dialog" class="product-artwork-dialog-shell">
+      <header class="product-artwork-dialog-head">
+        <div>
+          <span class="dialog-kicker">Product artwork</span>
+          <h2 id="productArtworkDialogTitle">Ảnh plan</h2>
+          <p id="productArtworkDialogMeta">Xem ảnh marketing của plan mà không làm chật danh mục.</p>
+        </div>
+        <button id="productArtworkDialogClose" class="secondary icon-button" type="submit" value="cancel" aria-label="Đóng ảnh plan"><span data-lucide="x" aria-hidden="true"></span></button>
+      </header>
+      <figure class="product-artwork-dialog-preview">
+        <img id="productArtworkDialogImage" alt="">
+      </figure>
+      <footer class="product-artwork-dialog-actions">
+        <a id="productArtworkDialogOriginal" class="button secondary" href="#" target="_blank" rel="noopener noreferrer"><span data-lucide="external-link" aria-hidden="true"></span><span>Mở ảnh gốc</span></a>
+        <button type="submit" value="cancel"><span data-lucide="check" aria-hidden="true"></span><span>Đóng</span></button>
+      </footer>
+    </form>
+  </dialog>
   <div id="toast" class="toast hidden"></div>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
   <script src="/admin.js" type="module"></script>

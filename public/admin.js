@@ -27,6 +27,8 @@ const state = {
   seatGuardInvitationSearch: ''
 };
 
+let productArtworkPreviewTrigger = null;
+
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
@@ -56,10 +58,44 @@ function brandLogo(brand, className = 'brand-logo') {
   return `<span class="${escapeHtml(`${className} fallback`)}" aria-hidden="true">${escapeHtml(brandIcon(brand))}</span>`;
 }
 
-function productArtwork(product = {}, className = 'product-artwork') {
+function productArtworkPath(product = {}) {
   const artwork = String(product.artwork || '').trim();
   if (!/^\/brand\/(?:product-plans|catalog-artwork\/brands)\/[a-z0-9][a-z0-9._-]*\.(?:png|jpe?g|webp)$/i.test(artwork)) return '';
-  return `<img class="${escapeHtml(className)}" src="${escapeHtml(artwork)}" alt="" loading="lazy">`;
+  return artwork;
+}
+
+function productArtwork(product = {}, className = 'product-artwork', alt = '') {
+  const artwork = productArtworkPath(product);
+  return artwork
+    ? `<img class="${escapeHtml(className)}" src="${escapeHtml(artwork)}" alt="${escapeHtml(alt)}" loading="lazy">`
+    : '';
+}
+
+function openProductArtworkPreview(productId, trigger = null) {
+  const product = state.products.find((item) => String(item.id) === String(productId));
+  const artwork = productArtworkPath(product);
+  if (!product || !artwork) {
+    toast('Sản phẩm chưa có ảnh plan hợp lệ');
+    return;
+  }
+
+  const dialog = $('#productArtworkDialog');
+  const image = $('#productArtworkDialogImage');
+  $('#productArtworkDialogTitle').textContent = product.name || product.sku || 'Ảnh plan';
+  $('#productArtworkDialogMeta').textContent = `${product.brand || 'Other'} · ${product.packageType || product.sku || 'Product artwork'}`;
+  $('#productArtworkDialogOriginal').href = artwork;
+  image.src = artwork;
+  image.alt = `Ảnh plan ${product.name || product.sku || ''}`.trim();
+
+  if (typeof dialog.showModal === 'function') {
+    productArtworkPreviewTrigger = trigger;
+    if (!dialog.open) dialog.showModal();
+    refreshIcons();
+    return;
+  }
+
+  const popup = window.open(artwork, '_blank', 'noopener,noreferrer');
+  if (popup) popup.opener = null;
 }
 
 function refreshIcons() {
@@ -1094,11 +1130,12 @@ function renderProductCard(product) {
   const sold = Number(product.stock?.sold || 0);
   const editorId = productEditorDomId(product.id);
   const stockTone = available === 0 ? 'empty' : available <= 2 ? 'low' : 'healthy';
+  const artwork = productArtworkPath(product);
   return `
     <article class="product-card">
       <div class="product-card-summary">
         <div class="product-identity">
-          <span class="product-brand-mark ${product.artwork ? 'has-artwork' : ''}">${productArtwork(product, 'product-card-artwork') || brandLogo(product.brand)}</span>
+          <span class="product-brand-mark">${brandLogo(product.brand)}</span>
           <div>
             <div class="product-title-line">
               <h3>${product.emoji ? `<span class="product-title-emoji" aria-hidden="true">${escapeHtml(product.emoji)}</span>` : ''}${escapeHtml(product.name)}</h3>
@@ -1143,6 +1180,7 @@ function renderProductCard(product) {
         ${product.accountType ? `<span title="${escapeHtml(product.accountType)}">${icon('user-round-check')}Loại tài khoản</span>` : ''}
         ${product.warrantyPolicy ? `<span title="${escapeHtml(product.warrantyPolicy)}">${icon('shield-check')}Có bảo hành</span>` : ''}
         ${product.replacementPolicy ? `<span title="${escapeHtml(product.replacementPolicy)}">${icon('refresh-cw')}Có đổi mới</span>` : ''}
+        ${artwork ? `<button class="product-context-action" type="button" data-action="preview-product-artwork" data-id="${escapeHtml(product.id)}">${icon('image')}<span>Xem ảnh plan</span></button>` : ''}
       </div>
       ${renderProductEditor(product)}
     </article>
@@ -2448,6 +2486,25 @@ $('#sidebarToggle').addEventListener('click', () => setSidebarOpen(true));
 $('#sidebarClose').addEventListener('click', closeSidebarAndRestoreFocus);
 $('#sidebarBackdrop').addEventListener('click', closeSidebarAndRestoreFocus);
 
+const productArtworkDialog = $('#productArtworkDialog');
+productArtworkDialog.addEventListener('click', (event) => {
+  if (event.target === productArtworkDialog) productArtworkDialog.close('backdrop');
+});
+productArtworkDialog.addEventListener('close', () => {
+  const image = $('#productArtworkDialogImage');
+  image.removeAttribute('src');
+  image.alt = '';
+  $('#productArtworkDialogOriginal').href = '#';
+  const trigger = productArtworkPreviewTrigger;
+  productArtworkPreviewTrigger = null;
+  if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+});
+productArtworkDialog.addEventListener('error', (event) => {
+  if (event.target !== $('#productArtworkDialogImage')) return;
+  toast('Không tải được ảnh plan');
+  if (productArtworkDialog.open) productArtworkDialog.close('load-error');
+}, true);
+
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
     closeSidebarAndRestoreFocus();
@@ -3039,6 +3096,10 @@ document.addEventListener('click', async (event) => {
   const { action, id } = target.dataset;
   if (action === 'toggle-product-editor') {
     toggleProductEditor(target);
+    return;
+  }
+  if (action === 'preview-product-artwork') {
+    openProductArtworkPreview(id, target);
     return;
   }
   if (action === 'open-discount-create') {
