@@ -47,6 +47,7 @@ import {
   orderPricingSnapshot,
   resolveTelegramProductPricing
 } from '../telegramPricing.js';
+import { buildUserDirectory } from '../userDirectory.js';
 import { withPostgresClient, withPostgresTransaction } from '../postgresStore.js';
 
 const orderTtlMs = config.orders.ttlMinutes * 60 * 1000;
@@ -487,6 +488,19 @@ export async function upsertTelegramUser(from) {
       await upsertDoc(client, 'users', user);
     }
     return user;
+  });
+}
+
+export async function listUsers(options = {}) {
+  return withPostgresClient(async (client) => {
+    const [users, orders] = await Promise.all([
+      client.query(`SELECT doc FROM app_documents WHERE collection = 'users'`),
+      client.query(`SELECT doc FROM app_documents WHERE collection = 'orders'`)
+    ]);
+    return buildUserDirectory({
+      users: users.rows.map((row) => row.doc),
+      orders: orders.rows.map((row) => row.doc)
+    }, options);
   });
 }
 
@@ -1059,7 +1073,8 @@ export async function updateProduct(actorId, productId, input) {
       'officialPriceNote',
       'accountType',
       'warrantyPolicy',
-      'replacementPolicy'
+      'replacementPolicy',
+      'usagePolicy'
     ]) {
       if (input[key] !== undefined) product[key] = String(input[key]);
     }
@@ -1357,6 +1372,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         accountType: product.accountType || '',
         warrantyPolicy: product.warrantyPolicy || '',
         replacementPolicy: product.replacementPolicy || '',
+        usagePolicy: product.usagePolicy || '',
         seatTermMonths: product.seatTermMonths || null,
         deliveryMode: normalizeDeliveryMode(product.deliveryMode),
         fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),

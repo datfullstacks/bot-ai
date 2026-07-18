@@ -84,20 +84,22 @@ export async function initStore() {
     let upgradedSeatProducts = 0;
     for (const catalogProduct of seatCatalog) {
       const product = db.products.find((item) => item.sku === catalogProduct.sku);
+      const targetVersion = catalogProduct.usagePolicy ? 2 : 1;
       if (!product) {
         const createdAt = nowIso();
         db.products.push({
           id: makeId('prd'),
           ...catalogProduct,
-          catalogManagedSeatVersion: 1,
+          catalogManagedSeatVersion: targetVersion,
           createdAt,
           updatedAt: createdAt
         });
         addedSeatProducts += 1;
         continue;
       }
-      if (Number(product.catalogManagedSeatVersion || 0) >= 1) continue;
-      if (product.fulfillmentMode !== 'seat_email') {
+      const currentVersion = Number(product.catalogManagedSeatVersion || 0);
+      if (currentVersion >= targetVersion) continue;
+      if (currentVersion < 1 && product.fulfillmentMode !== 'seat_email') {
         for (const key of [
           'name',
           'description',
@@ -113,10 +115,13 @@ export async function initStore() {
         ]) {
           product[key] = catalogProduct[key];
         }
-        upgradedSeatProducts += 1;
       }
-      product.catalogManagedSeatVersion = 1;
+      if (targetVersion >= 2 && catalogProduct.usagePolicy && !String(product.usagePolicy || '').trim()) {
+        product.usagePolicy = catalogProduct.usagePolicy;
+      }
+      product.catalogManagedSeatVersion = targetVersion;
       product.updatedAt = nowIso();
+      upgradedSeatProducts += 1;
     }
     if (addedSeatProducts || upgradedSeatProducts) {
       db.auditLogs.unshift({

@@ -886,6 +886,7 @@ try {
     accountType: 'Tài khoản riêng',
     warrantyPolicy: 'Bảo hành 30 ngày',
     replacementPolicy: 'Đổi nếu lỗi từ dữ liệu bàn giao',
+    usagePolicy: '• Chỉ dùng ứng dụng chính thức.\n• Không chia sẻ OAuth token.',
     deliveryMode: 'file',
     price: 10000,
     currency: 'VND',
@@ -896,8 +897,10 @@ try {
   assert.match(detailText, /Loại tài khoản: Tài khoản riêng/);
   assert.match(detailText, /Bảo hành: Bảo hành 30 ngày/);
   assert.match(detailText, /Điều kiện đổi lỗi: Đổi nếu lỗi từ dữ liệu bàn giao/);
+  assert.match(detailText, /Quy định sử dụng:<\/b>\n• Chỉ dùng ứng dụng chính thức/);
+  assert.match(detailText, /Không chia sẻ OAuth token/);
   assert.match(detailText, /Cách giao hàng: Tệp TXT/);
-  for (const emoji of ['🛍', 'ℹ️', '⚙️', '🛡', '🔄', '⬇️', '💵', '📊']) {
+  for (const emoji of ['🛍', 'ℹ️', '⚙️', '🛡', '🔄', '⚠️', '⬇️', '💵', '📊']) {
     assert.ok(detailText.includes(emoji), `Product details should use the News "${emoji}" fallback.`);
   }
   const detailKeyboard = buildProductDetailKeyboard(detailProduct);
@@ -931,6 +934,7 @@ try {
   const seatDetailText = productDetailMessage(seatProduct);
   assert.match(seatDetailText, /gửi 1 hoặc nhiều email, mỗi email một dòng/i);
   assert.match(seatDetailText, /không cần chờ nhập kho/i);
+  assert.match(seatDetailText, /Quy định sử dụng/);
   assert.equal(seatDetailText.includes('Hết hàng'), false);
   const seatDetailKeyboard = buildProductDetailKeyboard(seatProduct);
   assert.ok(seatDetailKeyboard.inline_keyboard.flat().some((button) => (
@@ -955,6 +959,7 @@ try {
   assert.match(seatReviewText, /800\.000 VND/);
   assert.match(seatReviewText, /seat-one@example\.com/);
   assert.match(seatReviewText, /seat-two@example\.com/);
+  assert.match(seatReviewText, /đồng ý <b>Quy định sử dụng<\/b>/);
   const seatReviewKeyboard = buildSeatEmailReviewKeyboard(seatDraft);
   for (const button of seatReviewKeyboard.inline_keyboard.flat()) {
     assert.equal(button.callback_data.includes('@'), false, 'Seat callback data must not contain customer emails.');
@@ -1742,6 +1747,8 @@ try {
   const liveSeatProduct = (await shop.listProducts())
     .find((product) => product.sku === 'chatgpt-business-seat-1m');
   assert.ok(liveSeatProduct, 'Live catalog should expose the ChatGPT Business Seat flow.');
+  assert.match(liveSeatProduct.usagePolicy, /9Router/i, 'The live ChatGPT Seat should expose its usage rules.');
+  assert.ok(Buffer.byteLength(productDetailMessage(liveSeatProduct), 'utf8') < 4096, 'Seat usage rules should keep product details within Telegram limits.');
   calls.length = 0;
   await handleTelegramUpdate({
     callback_query: {

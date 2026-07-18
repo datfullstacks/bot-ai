@@ -784,7 +784,8 @@ function confirmationCustomEmojiCandidates() {
     newsEmojiCandidate('chart'),
     ...newsEmojiCandidates('dollar', 2),
     newsEmojiCandidate('download'),
-    newsEmojiCandidate('lock')
+    newsEmojiCandidate('lock'),
+    newsEmojiCandidate('warning')
   ];
 }
 
@@ -2107,6 +2108,9 @@ export function productDetailMessage(product) {
     `${newsEmoji('settings')} Loại tài khoản: ${policyText(normalized.accountType)}`,
     `${newsEmoji('shield')} Bảo hành: ${policyText(normalized.warrantyPolicy)}`,
     `${newsEmoji('refresh')} Điều kiện đổi lỗi: ${policyText(normalized.replacementPolicy)}`,
+    normalized.usagePolicy
+      ? `${newsEmoji('warning')} <b>Quy định sử dụng:</b>\n${policyText(normalized.usagePolicy)}`
+      : '',
     `${newsEmoji('download')} Cách giao hàng: ${fulfillmentDeliveryLabel(normalized)}`,
     '',
     `${newsEmoji('dollar')} Giá: <b>${escapeHtml(money(normalized.price, normalized.currency))}</b>`,
@@ -2276,6 +2280,10 @@ export function seatEmailReviewMessage(product, emails, pricing = null) {
     '',
     `${newsEmoji('tracking')} Email nhận Seat:`,
     ...emails.map((email, index) => `${index + 1}. ${code(email)}`),
+    ...(normalized.usagePolicy ? [
+      '',
+      `${newsEmoji('warning')} Xác nhận thanh toán đồng nghĩa bạn đồng ý <b>Quy định sử dụng</b> đã hiển thị trong chi tiết gói Seat.`
+    ] : []),
     '',
     `${newsEmoji('lock')} Chưa tạo đơn và chưa phát sinh thanh toán cho đến khi bạn xác nhận.`
   ].join('\n');

@@ -45,6 +45,7 @@ import {
   orderPricingSnapshot,
   resolveTelegramProductPricing
 } from '../telegramPricing.js';
+import { buildUserDirectory } from '../userDirectory.js';
 
 const orderTtlMs = config.orders.ttlMinutes * 60 * 1000;
 const finalOrderStatuses = new Set(['delivered', 'refunded']);
@@ -240,6 +241,11 @@ export async function upsertTelegramUser(from) {
     }
     return user;
   });
+}
+
+export async function listUsers(options = {}) {
+  const db = await readStore();
+  return buildUserDirectory({ users: db.users, orders: db.orders }, options);
 }
 
 function notificationAudienceUsers(db, campaign) {
@@ -693,7 +699,8 @@ export async function updateProduct(actorId, productId, input) {
       'officialPriceNote',
       'accountType',
       'warrantyPolicy',
-      'replacementPolicy'
+      'replacementPolicy',
+      'usagePolicy'
     ]) {
       if (input[key] !== undefined) product[key] = String(input[key]);
     }
@@ -910,6 +917,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         accountType: product.accountType || '',
         warrantyPolicy: product.warrantyPolicy || '',
         replacementPolicy: product.replacementPolicy || '',
+        usagePolicy: product.usagePolicy || '',
         seatTermMonths: product.seatTermMonths || null,
         deliveryMode: normalizeDeliveryMode(product.deliveryMode),
         fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),

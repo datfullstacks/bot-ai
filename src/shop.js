@@ -11,6 +11,7 @@ export const publicOrder = jsonShopStore.publicOrder;
 export const listProducts = (...args) => activeShopStore().listProducts(...args);
 export const getDashboardSummary = (...args) => activeShopStore().getDashboardSummary(...args);
 export const upsertTelegramUser = (...args) => activeShopStore().upsertTelegramUser(...args);
+export const listUsers = (...args) => activeShopStore().listUsers(...args);
 export const getNotificationCenterForUser = (...args) => activeShopStore().getNotificationCenterForUser(...args);
 export const updateNotificationPreferences = (...args) => activeShopStore().updateNotificationPreferences(...args);
 export const getNotificationAdminOverview = (...args) => activeShopStore().getNotificationAdminOverview(...args);

@@ -14,7 +14,8 @@ const PRODUCT_DRAFT_FIELDS = [
   'officialPriceNote',
   'accountType',
   'warrantyPolicy',
-  'replacementPolicy'
+  'replacementPolicy',
+  'usagePolicy'
 ];
 
 const PRODUCT_DRAFT_SCHEMA = {
@@ -30,7 +31,8 @@ const PRODUCT_DRAFT_SCHEMA = {
     officialPriceNote: { type: 'STRING', description: 'Official price reference only when supplied; otherwise empty.' },
     accountType: { type: 'STRING', description: 'Clear Vietnamese account or access type.' },
     warrantyPolicy: { type: 'STRING', description: 'Conservative Vietnamese warranty wording without invented guarantees.' },
-    replacementPolicy: { type: 'STRING', description: 'Conservative Vietnamese replacement wording without invented guarantees.' }
+    replacementPolicy: { type: 'STRING', description: 'Conservative Vietnamese replacement wording without invented guarantees.' },
+    usagePolicy: { type: 'STRING', description: 'Clear Vietnamese usage restrictions; do not invent restrictions not supplied by the admin.' }
   },
   required: PRODUCT_DRAFT_FIELDS
 };
@@ -45,7 +47,8 @@ const FIELD_LIMITS = {
   officialPriceNote: 240,
   accountType: 500,
   warrantyPolicy: 800,
-  replacementPolicy: 800
+  replacementPolicy: 800,
+  usagePolicy: 1600
 };
 
 const BRAND_EMOJI = new Map([

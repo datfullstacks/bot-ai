@@ -64,6 +64,7 @@
           <button class="nav" data-tab="pricing"><span class="nav-icon" data-lucide="badge-dollar-sign" aria-hidden="true"></span><span>Bảng giá Telegram</span></button>
           <button class="nav" data-tab="discounts"><span class="nav-icon" data-lucide="ticket-percent" aria-hidden="true"></span><span>Mã giảm giá</span></button>
           <button class="nav" data-tab="notifications"><span class="nav-icon" data-lucide="bell-ring" aria-hidden="true"></span><span>Thông báo</span></button>
+          <button class="nav" data-tab="users"><span class="nav-icon" data-lucide="users-round" aria-hidden="true"></span><span>Người dùng</span></button>
           <button class="nav" data-tab="inventory"><span class="nav-icon" data-lucide="boxes" aria-hidden="true"></span><span>Kho hàng</span></button>
           <button class="nav" data-tab="seatGuard"><span class="nav-icon" data-lucide="shield-check" aria-hidden="true"></span><span>Seat Guard</span></button>
           <button class="nav" data-tab="orders"><span class="nav-icon" data-lucide="shopping-cart" aria-hidden="true"></span><span>Đơn hàng</span></button>
@@ -318,6 +319,7 @@
                         <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="2" placeholder="Tài khoản riêng, slot dùng chung, kích hoạt hoặc gói tài khoản"></textarea></label>
                         <label>Chính sách bảo hành<textarea name="warrantyPolicy" rows="3" placeholder="Thời hạn và phạm vi bảo hành"></textarea></label>
                         <label>Chính sách đổi mới<textarea name="replacementPolicy" rows="3" placeholder="Điều kiện đổi khi giao hàng lỗi"></textarea></label>
+                        <label class="editor-span-2">Quy định sử dụng<textarea name="usagePolicy" rows="6" maxlength="1600" placeholder="Nội dung bị cấm, khu vực hạn chế, công cụ được phép và hành vi có thể khiến Seat bị khóa"></textarea><small class="field-help">Hiển thị trong chi tiết gói Telegram; đặc biệt quan trọng với ChatGPT và Claude Seat.</small></label>
                       </div>
                     </details>
                   </div>
@@ -632,6 +634,50 @@
               <div id="notificationCampaignsList" class="notification-campaigns-list"></div>
             </section>
           </div>
+        </section>
+
+        <section id="usersTab" class="tab">
+          <section class="user-directory-metrics notification-metrics" aria-label="Tổng quan người dùng hệ thống">
+            <div class="notification-metric metric-audience"><span data-lucide="users-round" aria-hidden="true"></span><span><small>Đã sử dụng bot</small><strong id="userMetricTotal">0</strong><em>Tổng user đã ghi nhận</em></span></div>
+            <div class="notification-metric metric-success"><span data-lucide="activity" aria-hidden="true"></span><span><small>Hoạt động 7 ngày</small><strong id="userMetricActive">0</strong><em>Tương tác gần đây</em></span></div>
+            <div class="notification-metric"><span data-lucide="badge-check" aria-hidden="true"></span><span><small>Khách đã mua</small><strong id="userMetricCustomers">0</strong><em>Có đơn đã thanh toán</em></span></div>
+            <div class="notification-metric metric-click"><span data-lucide="user-plus" aria-hidden="true"></span><span><small>User mới 30 ngày</small><strong id="userMetricNew">0</strong><em>Lần đầu sử dụng bot</em></span></div>
+          </section>
+
+          <section class="panel user-directory-panel">
+            <div class="panel-head">
+              <div>
+                <span class="chart-kicker">User directory</span>
+                <h2>Người dùng đã sử dụng hệ thống</h2>
+                <p class="panel-subtitle">Dữ liệu được ghi nhận khi người dùng tương tác với bot Telegram.</p>
+              </div>
+              <span id="userCountBadge" class="badge available">0 người dùng</span>
+            </div>
+            <div class="user-directory-toolbar">
+              <label class="user-search-field">Tìm người dùng
+                <span><span data-lucide="search" aria-hidden="true"></span><input id="userSearch" type="search" placeholder="Tên, @username hoặc Telegram ID" autocomplete="off"></span>
+              </label>
+              <label>Phân nhóm
+                <select id="userSegmentFilter">
+                  <option value="all">Tất cả người dùng</option>
+                  <option value="active7d">Hoạt động trong 7 ngày</option>
+                  <option value="customers">Khách đã mua</option>
+                  <option value="no-orders">Chưa có đơn hàng</option>
+                </select>
+              </label>
+              <label>Sắp xếp
+                <select id="userSort">
+                  <option value="recent">Hoạt động gần nhất</option>
+                  <option value="spent">Chi tiêu cao nhất</option>
+                  <option value="orders">Nhiều đơn nhất</option>
+                  <option value="joined">Tham gia mới nhất</option>
+                </select>
+              </label>
+              <button id="userFilterReset" class="secondary icon-button" type="button"><span class="icon" data-lucide="rotate-ccw" aria-hidden="true"></span><span>Đặt lại</span></button>
+            </div>
+            <div id="userFilterSummary" class="user-filter-summary" aria-live="polite">Đang tải danh sách người dùng…</div>
+            <div id="usersList" aria-live="polite"></div>
+          </section>
         </section>
 
         <section id="inventoryTab" class="tab">

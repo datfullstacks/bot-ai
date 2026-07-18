@@ -116,6 +116,18 @@ for (const id of [
   'notificationScheduleBtn',
   'notificationSendBtn',
   'notificationCampaignsList',
+  'usersTab',
+  'userMetricTotal',
+  'userMetricActive',
+  'userMetricCustomers',
+  'userMetricNew',
+  'userCountBadge',
+  'userSearch',
+  'userSegmentFilter',
+  'userSort',
+  'userFilterReset',
+  'userFilterSummary',
+  'usersList',
   'adminSidebar',
   'sidebarToggle',
   'sidebarClose',
@@ -166,6 +178,7 @@ assert.ok(html.includes('data-tab="seatGuard"'), 'Admin nav should expose the Se
 assert.ok(html.includes('data-tab="pricing"'), 'Admin nav should expose Telegram username pricing.');
 assert.ok(html.includes('data-tab="discounts"'), 'Admin nav should expose one-time discount management.');
 assert.ok(html.includes('data-tab="notifications"'), 'Admin nav should expose the Notification Center.');
+assert.ok(html.includes('data-tab="users"'), 'Admin nav should expose the system user directory.');
 assert.ok(html.includes('id="seatGuardTab"'), 'Admin HTML should include the Seat Guard panel.');
 assert.ok(html.includes('data-lucide="shield-check"'), 'Seat Guard nav should include a shield icon.');
 assert.ok(html.includes('thời hạn 30 ngày'), 'Seat Guard should explain its fixed 30-day entitlement term.');
@@ -203,6 +216,10 @@ for (const fn of [
   'syncNotificationForm',
   'renderNotifications',
   'refreshNotifications',
+  'renderUsers',
+  'renderUserDirectoryTable',
+  'userActivityLabel',
+  'userNotificationBadge',
   'setSidebarOpen',
   'setButtonBusy',
   'setProductCreateOpen',
@@ -269,6 +286,11 @@ assert.match(css, /\.product-artwork-dialog::backdrop/, 'Product artwork should 
 assert.ok(js.includes("icon('package'"), 'Product cards should render package icons.');
 assert.ok(js.includes("icon('shopping-cart'"), 'Order action buttons should render action icons.');
 assert.ok(js.includes("state.productSearch"), 'Admin JS should track product search state.');
+assert.ok(js.includes("state.userSearch"), 'Admin JS should track user-directory search state.');
+assert.ok(js.includes("api(`/api/users?"), 'Admin should load the authenticated system user directory.');
+assert.match(server, /pathname === '\/api\/users'/, 'The server should expose an authenticated user-directory endpoint.');
+assert.ok(jsonShopStore.includes('export async function listUsers'), 'JSON storage should support the user directory.');
+assert.ok(postgresShopStore.includes('export async function listUsers'), 'PostgreSQL storage should support the user directory.');
 assert.ok(js.includes("state.productBrand"), 'Admin JS should track product brand filter.');
 assert.ok(js.includes("productSort: 'priority'"), 'Admin JS should track the selected product catalog sort.');
 assert.ok(js.includes('state.telegramPricing'), 'Admin JS should retain Telegram username price lists.');
@@ -379,7 +401,7 @@ assert.ok(postgresShopStore.includes('cost_known'), 'Postgres overview should ag
 assert.ok(postgresShopStore.includes("doc->>'paidAt' >= $1"), 'Postgres analytics should include orders paid during the reporting window even when created earlier.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
-for (const field of ['emoji', 'artwork', 'description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
+for (const field of ['emoji', 'artwork', 'description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'usagePolicy', 'deliveryMode', 'fulfillmentMode']) {
   assert.ok(html.includes(`name="${field}"`), `Create product form should expose ${field}.`);
   assert.ok(js.includes(`name="${field}"`), `Product editor should expose ${field}.`);
 }
@@ -474,6 +496,11 @@ for (const selector of [
   '.notification-preview',
   '.notification-campaign-card',
   '.notification-delivery-summary',
+  '.user-directory-metrics',
+  '.user-directory-toolbar',
+  '.user-directory-identity',
+  '.user-directory-avatar',
+  '.users-table',
   '.editor-grid',
   '.data-table',
   '.status-dot',
@@ -532,6 +559,8 @@ assert.ok(css.includes('@media (max-width: 360px)'), 'Admin CSS should include a
 assert.ok(css.includes('.pricing-table-wrap,'), 'Pricing table wrappers should release desktop scrolling constraints on mobile.');
 assert.ok(html.includes('aria-label="Làm mới dữ liệu"'), 'The compact mobile refresh control should retain an accessible name.');
 assert.ok(js.includes('class="data-table responsive-table payments-table"'), 'Payments should use the shared compact table and mobile card pattern.');
+assert.ok(js.includes('class="data-table responsive-table users-table"'), 'Users should use the shared compact table and mobile card pattern.');
+assert.ok(css.includes('#usersList .table-wrap'), 'User tables should release desktop overflow constraints on mobile.');
 assert.ok(js.includes('setButtonBusy(submit, true)'), 'Admin submit actions should expose a shared loading state.');
 assert.ok(js.includes("row?.classList.toggle('has-override'"), 'Telegram override rows should visibly reflect inheritance state.');
 

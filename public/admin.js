@@ -18,6 +18,9 @@ const state = {
   expandedDiscountId: '',
   discountCreateOpen: false,
   notificationOverview: { campaigns: [], metrics: {}, audience: {} },
+  userSearch: '',
+  userSegment: 'all',
+  userSort: 'recent',
   telegramPricing: { basePriceList: { id: 'base', prices: {} }, priceLists: [], users: [] },
   telegramPricingUsername: '',
   orderStatus: 'all',
@@ -28,6 +31,8 @@ const state = {
 };
 
 let productArtworkPreviewTrigger = null;
+let userDirectoryRequestId = 0;
+let userSearchTimer = null;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -237,13 +242,14 @@ function applyGeminiProductDraft(draft = {}) {
     'officialPriceNote',
     'accountType',
     'warrantyPolicy',
-    'replacementPolicy'
+    'replacementPolicy',
+    'usagePolicy'
   ]) {
     if (form.elements[field] && draft[field] !== undefined) form.elements[field].value = draft[field];
   }
   state.productCreateDirty = true;
   state.productSkuManual = Boolean(String(draft.sku || '').trim());
-  if (draft.accountType || draft.warrantyPolicy || draft.replacementPolicy) {
+  if (draft.accountType || draft.warrantyPolicy || draft.replacementPolicy || draft.usagePolicy) {
     $('.product-optional-details').open = true;
   }
   renderProductCreateExperience();
@@ -394,6 +400,7 @@ function setTab(tab) {
     pricing: ['Bảng giá Telegram', 'Giá gốc và giá riêng theo username'],
     discounts: ['Mã giảm giá', 'Voucher dùng một lần và trạng thái sử dụng'],
     notifications: ['Thông báo', 'Soạn, phân nhóm và theo dõi Notify Telegram'],
+    users: ['Người dùng', 'Danh sách user đã tương tác với bot Telegram'],
     inventory: ['Kho hàng', 'Nhập tài khoản và mã giao hàng'],
     seatGuard: ['Seat Guard', 'Đối chiếu Seat đã thanh toán với workspace'],
     orders: ['Đơn hàng', 'Theo dõi thanh toán và giao hàng'],
@@ -986,6 +993,7 @@ function filteredProducts() {
       product.accountType,
       product.warrantyPolicy,
       product.replacementPolicy,
+      product.usagePolicy,
       product.fulfillmentMode,
       fulfillmentModeLabel(product),
       product.deliveryMode
@@ -1113,6 +1121,7 @@ function renderProductEditor(product) {
           <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="3">${escapeHtml(product.accountType || '')}</textarea></label>
           <label class="editor-span-2">Chính sách bảo hành<textarea name="warrantyPolicy" rows="3">${escapeHtml(product.warrantyPolicy || '')}</textarea></label>
           <label class="editor-span-2">Chính sách đổi mới<textarea name="replacementPolicy" rows="3">${escapeHtml(product.replacementPolicy || '')}</textarea></label>
+          <label class="editor-span-2">Quy định sử dụng<textarea name="usagePolicy" rows="7" maxlength="1600">${escapeHtml(product.usagePolicy || '')}</textarea></label>
         </div>
       </fieldset>
       <div class="actions product-editor-actions">
@@ -1180,6 +1189,7 @@ function renderProductCard(product) {
         ${product.accountType ? `<span title="${escapeHtml(product.accountType)}">${icon('user-round-check')}Loại tài khoản</span>` : ''}
         ${product.warrantyPolicy ? `<span title="${escapeHtml(product.warrantyPolicy)}">${icon('shield-check')}Có bảo hành</span>` : ''}
         ${product.replacementPolicy ? `<span title="${escapeHtml(product.replacementPolicy)}">${icon('refresh-cw')}Có đổi mới</span>` : ''}
+        ${product.usagePolicy ? `<span title="${escapeHtml(product.usagePolicy)}">${icon('scroll-text')}Có quy định sử dụng</span>` : ''}
         ${artwork ? `<button class="product-context-action" type="button" data-action="preview-product-artwork" data-id="${escapeHtml(product.id)}">${icon('image')}<span>Xem ảnh plan</span></button>` : ''}
       </div>
       ${renderProductEditor(product)}
@@ -2184,6 +2194,131 @@ async function renderInventory() {
   refreshIcons();
 }
 
+function userDirectoryDate(value, fallback = 'Chưa ghi nhận') {
+  const timestamp = Date.parse(String(value || ''));
+  return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString('vi-VN') : fallback;
+}
+
+function userActivityLabel(value) {
+  const timestamp = Date.parse(String(value || ''));
+  if (!Number.isFinite(timestamp)) return 'Chưa ghi nhận';
+  const elapsed = Math.max(Date.now() - timestamp, 0);
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return 'Vừa hoạt động';
+  if (minutes < 60) return `${minutes} phút trước`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  const days = Math.floor(hours / 24);
+  if (days <= 30) return `${days} ngày trước`;
+  return new Date(timestamp).toLocaleDateString('vi-VN');
+}
+
+function userInitials(user = {}) {
+  const initials = [user.firstName, user.lastName]
+    .map((part) => String(part || '').trim().charAt(0))
+    .filter(Boolean)
+    .join('')
+    .slice(0, 2)
+    .toLocaleUpperCase('vi-VN');
+  return initials || String(user.username || 'TG').slice(0, 2).toLocaleUpperCase('vi-VN');
+}
+
+function userNotificationBadge(user = {}) {
+  if (user.notifications?.blocked) return renderStatusPill('cancelled', 'Đã chặn bot');
+  if (user.notifications?.subscribed) return renderStatusPill('available', 'Đã đăng ký');
+  if (user.notifications?.serviceEnabled) return renderStatusPill('pending_payment', 'Chỉ dịch vụ');
+  return renderStatusPill('expired', 'Chưa opt-in');
+}
+
+function renderUserDirectoryTable(users = []) {
+  if (!users.length) {
+    return '<p class="meta empty-state">Không tìm thấy người dùng phù hợp bộ lọc.</p>';
+  }
+  return `
+    <div class="table-wrap">
+      <table class="data-table responsive-table users-table">
+        <thead>
+          <tr>
+            <th>Người dùng</th>
+            <th>Telegram ID</th>
+            <th>Hoạt động gần nhất</th>
+            <th>Đơn hàng</th>
+            <th>Chi tiêu</th>
+            <th>Notify</th>
+            <th>Liên hệ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${users.map((user) => {
+            const profileUrl = /^[a-z0-9_]{5,32}$/i.test(user.username || '')
+              ? `https://t.me/${encodeURIComponent(user.username)}`
+              : '';
+            const orders = user.orders || {};
+            return `
+              <tr>
+                <td data-label="Người dùng">
+                  <div class="user-directory-identity">
+                    <span class="user-directory-avatar" aria-hidden="true">${escapeHtml(userInitials(user))}</span>
+                    <span><strong>${escapeHtml(user.displayName || 'Telegram user')}</strong><small>${user.username ? `@${escapeHtml(user.username)}` : 'Chưa có username'}</small></span>
+                  </div>
+                </td>
+                <td data-label="Telegram ID"><code>${escapeHtml(user.telegramId || '-')}</code><span>Tham gia ${escapeHtml(userDirectoryDate(user.createdAt))}</span></td>
+                <td data-label="Hoạt động"><strong>${escapeHtml(userActivityLabel(user.lastActiveAt))}</strong><span>${escapeHtml(userDirectoryDate(user.lastActiveAt))}</span></td>
+                <td data-label="Đơn hàng"><strong>${escapeHtml(Number(orders.total || 0).toLocaleString('vi-VN'))} đơn</strong><span>${escapeHtml(Number(orders.paid || 0).toLocaleString('vi-VN'))} đã thanh toán · ${escapeHtml(Number(orders.open || 0).toLocaleString('vi-VN'))} đang mở${orders.refunded ? ` · ${escapeHtml(Number(orders.refunded).toLocaleString('vi-VN'))} hoàn tiền` : ''}</span></td>
+                <td data-label="Chi tiêu"><strong class="user-directory-spend">${escapeHtml(money(user.totalSpent, user.currency))}</strong><span>${user.isCustomer ? 'Khách đã mua' : 'Chưa phát sinh doanh thu'}</span></td>
+                <td data-label="Notify">${userNotificationBadge(user)}</td>
+                <td data-label="Liên hệ">${profileUrl ? `<a class="table-action" href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener noreferrer">${icon('send')}<span>Mở Telegram</span></a>` : '<span class="meta">Không có username</span>'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function renderUsers() {
+  const requestId = ++userDirectoryRequestId;
+  const list = $('#usersList');
+  list.setAttribute('aria-busy', 'true');
+  const params = new URLSearchParams({
+    limit: '500',
+    search: state.userSearch,
+    segment: state.userSegment,
+    sort: state.userSort
+  });
+  try {
+    const result = await api(`/api/users?${params.toString()}`);
+    if (requestId !== userDirectoryRequestId) return;
+    const metrics = result.metrics || {};
+    $('#userMetricTotal').textContent = Number(metrics.totalUsers || 0).toLocaleString('vi-VN');
+    $('#userMetricActive').textContent = Number(metrics.active7d || 0).toLocaleString('vi-VN');
+    $('#userMetricCustomers').textContent = Number(metrics.customers || 0).toLocaleString('vi-VN');
+    $('#userMetricNew').textContent = Number(metrics.new30d || 0).toLocaleString('vi-VN');
+    $('#userCountBadge').textContent = `${Number(result.total || 0).toLocaleString('vi-VN')} người dùng`;
+    const filtered = Boolean(state.userSearch || state.userSegment !== 'all');
+    $('#userFilterSummary').textContent = filtered
+      ? `Tìm thấy ${Number(result.total || 0).toLocaleString('vi-VN')} trong ${Number(metrics.totalUsers || 0).toLocaleString('vi-VN')} người dùng đã ghi nhận.`
+      : `Đang hiển thị ${Number(result.items?.length || 0).toLocaleString('vi-VN')} / ${Number(result.total || 0).toLocaleString('vi-VN')} người dùng, mới hoạt động trước.`;
+    list.innerHTML = `${result.hasMore ? '<p class="meta user-directory-limit">Danh sách lớn: đang hiển thị 500 user đầu tiên theo bộ lọc.</p>' : ''}${renderUserDirectoryTable(result.items || [])}`;
+    $('#userFilterReset').disabled = state.userSegment === 'all' && state.userSort === 'recent' && !state.userSearch;
+    refreshIcons();
+  } catch (error) {
+    if (requestId !== userDirectoryRequestId) return;
+    list.innerHTML = `<p class="meta empty-state">Không thể tải danh sách người dùng: ${escapeHtml(error.message)}</p>`;
+    throw error;
+  } finally {
+    if (requestId === userDirectoryRequestId) list.setAttribute('aria-busy', 'false');
+  }
+}
+
+function queueUserDirectoryRender() {
+  clearTimeout(userSearchTimer);
+  userSearchTimer = setTimeout(() => {
+    renderUsers().catch((error) => toast(error.message));
+  }, 240);
+}
+
 function renderOrderActions(order) {
   const actions = [];
   const seatEmail = isSeatEmailOrder(order);
@@ -2427,6 +2562,7 @@ async function refresh() {
   renderDiscountCodes(discountCodes);
   renderNotifications(notificationOverview);
   renderSummary(summary);
+  if (state.tab === 'users') await renderUsers();
   if (state.tab === 'inventory') await renderInventory();
   if (state.tab === 'seatGuard') await renderSeatGuard();
   if (state.tab === 'orders') await renderOrders();
@@ -2945,6 +3081,33 @@ $('#telegramPricingForm').addEventListener('submit', async (event) => {
 $('#orderStatusFilter').addEventListener('change', async (event) => {
   state.orderStatus = event.target.value;
   await renderOrders().catch((error) => toast(error.message));
+});
+
+$('#userSearch').addEventListener('input', (event) => {
+  state.userSearch = event.target.value.trim();
+  queueUserDirectoryRender();
+});
+
+$('#userSegmentFilter').addEventListener('change', async (event) => {
+  state.userSegment = event.target.value;
+  await renderUsers().catch((error) => toast(error.message));
+});
+
+$('#userSort').addEventListener('change', async (event) => {
+  state.userSort = event.target.value;
+  await renderUsers().catch((error) => toast(error.message));
+});
+
+$('#userFilterReset').addEventListener('click', async () => {
+  clearTimeout(userSearchTimer);
+  state.userSearch = '';
+  state.userSegment = 'all';
+  state.userSort = 'recent';
+  $('#userSearch').value = '';
+  $('#userSegmentFilter').value = 'all';
+  $('#userSort').value = 'recent';
+  await renderUsers().catch((error) => toast(error.message));
+  $('#userSearch').focus();
 });
 
 $$('.nav').forEach((button) => {

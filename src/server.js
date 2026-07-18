@@ -30,6 +30,7 @@ import {
   listOrders,
   listPayments,
   listProducts,
+  listUsers,
   markOrderRefunded,
   markOrderPaidManually,
   recordAudit,
@@ -370,6 +371,16 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'GET' && pathname === '/api/products') {
     return sendJson(res, 200, await listProducts({ includeInactive: true }));
+  }
+
+  if (req.method === 'GET' && pathname === '/api/users') {
+    return sendJson(res, 200, await listUsers({
+      search: searchParams.get('search') || '',
+      segment: searchParams.get('segment') || 'all',
+      sort: searchParams.get('sort') || 'recent',
+      limit: searchParams.get('limit'),
+      offset: searchParams.get('offset')
+    }), { 'cache-control': 'no-store' });
   }
 
   if (pathname === '/api/products/ai-assistant' && req.method === 'GET') {

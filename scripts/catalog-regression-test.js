@@ -28,7 +28,7 @@ assert.equal(
   'Default catalog SKUs must be unique.'
 );
 for (const product of DEFAULT_CATALOG_PRODUCTS) {
-  const visibleText = `${product.name} ${product.description} ${product.accountType} ${product.warrantyPolicy} ${product.replacementPolicy}`;
+  const visibleText = `${product.name} ${product.description} ${product.accountType} ${product.warrantyPolicy} ${product.replacementPolicy} ${product.usagePolicy}`;
   assert.equal(
     /Ã|Â|Æ|Ä|áº|á»/.test(visibleText),
     false,
@@ -111,6 +111,15 @@ for (const expected of [
   assert.match(product.accountType, /seat/i, `${expected.sku} should explicitly describe the seat account type.`);
   assert.match(product.warrantyPolicy, /1 tháng/i, `${expected.sku} should explicitly cover the one-month term.`);
   assert.match(product.replacementPolicy, /đổi seat/i, `${expected.sku} should explicitly describe seat replacement.`);
+  assert.match(product.usagePolicy, /Trung Quốc.*Nga.*Iran.*Triều Tiên/is, `${expected.sku} should list blocked regions.`);
+  assert.match(product.usagePolicy, /OAuth\/session token/i, `${expected.sku} should prohibit subscription-token extraction.`);
+  assert.match(product.usagePolicy, /9Router/i, `${expected.sku} should identify the common third-party token misuse example.`);
+  assert.match(product.usagePolicy, /bot\/spam/i, `${expected.sku} should prohibit bot-like spam behavior.`);
+}
+
+assert.match(bySku.get('chatgpt-business-seat-1m').usagePolicy, /công cụ chính thức của OpenAI/i);
+for (const sku of ['claude-business-seat-1x-1m', 'claude-business-seat-6-5x-1m']) {
+  assert.match(bySku.get(sku).usagePolicy, /Claude, Claude Code, Claude Desktop/i);
 }
 
 assert.match(
@@ -175,6 +184,7 @@ const normalized = normalizeProductInput({
   accountType: 'Tài khoản riêng',
   warrantyPolicy: 'Bảo hành 30 ngày',
   replacementPolicy: 'Đổi khi lỗi bàn giao',
+  usagePolicy: ' Chỉ dùng app chính thức ',
   deliveryMode: ' FILE '
 });
 
@@ -196,6 +206,7 @@ assert.deepEqual(normalized, {
   accountType: 'Tài khoản riêng',
   warrantyPolicy: 'Bảo hành 30 ngày',
   replacementPolicy: 'Đổi khi lỗi bàn giao',
+  usagePolicy: 'Chỉ dùng app chính thức',
   fulfillmentMode: 'inventory',
   deliveryMode: 'file'
 });

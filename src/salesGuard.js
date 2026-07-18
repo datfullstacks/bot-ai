@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { isDeliveryMode, isSeatEmailFulfillment } from './catalog.js';
+import { isDeliveryMode, isSeatEmailFulfillment, requiresSeatUsagePolicy } from './catalog.js';
 import { inventoryEncryptionStatus } from './inventorySecrets.js';
 import { strongWebhookCredential } from './webhookSecurity.js';
 
@@ -77,12 +77,14 @@ export function salesReadinessProblems(product = null, user = null) {
   }
 
   if (production && product) {
-    const missing = [
+    const requiredPolicies = [
       ['description', 'mô tả'],
       ['accountType', 'loại tài khoản'],
       ['warrantyPolicy', 'bảo hành'],
       ['replacementPolicy', 'điều kiện đổi lỗi']
-    ].filter(([key]) => !String(product[key] || '').trim());
+    ];
+    if (requiresSeatUsagePolicy(product)) requiredPolicies.push(['usagePolicy', 'quy định sử dụng Seat']);
+    const missing = requiredPolicies.filter(([key]) => !String(product[key] || '').trim());
     if (missing.length) {
       problems.push(`Sản phẩm thiếu ${missing.map(([, label]) => label).join(', ')}`);
     }

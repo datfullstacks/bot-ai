@@ -37,6 +37,24 @@ const LEGACY_SEAT_EMAIL_SKUS = new Set([
   'canva-pro-6m'
 ]);
 
+export const CHATGPT_SEAT_USAGE_POLICY = [
+  '• Không sử dụng Seat cho nội dung hoặc hoạt động bị cấm, trái pháp luật hay vi phạm chính sách OpenAI.',
+  '• Không truy cập hoặc sử dụng dịch vụ từ các khu vực bị chặn: Trung Quốc, Nga, Iran và Triều Tiên.',
+  '• Chỉ dùng ChatGPT trên web, mobile, desktop và các công cụ chính thức của OpenAI.',
+  '• Không trích xuất, chia sẻ hoặc đưa OAuth/session token của gói subscription vào công cụ bên thứ ba (ví dụ: 9Router) hay dùng thay API key.',
+  '• Không thực hiện hành vi giống bot/spam; không đổi IP/VPN liên tục và không dùng IP datacenter/proxy đáng ngờ.',
+  '• Vi phạm quy định có thể làm Seat bị khóa và không thuộc phạm vi bảo hành hoặc đổi Seat.'
+].join('\n');
+
+export const CLAUDE_SEAT_USAGE_POLICY = [
+  '• Không sử dụng Seat cho nội dung hoặc hoạt động bị cấm, trái pháp luật hay vi phạm chính sách Anthropic.',
+  '• Không truy cập hoặc sử dụng dịch vụ từ các khu vực bị chặn: Trung Quốc, Nga, Iran và Triều Tiên.',
+  '• Chỉ dùng Claude, Claude Code, Claude Desktop và các công cụ chính thức của Anthropic.',
+  '• Không trích xuất, chia sẻ hoặc đưa OAuth/session token của gói subscription vào công cụ bên thứ ba (ví dụ: 9Router).',
+  '• Không thực hiện hành vi giống bot/spam; không đổi IP/VPN liên tục và không dùng IP datacenter/proxy đáng ngờ.',
+  '• Vi phạm quy định có thể làm Seat bị khóa và không thuộc phạm vi bảo hành hoặc đổi Seat.'
+].join('\n');
+
 export function isDeliveryMode(value) {
   return DELIVERY_MODES.has(String(value || '').trim().toLowerCase());
 }
@@ -73,6 +91,12 @@ export function normalizeFulfillmentMode(value, { strict = false, sku = '' } = {
 
 export function isSeatEmailFulfillment(product = {}) {
   return normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }) === 'seat_email';
+}
+
+export function requiresSeatUsagePolicy(product = {}) {
+  if (!isSeatEmailFulfillment(product)) return false;
+  const provider = `${product.brand || ''} ${product.sku || ''}`.toLowerCase();
+  return ['chatgpt', 'openai', 'claude', 'anthropic'].some((name) => provider.includes(name));
 }
 
 export function normalizeProductEmoji(value, { strict = false } = {}) {
@@ -143,6 +167,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     accountType: 'Seat thành viên ChatGPT Business trong workspace; không phải tài khoản ChatGPT riêng.',
     warrantyPolicy: 'Bảo hành quyền truy cập workspace trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do workspace của shop.',
     replacementPolicy: 'Đổi seat khi lời mời hoặc quyền truy cập lỗi do workspace của shop; không áp dụng nếu khách tự rời workspace, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách OpenAI.',
+    usagePolicy: CHATGPT_SEAT_USAGE_POLICY,
     fulfillmentMode: 'seat_email',
     deliveryMode: 'text'
   },
@@ -175,6 +200,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     accountType: 'Seat thành viên Claude Business 1x trong organization; không phải tài khoản Claude riêng.',
     warrantyPolicy: 'Bảo hành quyền truy cập organization trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do organization của shop.',
     replacementPolicy: 'Đổi seat khi lời mời hoặc quyền truy cập lỗi do organization của shop; không áp dụng nếu khách tự rời organization, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách Anthropic.',
+    usagePolicy: CLAUDE_SEAT_USAGE_POLICY,
     fulfillmentMode: 'seat_email',
     deliveryMode: 'text'
   },
@@ -194,6 +220,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     accountType: 'Seat thành viên Claude Business tier 6.5x của shop trong organization; không phải tài khoản Claude riêng.',
     warrantyPolicy: 'Bảo hành quyền truy cập organization trong 1 tháng kể từ khi bàn giao; hỗ trợ khi seat mất quyền truy cập do organization của shop.',
     replacementPolicy: 'Đổi seat khi lời mời, quyền truy cập hoặc tier bàn giao lỗi do organization của shop; không áp dụng nếu khách tự rời organization, đổi email, chia sẻ quyền truy cập hoặc vi phạm chính sách Anthropic.',
+    usagePolicy: CLAUDE_SEAT_USAGE_POLICY,
     fulfillmentMode: 'seat_email',
     deliveryMode: 'text'
   },
@@ -473,6 +500,7 @@ export function normalizeProductInput(input = {}) {
     accountType: String(input.accountType || '').trim(),
     warrantyPolicy: String(input.warrantyPolicy || '').trim(),
     replacementPolicy: String(input.replacementPolicy || input.exchangePolicy || '').trim(),
+    usagePolicy: String(input.usagePolicy || '').trim(),
     fulfillmentMode,
     ...(fulfillmentMode === 'seat_email' ? { seatTermMonths } : {}),
     deliveryMode: normalizeDeliveryMode(input.deliveryMode, { strict: true })
@@ -494,6 +522,7 @@ export function normalizePublicProduct(product = {}) {
     accountType: String(product.accountType || '').trim(),
     warrantyPolicy: String(product.warrantyPolicy || '').trim(),
     replacementPolicy: String(product.replacementPolicy || product.exchangePolicy || '').trim(),
+    usagePolicy: String(product.usagePolicy || '').trim(),
     fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),
     ...(normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }) === 'seat_email'
       ? {

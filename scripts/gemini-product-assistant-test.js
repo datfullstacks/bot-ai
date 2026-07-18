@@ -42,7 +42,8 @@ const responseDraft = {
   officialPriceNote: '',
   accountType: 'Tài khoản riêng theo mô tả bàn giao.',
   warrantyPolicy: 'Bảo hành theo điều kiện shop xác nhận.',
-  replacementPolicy: 'Đổi khi dữ liệu bàn giao lỗi và được xác minh.'
+  replacementPolicy: 'Đổi khi dữ liệu bàn giao lỗi và được xác minh.',
+  usagePolicy: 'Chỉ dùng ứng dụng chính thức theo quy định của shop.'
 };
 const result = await generateGeminiProductDraft({
   brief: 'Gemini Advanced 1 tháng cho research',
@@ -68,11 +69,13 @@ assert.equal(requestOptions.headers['x-goog-api-key'], 'test-secret-key');
 const requestBody = JSON.parse(requestOptions.body);
 assert.equal(requestBody.generationConfig.responseMimeType, 'application/json');
 assert.equal(requestBody.generationConfig.responseSchema.properties.emoji.type, 'STRING');
+assert.equal(requestBody.generationConfig.responseSchema.properties.usagePolicy.type, 'STRING');
 assert.match(requestBody.contents[0].parts[0].text, /không tự bịa giá hãng/i);
 assert.equal(result.model, 'gemini-2.5-flash');
 assert.equal(result.draft.sku, 'gemini-advanced-1m');
 assert.equal(result.draft.emoji, '✨');
 assert.equal(result.draft.description, responseDraft.description);
+assert.equal(result.draft.usagePolicy, responseDraft.usagePolicy);
 
 const fallback = normalizeGeminiProductDraft({
   brand: 'Claude',

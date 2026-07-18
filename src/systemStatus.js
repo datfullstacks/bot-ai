@@ -1,5 +1,5 @@
 import { config, nowIso } from './config.js';
-import { isDeliveryMode, isSeatEmailFulfillment } from './catalog.js';
+import { isDeliveryMode, isSeatEmailFulfillment, requiresSeatUsagePolicy } from './catalog.js';
 import {
   decryptInventorySecret,
   inventoryEncryptionStatus,
@@ -301,7 +301,13 @@ function buildChecks(db = null) {
 
       const incompleteProducts = db.products.filter((product) => (
         product.active !== false
-        && ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy']
+        && [
+          'description',
+          'accountType',
+          'warrantyPolicy',
+          'replacementPolicy',
+          ...(requiresSeatUsagePolicy(product) ? ['usagePolicy'] : [])
+        ]
           .some((key) => !String(product[key] || '').trim())
       ));
       if (incompleteProducts.length) {
@@ -309,7 +315,7 @@ function buildChecks(db = null) {
           checks,
           'product_policies',
           'Product purchase information is incomplete',
-          `${incompleteProducts.length} active product(s) need description, account type, warranty and replacement policy.`
+          `${incompleteProducts.length} active product(s) need description, account type, warranty, replacement policy or required Seat usage rules.`
         );
       } else {
         addOk(checks, 'product_policies', 'Product purchase information', 'Complete');
