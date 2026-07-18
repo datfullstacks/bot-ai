@@ -56,6 +56,12 @@ function brandLogo(brand, className = 'brand-logo') {
   return `<span class="${escapeHtml(`${className} fallback`)}" aria-hidden="true">${escapeHtml(brandIcon(brand))}</span>`;
 }
 
+function productArtwork(product = {}, className = 'product-artwork') {
+  const artwork = String(product.artwork || '').trim();
+  if (!/^\/brand\/product-plans\/[a-z0-9][a-z0-9._-]*\.(?:png|jpe?g|webp)$/i.test(artwork)) return '';
+  return `<img class="${escapeHtml(className)}" src="${escapeHtml(artwork)}" alt="" loading="lazy">`;
+}
+
 function refreshIcons() {
   if (window.lucide?.createIcons) {
     window.lucide.createIcons();
@@ -279,6 +285,7 @@ function renderProductCreateExperience() {
       <span class="product-preview-brand">${brandLogo(brand, 'product-preview-logo')}</span>
       <span class="badge ${seatEmail ? 'processing' : 'available'}">${escapeHtml(seatEmail ? 'Seat email' : 'Inventory')}</span>
     </div>
+    ${productArtwork(data, 'product-preview-artwork')}
     <span class="product-preview-eyebrow">Xem trước catalog</span>
     <h4><span class="product-preview-emoji" aria-hidden="true">${escapeHtml(productEmoji)}</span>${escapeHtml(productName)}</h4>
     <code>${escapeHtml(sku)}</code>
@@ -362,6 +369,7 @@ function setTab(tab) {
   $('#pageSubtitle').textContent = titles[tab][1];
   if (drawerWasOpen) closeSidebarAndRestoreFocus();
   else setSidebarOpen(false);
+  if (tab === 'overview') requestAnimationFrame(() => renderRevenueTrendChart());
 }
 
 function showDashboard(user) {
@@ -1029,6 +1037,7 @@ function renderProductEditor(product) {
           <label>Thương hiệu · Brand<input name="brand" value="${escapeHtml(product.brand || 'Other')}" required></label>
           <label>Emoji sản phẩm<input name="emoji" maxlength="32" value="${escapeHtml(product.emoji || '')}" placeholder="📦"></label>
           <label>Gói · Package<input name="packageType" value="${escapeHtml(product.packageType || '')}"></label>
+          <label class="editor-span-2">Ảnh plan<input name="artwork" value="${escapeHtml(product.artwork || '')}" placeholder="/brand/product-plans/ten-plan.png" spellcheck="false"></label>
           <label>Tên sản phẩm<input name="name" value="${escapeHtml(product.name || '')}" required></label>
           <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3">${escapeHtml(product.description || '')}</textarea></label>
         </div>
@@ -1089,7 +1098,7 @@ function renderProductCard(product) {
     <article class="product-card">
       <div class="product-card-summary">
         <div class="product-identity">
-          <span class="product-brand-mark">${brandLogo(product.brand)}</span>
+          <span class="product-brand-mark ${product.artwork ? 'has-artwork' : ''}">${productArtwork(product, 'product-card-artwork') || brandLogo(product.brand)}</span>
           <div>
             <div class="product-title-line">
               <h3>${product.emoji ? `<span class="product-title-emoji" aria-hidden="true">${escapeHtml(product.emoji)}</span>` : ''}${escapeHtml(product.name)}</h3>
@@ -1230,7 +1239,7 @@ function renderCatalogPricingProducts() {
   const prices = catalogBasePrices();
   $('#catalogPricingProducts').innerHTML = products.length ? `
     <div class="table-wrap pricing-table-wrap">
-      <table class="data-table pricing-table">
+      <table class="data-table pricing-table responsive-table">
         <thead>
           <tr><th>Sản phẩm</th><th>SKU</th><th>Giá bán trên bot</th><th>Giá gốc / vốn</th></tr>
         </thead>
@@ -1270,7 +1279,7 @@ function renderTelegramPricingProducts() {
   const products = sortedProducts(state.products);
   $('#telegramPricingProducts').innerHTML = products.length ? `
     <div class="table-wrap pricing-table-wrap">
-      <table class="data-table pricing-table">
+      <table class="data-table pricing-table responsive-table">
         <thead>
           <tr><th>Sản phẩm</th><th>Giá bán trên bot</th><th>Giá gốc / vốn</th><th>Giá riêng</th></tr>
         </thead>
@@ -1840,9 +1849,13 @@ function renderRevenueTrendChart(analytics = state.dashboardAnalytics) {
     return;
   }
 
-  const width = 760;
-  const height = 260;
-  const padding = { top: 18, right: 24, bottom: 38, left: 58 };
+  const availableWidth = Math.round(target.getBoundingClientRect().width || 760);
+  const width = Math.max(320, Math.min(760, availableWidth));
+  const compactChart = width < 520;
+  const height = compactChart ? 238 : 260;
+  const padding = compactChart
+    ? { top: 16, right: 10, bottom: 36, left: 48 }
+    : { top: 18, right: 24, bottom: 38, left: 58 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const maxMoney = Math.max(
@@ -1872,7 +1885,7 @@ function renderRevenueTrendChart(analytics = state.dashboardAnalytics) {
   const areaPath = daily.length
     ? `M ${pointX(0)} ${zeroY} L ${daily.map((day, index) => `${pointX(index)} ${moneyY(day.revenue)}`).join(' L ')} L ${pointX(daily.length - 1)} ${zeroY} Z`
     : '';
-  const labelStep = Math.max(1, Math.ceil(daily.length / 6));
+  const labelStep = Math.max(1, Math.ceil(daily.length / (compactChart ? 5 : 6)));
   const grid = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
     const y = padding.top + chartHeight - chartHeight * ratio;
     return `
@@ -2555,6 +2568,14 @@ $$('[data-dashboard-range]').forEach((button) => {
     });
     renderRevenueTrendChart();
   });
+});
+
+let dashboardChartResizeTimer;
+window.addEventListener('resize', () => {
+  window.clearTimeout(dashboardChartResizeTimer);
+  dashboardChartResizeTimer = window.setTimeout(() => {
+    if ($('#overviewTab')?.classList.contains('active-tab')) renderRevenueTrendChart();
+  }, 120);
 });
 
 $('#productSearch').addEventListener('input', (event) => {

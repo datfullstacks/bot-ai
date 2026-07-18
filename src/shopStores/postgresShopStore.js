@@ -5,6 +5,7 @@ import {
   isSeatEmailFulfillment,
   normalizeDeliveryMode,
   normalizeFulfillmentMode,
+  normalizeProductArtwork,
   normalizeProductEmoji,
   normalizeProductInput,
   normalizePublicProduct
@@ -1063,6 +1064,7 @@ export async function updateProduct(actorId, productId, input) {
       if (input[key] !== undefined) product[key] = String(input[key]);
     }
     if (input.emoji !== undefined) product.emoji = normalizeProductEmoji(input.emoji, { strict: true });
+    if (input.artwork !== undefined) product.artwork = normalizeProductArtwork(input.artwork, { strict: true });
     if (input.price !== undefined) product.price = Number(input.price);
     if (input.sortOrder !== undefined) product.sortOrder = Number(input.sortOrder || 1000);
     if (input.active !== undefined) product.active = Boolean(input.active);

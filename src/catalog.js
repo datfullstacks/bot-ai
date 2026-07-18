@@ -1,6 +1,10 @@
 const DELIVERY_MODES = new Set(['text', 'file']);
 const FULFILLMENT_MODES = new Set(['inventory', 'seat_email']);
 const PRODUCT_EMOJI_PATTERN = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3)/u;
+const PRODUCT_ARTWORK_PATTERN = /^\/brand\/product-plans\/[a-z0-9][a-z0-9._-]*\.(?:png|jpe?g|webp)$/i;
+const DEFAULT_PRODUCT_ARTWORK = new Map([
+  ['gemini-advanced-1m', '/brand/product-plans/gemini-advanced-1m.png']
+]);
 const LEGACY_SEAT_EMAIL_SKUS = new Set([
   'chatgpt-business-seat-1m',
   'claude-business-seat-1x-1m',
@@ -55,6 +59,19 @@ export function normalizeProductEmoji(value, { strict = false } = {}) {
   if (graphemes.length === 1 && raw.length <= 32 && PRODUCT_EMOJI_PATTERN.test(raw)) return raw;
   if (strict) {
     throw Object.assign(new Error('Product emoji must contain exactly one emoji'), { statusCode: 400 });
+  }
+  return '';
+}
+
+export function normalizeProductArtwork(value, { strict = false } = {}) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (PRODUCT_ARTWORK_PATTERN.test(raw)) return raw;
+  if (strict) {
+    throw Object.assign(
+      new Error('Product artwork must be a safe /brand/product-plans image path'),
+      { statusCode: 400 }
+    );
   }
   return '';
 }
@@ -144,6 +161,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     category: 'AI Accounts',
     brand: 'Gemini',
     emoji: '✨',
+    artwork: '/brand/product-plans/gemini-advanced-1m.png',
     packageType: 'Advanced 1M',
     name: 'Gemini Advanced - 1 tháng',
     description: 'Gói Gemini Advanced 1 tháng cho nhu cầu AI đa nền tảng Google.',
@@ -388,6 +406,7 @@ export function normalizeProductInput(input = {}) {
     category: String(input.category || '').trim() || 'Accounts',
     brand: String(input.brand || '').trim() || 'Other',
     emoji: normalizeProductEmoji(input.emoji, { strict: true }),
+    artwork: normalizeProductArtwork(input.artwork, { strict: true }),
     packageType: String(input.packageType || '').trim(),
     price: Number(input.price || 0),
     currency: String(input.currency || '').trim() || 'VND',
@@ -405,11 +424,13 @@ export function normalizeProductInput(input = {}) {
 }
 
 export function normalizePublicProduct(product = {}) {
+  const sku = String(product.sku || '').trim().toLowerCase();
   return {
     ...product,
     category: String(product.category || '').trim() || 'Accounts',
     brand: String(product.brand || '').trim() || 'Other',
     emoji: normalizeProductEmoji(product.emoji),
+    artwork: normalizeProductArtwork(product.artwork) || DEFAULT_PRODUCT_ARTWORK.get(sku) || '',
     packageType: String(product.packageType || '').trim(),
     sortOrder: Number(product.sortOrder || 1000),
     hot: product.hot === true || String(product.hot || '').toLowerCase() === 'true',

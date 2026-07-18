@@ -36,6 +36,7 @@ for (const id of [
   'productAiStatus',
   'productBrandInput',
   'productEmojiInput',
+  'productArtworkInput',
   'productEmojiPreview',
   'productNameInput',
   'productSkuInput',
@@ -242,6 +243,7 @@ assert.ok(html.includes('class="stat-icon"'), 'Overview statistics should includ
 assert.ok(html.includes('class="auth-security"'), 'Login should expose the protected-admin trust cue.');
 assert.ok(js.includes("from './brand-assets.js'"), 'Admin JS should import shared brand assets.');
 assert.ok(js.includes('brandLogo('), 'Admin JS should render exact brand logos.');
+assert.ok(js.includes('productArtwork('), 'Admin JS should render product-specific plan artwork.');
 assert.ok(js.includes("icon('package'"), 'Product cards should render package icons.');
 assert.ok(js.includes("icon('shopping-cart'"), 'Order action buttons should render action icons.');
 assert.ok(js.includes("state.productSearch"), 'Admin JS should track product search state.');
@@ -307,6 +309,8 @@ assert.ok(telegram.includes("'notifications', 'support'"), 'Telegram commands sh
 assert.ok(telegram.includes("data.startsWith('notify_pref:'"), 'Telegram should handle notification preference toggles.');
 assert.ok(telegram.includes("data.startsWith('notify_cta:'"), 'Telegram should track notification CTA callbacks.');
 assert.ok(telegram.includes('startNotificationCampaignAutomation'), 'Scheduled notification campaigns should have a background worker.');
+assert.ok(telegram.includes('presentProductDetailCard'), 'Telegram product details should include plan artwork when configured.');
+assert.ok(telegram.includes('sendTelegramPhotoFile(chatId, imagePath'), 'Telegram should send local plan artwork through the photo transport.');
 assert.ok(server.includes("routeParams('/api/discount-codes/:id'"), 'Server should expose discount activation mutations.');
 assert.ok(shop.includes('previewDiscountForUser'), 'The active shop store should expose discount previews to Telegram checkout.');
 assert.ok(discountCodes.includes('discountReservationIsLive'), 'Discount domain should model live one-order reservations.');
@@ -351,7 +355,7 @@ assert.ok(postgresShopStore.includes('cost_known'), 'Postgres overview should ag
 assert.ok(postgresShopStore.includes("doc->>'paidAt' >= $1"), 'Postgres analytics should include orders paid during the reporting window even when created earlier.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
-for (const field of ['emoji', 'description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
+for (const field of ['emoji', 'artwork', 'description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
   assert.ok(html.includes(`name="${field}"`), `Create product form should expose ${field}.`);
   assert.ok(js.includes(`name="${field}"`), `Product editor should expose ${field}.`);
 }
@@ -498,6 +502,11 @@ for (const selector of [
 
 assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'), 'Admin motion should respect reduced-motion preferences.');
 assert.ok(css.includes('content: attr(data-label)'), 'Responsive tables should expose cell labels in mobile card mode.');
+assert.ok(js.includes('class="data-table pricing-table responsive-table"'), 'Pricing tables should use mobile cards instead of overflowing the viewport.');
+assert.ok(js.includes('target.getBoundingClientRect().width'), 'Revenue charts should size their SVG coordinate system to the available viewport width.');
+assert.ok(css.includes('@media (max-width: 360px)'), 'Admin CSS should include a narrow-phone fallback for 320–360px viewports.');
+assert.ok(css.includes('.pricing-table-wrap,'), 'Pricing table wrappers should release desktop scrolling constraints on mobile.');
+assert.ok(html.includes('aria-label="Làm mới dữ liệu"'), 'The compact mobile refresh control should retain an accessible name.');
 assert.ok(js.includes('class="data-table responsive-table payments-table"'), 'Payments should use the shared compact table and mobile card pattern.');
 assert.ok(js.includes('setButtonBusy(submit, true)'), 'Admin submit actions should expose a shared loading state.');
 assert.ok(js.includes("row?.classList.toggle('has-override'"), 'Telegram override rows should visibly reflect inheritance state.');

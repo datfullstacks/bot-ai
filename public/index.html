@@ -98,7 +98,7 @@
               <span id="systemStorageBadge" class="status-dot neutral">Storage</span>
               <span id="telegramStatusBadge" class="status-dot neutral">Telegram</span>
             </div>
-            <button id="refreshBtn" class="icon-button"><span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span><span>Làm mới</span></button>
+            <button id="refreshBtn" class="icon-button" aria-label="Làm mới dữ liệu"><span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span><span>Làm mới</span></button>
           </div>
         </header>
 
@@ -278,6 +278,7 @@
                         <datalist id="productBrandOptions"><option value="ChatGPT"></option><option value="Claude"></option><option value="Canva"></option><option value="Gemini"></option><option value="Perplexity"></option><option value="Cursor"></option><option value="Figma"></option><option value="Microsoft"></option><option value="Google Workspace"></option></datalist>
                         <label>Gói sản phẩm<input name="packageType" placeholder="Ví dụ: Plus 1M"><small class="field-help">Tên gói ngắn gọn, chẳng hạn Pro 1M hoặc Business Seat.</small></label>
                         <label>Emoji sản phẩm<span class="product-emoji-input"><input id="productEmojiInput" name="emoji" maxlength="32" placeholder="✨" autocomplete="off"><span id="productEmojiPreview" aria-hidden="true">📦</span></span><small class="field-help">Một emoji xuất hiện trong catalog và tin nhắn Telegram.</small></label>
+                        <label class="editor-span-2">Ảnh plan<input id="productArtworkInput" name="artwork" placeholder="/brand/product-plans/ten-plan.png" spellcheck="false"><small class="field-help">Ảnh AI-generated trong thư mục product-plans; để trống nếu sản phẩm chưa có artwork.</small></label>
                         <div class="editor-span-2 product-emoji-presets" aria-label="Chọn nhanh emoji sản phẩm"><button type="button" data-product-emoji="✨" aria-label="Tia sáng">✨</button><button type="button" data-product-emoji="🤖" aria-label="Robot">🤖</button><button type="button" data-product-emoji="🧠" aria-label="Bộ não">🧠</button><button type="button" data-product-emoji="🎨" aria-label="Bảng màu">🎨</button><button type="button" data-product-emoji="🚀" aria-label="Tên lửa">🚀</button><button type="button" data-product-emoji="💎" aria-label="Kim cương">💎</button><button type="button" data-product-emoji="📦" aria-label="Gói hàng">📦</button><button type="button" data-product-emoji="⚡" aria-label="Tia chớp">⚡</button></div>
                         <label class="editor-span-2">Tên hiển thị <span class="required-mark">*</span><input id="productNameInput" name="name" placeholder="Ví dụ: Gemini Advanced - 1 tháng" required></label>
                         <div class="editor-span-2 product-sku-field"><label for="productSkuInput">SKU <span class="required-mark">*</span></label>

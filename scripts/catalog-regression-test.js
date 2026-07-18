@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   DEFAULT_CATALOG_PRODUCTS,
   brandSortKey,
   normalizeDeliveryMode,
   normalizeFulfillmentMode,
+  normalizeProductArtwork,
   normalizeProductEmoji,
   normalizeProductInput,
   normalizePublicProduct
@@ -13,6 +16,15 @@ assert.ok(DEFAULT_CATALOG_PRODUCTS.length >= 10, 'Catalog should include account
 
 const bySku = new Map(DEFAULT_CATALOG_PRODUCTS.map((product) => [product.sku, product]));
 assert.equal(bySku.get('gemini-advanced-1m')?.emoji, '✨', 'Gemini should ship with its catalog emoji.');
+assert.equal(
+  bySku.get('gemini-advanced-1m')?.artwork,
+  '/brand/product-plans/gemini-advanced-1m.png',
+  'Gemini should ship with AI-generated plan artwork.'
+);
+assert.ok(
+  existsSync(resolve(process.cwd(), 'public', 'brand', 'product-plans', 'gemini-advanced-1m.png')),
+  'Gemini plan artwork should be committed with the catalog.'
+);
 assert.equal(
   bySku.size,
   DEFAULT_CATALOG_PRODUCTS.length,
@@ -134,6 +146,7 @@ const normalized = normalizeProductInput({
   category: '',
   brand: '  ChatGPT ',
   emoji: '🤖',
+  artwork: '/brand/product-plans/chatgpt-plus-1m.webp',
   packageType: ' Plus 1M ',
   price: '99000',
   currency: '',
@@ -152,6 +165,7 @@ assert.deepEqual(normalized, {
   category: 'Accounts',
   brand: 'ChatGPT',
   emoji: '🤖',
+  artwork: '/brand/product-plans/chatgpt-plus-1m.webp',
   packageType: 'Plus 1M',
   price: 99000,
   currency: 'VND',
@@ -171,6 +185,13 @@ assert.equal(normalizeFulfillmentMode('', { sku: 'chatgpt-business-seat-1m' }), 
 assert.equal(normalizePublicProduct({ sku: 'regular-product' }).fulfillmentMode, 'inventory');
 assert.equal(normalizeProductEmoji('👨‍💻', { strict: true }), '👨‍💻');
 assert.throws(() => normalizeProductEmoji('✨🚀', { strict: true }), /exactly one emoji/);
+assert.equal(normalizeProductArtwork('/brand/product-plans/gemini-advanced-1m.png'), '/brand/product-plans/gemini-advanced-1m.png');
+assert.equal(
+  normalizePublicProduct({ sku: 'gemini-advanced-1m' }).artwork,
+  '/brand/product-plans/gemini-advanced-1m.png',
+  'Existing persisted Gemini products should inherit the generated artwork without a migration.'
+);
+assert.throws(() => normalizeProductArtwork('/etc/passwd', { strict: true }), /safe \/brand\/product-plans/);
 assert.equal(normalizeDeliveryMode('TEXT'), 'text');
 assert.equal(normalizePublicProduct({ deliveryMode: 'invalid' }).deliveryMode, 'text');
 assert.throws(

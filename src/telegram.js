@@ -6,6 +6,7 @@ import {
   brandSortKey,
   isSeatEmailFulfillment,
   normalizeDeliveryMode,
+  normalizeProductArtwork,
   normalizePublicProduct
 } from './catalog.js';
 import {
@@ -2101,6 +2102,46 @@ export function productDetailMessage(product) {
   ].filter(Boolean).join('\n');
 }
 
+export function productArtworkFilePath(product = {}, publicDir = resolve(process.cwd(), 'public')) {
+  const artwork = normalizeProductArtwork(product.artwork);
+  if (!artwork) return '';
+  const imagePath = resolve(publicDir, artwork.replace(/^\/+/, ''));
+  const relativePath = relative(publicDir, imagePath);
+  if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath) || !existsSync(imagePath)) return '';
+  return imagePath;
+}
+
+async function sendProductArtwork(chatId, product) {
+  const normalized = normalizePublicProduct(product);
+  const imagePath = productArtworkFilePath(normalized);
+  if (!imagePath) return false;
+  try {
+    await sendTelegramPhotoFile(chatId, imagePath, {
+      caption: `${normalized.emoji ? `${escapeHtml(normalized.emoji)} ` : ''}<b>${escapeHtml(normalized.name)}</b>${normalized.packageType ? `\n${newsEmoji('shopping-bag')} ${escapeHtml(normalized.packageType)}` : ''}`,
+      parse_mode: 'HTML'
+    });
+    return true;
+  } catch (error) {
+    console.warn(`[telegram] product artwork skipped for ${normalized.sku}: ${error.message}`);
+    return false;
+  }
+}
+
+async function presentProductDetailCard(chatId, messageId, product) {
+  const artworkSent = await sendProductArtwork(chatId, product);
+  const options = { reply_markup: buildProductDetailKeyboard(product) };
+  if (artworkSent) {
+    return sendCustomTelegramMessage(chatId, productDetailMessage(product), productCustomEmojiCandidates(product), options);
+  }
+  return presentCustomTelegramMessage(
+    chatId,
+    messageId,
+    productDetailMessage(product),
+    productCustomEmojiCandidates(product),
+    options
+  );
+}
+
 export function buildProductDetailKeyboard(product) {
   const normalized = normalizePublicProduct(product);
   const rows = [];
@@ -2837,9 +2878,7 @@ async function handleTextMessage(message) {
       const products = await listProducts({ user });
       const product = findProduct(products, payload.slice(2));
       if (product) {
-        await sendCustomTelegramMessage(chatId, productDetailMessage(product), productCustomEmojiCandidates(product), {
-          reply_markup: buildProductDetailKeyboard(product)
-        });
+        await presentProductDetailCard(chatId, null, product);
         return;
       }
     }
@@ -2950,9 +2989,7 @@ async function handleCallbackQuery(callbackQuery) {
     if (campaign.cta?.type === 'product') {
       const product = findProduct(products, campaign.cta.value);
       if (product) {
-        await sendCustomTelegramMessage(chatId, productDetailMessage(product), productCustomEmojiCandidates(product), {
-          reply_markup: buildProductDetailKeyboard(product)
-        });
+        await presentProductDetailCard(chatId, null, product);
         return;
       }
     }
@@ -3196,13 +3233,7 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
     await trackTelegramClick(user, 'package', { sku: product.sku });
-    await presentCustomTelegramMessage(
-      chatId,
-      messageId,
-      productDetailMessage(product),
-      productCustomEmojiCandidates(product),
-      { reply_markup: buildProductDetailKeyboard(product) }
-    );
+    await presentProductDetailCard(chatId, messageId, product);
     return;
   }
 
@@ -3252,13 +3283,7 @@ async function handleCallbackQuery(callbackQuery) {
       : null;
     if (draft?.id === draftId) await discardSeatEmailDraft(user.id, chatId);
     if (product) {
-      await presentCustomTelegramMessage(
-        chatId,
-        messageId,
-        productDetailMessage(product),
-        productCustomEmojiCandidates(product),
-        { reply_markup: buildProductDetailKeyboard(product) }
-      );
+      await presentProductDetailCard(chatId, messageId, product);
     } else {
       await presentTelegramMessage(chatId, messageId, `${newsEmoji('warning')} Nút hủy này đã hết hạn. Hãy dùng nút trong tin nhắn Seat mới nhất.`, {
         reply_markup: buildCategoryKeyboard(products)

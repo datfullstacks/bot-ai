@@ -390,6 +390,15 @@ const storage = await import('../src/storage.js');
 const shop = await import('../src/shop.js');
 const catalog = await import('../src/catalog.js');
 const telegram = await import('../src/telegram.js');
+assert.ok(
+  telegram.productArtworkFilePath({ artwork: '/brand/product-plans/gemini-advanced-1m.png' }).endsWith('gemini-advanced-1m.png'),
+  'Gemini product detail should resolve its generated plan artwork.'
+);
+assert.equal(
+  telegram.productArtworkFilePath({ artwork: '/etc/passwd' }),
+  '',
+  'Telegram must reject artwork outside the safe public product-plan directory.'
+);
 const brandAssets = await import('../public/brand-assets.js');
 
 const {
