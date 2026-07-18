@@ -153,6 +153,10 @@ export const config = {
       min: 60 * 60,
       max: 365 * 24 * 60 * 60
     }),
+    seatAvailabilityTtlMs: boundedEnv('TELEGRAM_SEAT_AVAILABILITY_TTL_MS', 60_000, {
+      min: 10_000,
+      max: 5 * 60_000
+    }),
     customEmojiMapFile: process.env.TELEGRAM_CUSTOM_EMOJI_MAP_FILE || resolve(process.cwd(), 'data', 'telegram-custom-emoji-map.json'),
     uiEmojiMapFile: process.env.TELEGRAM_UI_EMOJI_MAP_FILE || resolve(process.cwd(), 'data', 'telegram-ui-emoji-map.json'),
     sloganEmojiMapFile: process.env.TELEGRAM_SLOGAN_EMOJI_MAP_FILE || resolve(process.cwd(), 'data', 'telegram-slogan-emoji-map.json'),

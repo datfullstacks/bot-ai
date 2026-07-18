@@ -538,6 +538,36 @@ export async function getSeatGuardSnapshot(options = {}) {
   return (await loadSeatGuardContext({ ...options, provider })).view;
 }
 
+export async function getSeatGuardCapacitySnapshot(options = {}) {
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  let integration = options.integration;
+  if (!integration) {
+    try {
+      integration = guardConfig(provider);
+    } catch (error) {
+      if (error?.statusCode === 503) return unconfiguredSnapshot(provider);
+      throw error;
+    }
+  }
+  if (
+    !integration.enabled
+    || !integration.serviceUrl
+    || !(integration.seatGuardApiKey || integration.apiKey)
+    || !integration.accountRef
+  ) {
+    return unconfiguredSnapshot(provider);
+  }
+  const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
+  const client = clientFor(provider, integration, dependencies);
+  const remote = await client.getAccountMembers(integration.accountRef);
+  return {
+    provider,
+    configured: true,
+    observedAt: remote?.observedAt || null,
+    capacity: buildSeatCapacity(remote)
+  };
+}
+
 function mutationKey(action, accountRef, externalId, email, generationEvidence, actionRequestId) {
   const digest = createHash('sha256')
     .update([action, accountRef, externalId, email, generationEvidence, actionRequestId].join('\0'), 'utf8')

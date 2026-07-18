@@ -12,6 +12,7 @@ import {
   backfillLegacySeatEntitlementTargets,
   cancelSeatGuardInvitation,
   cleanupExpiredSeatAccess,
+  getSeatGuardCapacitySnapshot,
   getSeatGuardOperation,
   getSeatGuardSnapshot,
   removeSeatGuardMember,
@@ -535,6 +536,32 @@ await getSeatGuardSnapshot({ dependencies, integration, nowMs });
 assert.ok(listOrderCalls.every((options) => options.status === undefined), 'Seat Guard should use one all-status order scan.');
 assert.ok(clientOptions.every((options) => options.apiKey === integration.seatGuardApiKey));
 assert.ok(clientOptions.every((options) => options.maxResponseBytes === 2 * 1024 * 1024));
+
+let capacityMemberCalls = 0;
+const capacitySnapshot = await getSeatGuardCapacitySnapshot({
+  integration,
+  dependencies: {
+    createClient() {
+      return {
+        async getAccountMembers(accountRef) {
+          capacityMemberCalls += 1;
+          assert.equal(accountRef, integration.accountRef);
+          return {
+            account: { maxMembers: 10 },
+            occupancy: { usedSlots: 7, remainingSlots: 3, maxMembers: 10 },
+            observedAt: '2026-07-18T03:00:00.000Z'
+          };
+        }
+      };
+    },
+    async listOrders() {
+      throw new Error('Capacity-only reads must not scan order history.');
+    }
+  }
+});
+assert.equal(capacityMemberCalls, 1);
+assert.equal(capacitySnapshot.capacity.remainingSlots, 3);
+assert.equal(capacitySnapshot.observedAt, '2026-07-18T03:00:00.000Z');
 
 const paginationCalls = [];
 const duplicateOrder = order('ord_duplicate', 'duplicate@example.com', 'delivered', '2026-07-01T00:00:00.000Z');

@@ -58,6 +58,9 @@ process.env.REDIS_URL = '';
 process.env.PAYMENT_PROVIDER = 'mock';
 process.env.TELEGRAM_BOT_TOKEN = '123:test';
 process.env.TELEGRAM_POLLING = 'false';
+process.env.GPT_MEMBER_SERVICE_ENABLED = 'false';
+process.env.CANVA_MEMBER_SERVICE_ENABLED = 'false';
+process.env.CLAUDE_MEMBER_SERVICE_ENABLED = 'false';
 process.env.TELEGRAM_START_STICKER_ID = '';
 process.env.TELEGRAM_CATALOG_STICKER_ID = 'sticker_catalog';
 process.env.TELEGRAM_BRAND_STICKER_ID = 'sticker_brand';
@@ -930,10 +933,10 @@ try {
     price: 400000,
     stock: { available: 0 }
   };
-  assert.equal(formatStockStatus(seatProduct), '🔍 Nhận email để cấp Seat');
+  assert.equal(formatStockStatus(seatProduct), '🔍 Slot đang cập nhật');
   const seatDetailText = productDetailMessage(seatProduct);
   assert.match(seatDetailText, /gửi 1 hoặc nhiều email, mỗi email một dòng/i);
-  assert.match(seatDetailText, /không cần chờ nhập kho/i);
+  assert.match(seatDetailText, /Slot còn lại: đang cập nhật từ Seat Guard/i);
   assert.match(seatDetailText, /Quy định sử dụng/);
   assert.equal(seatDetailText.includes('Hết hàng'), false);
   const seatDetailKeyboard = buildProductDetailKeyboard(seatProduct);
@@ -942,6 +945,38 @@ try {
     && button.callback_data === 'buy:prd_seat:1'
   )), 'A zero-stock Seat should still be orderable by email.');
   assertAllKeyboardButtonsAnimated(seatDetailKeyboard, 'seat product detail keyboard');
+
+  const availableSeatProduct = {
+    ...seatProduct,
+    seatAvailability: {
+      provider: 'chatgpt',
+      configured: true,
+      known: true,
+      remainingSlots: 3,
+      maxMembers: 10,
+      stale: false
+    }
+  };
+  assert.equal(formatStockStatus(availableSeatProduct), '📊 Còn 3 slot');
+  assert.match(productDetailMessage(availableSeatProduct), /Slot còn lại: 3 \/ 10/);
+  assert.match(seatEmailPromptMessage(availableSeatProduct), /Slot còn lại: 3 \/ 10/);
+  assert.match(
+    buildPackageKeyboard([availableSeatProduct]).inline_keyboard[0][0].text,
+    /^Còn 3 slot · Business Seat 1M/
+  );
+
+  const fullSeatProduct = {
+    ...availableSeatProduct,
+    seatAvailability: { ...availableSeatProduct.seatAvailability, remainingSlots: 0 }
+  };
+  assert.equal(formatStockStatus(fullSeatProduct), '⚠️ Hết slot');
+  assert.equal(
+    buildProductDetailKeyboard(fullSeatProduct).inline_keyboard.flat().some((button) => button.callback_data?.startsWith('buy:')),
+    false,
+    'A workspace with zero remaining slots must not expose the buy button.'
+  );
+  assert.match(buildPackageKeyboard([fullSeatProduct]).inline_keyboard[0][0].text, /^Hết slot ·/);
+  assert.match(buildCategoryKeyboard([availableSeatProduct]).inline_keyboard[0][0].text, /\[3 slot\]/);
 
   const seatDraft = { id: 'draft_opaque_123', revision: 2 };
   const seatPromptText = seatEmailPromptMessage(seatProduct);
@@ -1636,7 +1671,7 @@ try {
   assert.equal(countCustomEmojiId(brandCall, newsEmojiIds.idea), 1, 'AI category should use the semantic News idea emoji.');
   assert.equal(countCustomEmojiId(brandCall, 'ce_chatgpt_file'), 1, 'ChatGPT should keep its own brand emoji.');
   assertEveryEmojiAnimated(brandCall, 'brand package chooser message');
-  assert.match(brandCall.body.caption, /Seat không cần tồn kho/i);
+  assert.match(brandCall.body.caption, /Slot workspace đang cập nhật từ Seat Guard/i);
   assert.equal(brandCall.body.caption.includes('SKU:'), false, 'Brand chooser text should not expose SKU; buying should be button-first.');
   assert.equal(calls.some((call) => call.url.includes('/sendSticker') || call.url.includes('/sendAnimation')), false);
   assert.equal(
