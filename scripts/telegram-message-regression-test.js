@@ -79,6 +79,7 @@ await writeFile(customEmojiMapFile, JSON.stringify({
     'Cursor.webm': 'ce_cursor_motion',
     'Discord.webm': 'ce_discord_motion',
     'Facebook.webm': 'ce_facebook_motion',
+    'Gemini.webm': 'ce_gemini_motion',
     'Gmail.webm': 'ce_gmail_motion',
     'Google.webm': 'ce_google_motion',
     'Microsoft.webm': 'ce_microsoft_motion',
@@ -746,8 +747,8 @@ try {
   assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('Design Accounts'));
   assert.ok(categoryKeyboard.inline_keyboard[0][1].text.includes('[Seat]'));
   assert.ok(categoryKeyboard.inline_keyboard[0].every((button) => button.callback_data.startsWith('cat:')));
-  assert.equal(categoryKeyboard.inline_keyboard[0][0].icon_custom_emoji_id, 'ce_chatgpt_file');
-  assert.equal(categoryKeyboard.inline_keyboard[0][1].icon_custom_emoji_id, 'ce_canva_motion');
+  assert.equal(categoryKeyboard.inline_keyboard[0][0].icon_custom_emoji_id, newsEmojiIds.idea);
+  assert.equal(categoryKeyboard.inline_keyboard[0][1].icon_custom_emoji_id, newsEmojiIds.diamond);
   assert.equal(
     categoryKeyboard.inline_keyboard.flat().some((button) => button.callback_data?.startsWith('pkg:')),
     false,
@@ -794,6 +795,15 @@ try {
   assert.equal(brandKeyboard.inline_keyboard.at(-1)[0].icon_custom_emoji_id, newsEmojiIds['arrow-right']);
   assertAllKeyboardButtonsAnimated(brandKeyboard, 'brand keyboard');
 
+  const figmaBrandKeyboard = buildBrandKeyboard([
+    { category: 'Design Accounts', brand: 'Figma', stock: { available: 1 } }
+  ], 'Design Accounts');
+  assert.equal(
+    figmaBrandKeyboard.inline_keyboard[0][0].icon_custom_emoji_id,
+    newsEmojiIds.diamond,
+    'Figma should use the semantic Design emoji instead of falling back to the KAITO pack.'
+  );
+
   const productsText = productMessage([{
     name: 'AI <Plus> & Team',
     sku: 'kaito<sku>&1',
@@ -816,7 +826,7 @@ try {
     stock: { available: 1 }
   }]);
   assert.match(productsText, /🛒 <b>KAITO KID AI SHOP - Gói đang bán<\/b>/);
-  assert.match(productsText, /🤖 AI Accounts/);
+  assert.match(productsText, /💡 AI Accounts/);
   assert.match(productsText, /🤖 ChatGPT/);
   assert.match(productsText, /🧠 Claude/);
   assert.match(productsText, /AI &lt;Plus&gt; &amp; Team/);
@@ -1558,10 +1568,21 @@ try {
   }));
   const defaultCatalogKeyboard = buildCatalogKeyboard(animatedCatalogProducts);
   const defaultButtons = defaultCatalogKeyboard.inline_keyboard.flat();
-  for (const category of ['AI Accounts', 'Design Accounts', 'Work & Cloud Accounts', 'Social/MMO Accounts']) {
-    assert.ok(
-      defaultButtons.some((button) => button.callback_data?.startsWith('cat:') && button.text.includes(category)),
-      `Catalog keyboard should include ${category}.`
+  const expectedCategoryEmojiIds = new Map([
+    ['AI Accounts', newsEmojiIds.idea],
+    ['Design Accounts', newsEmojiIds.diamond],
+    ['Work & Cloud Accounts', newsEmojiIds.settings],
+    ['Social/MMO Accounts', newsEmojiIds.chat]
+  ]);
+  for (const [category, customEmojiId] of expectedCategoryEmojiIds) {
+    const button = defaultButtons.find((item) => (
+      item.callback_data?.startsWith('cat:') && item.text.includes(category)
+    ));
+    assert.ok(button, `Catalog keyboard should include ${category}.`);
+    assert.equal(
+      button.icon_custom_emoji_id,
+      customEmojiId,
+      `${category} should use its semantic News emoji instead of borrowing a brand pack.`
     );
   }
   assertAllKeyboardButtonsAnimated(defaultCatalogKeyboard, 'default catalog keyboard');
@@ -1607,8 +1628,8 @@ try {
   assert.ok(brandCall, 'Brand callback should present a package chooser.');
   assert.match(brandCall.body.caption, /AI Accounts \/ ChatGPT/);
   assert.ok(hasEntityType(brandCall, 'bold'));
-  assert.ok(hasCustomEmojiId(brandCall, 'ce_chatgpt_file'));
-  assert.ok(hasCustomEmojiId(brandCall, 'ce_chatgpt_file'));
+  assert.equal(countCustomEmojiId(brandCall, newsEmojiIds.idea), 1, 'AI category should use the semantic News idea emoji.');
+  assert.equal(countCustomEmojiId(brandCall, 'ce_chatgpt_file'), 1, 'ChatGPT should keep its own brand emoji.');
   assertEveryEmojiAnimated(brandCall, 'brand package chooser message');
   assert.match(brandCall.body.caption, /Seat không cần tồn kho/i);
   assert.equal(brandCall.body.caption.includes('SKU:'), false, 'Brand chooser text should not expose SKU; buying should be button-first.');
@@ -1630,6 +1651,32 @@ try {
     .flat()
     .find((button) => button.callback_data?.startsWith('pkg:'));
   assert.ok(livePackageButton, 'Brand chooser should expose a product-detail action.');
+
+  calls.length = 0;
+  await handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_brand_figma_emoji',
+      data: 'brand:Design%20Accounts:Figma',
+      message: { chat: { id: 9001 }, message_id: 46, photo: [{ file_id: 'figma-brand-photo' }] },
+      from: { id: 9001, username: 'buyer' }
+    }
+  });
+  const figmaBrandCall = calls.find((call) => (
+    isTelegramMediaCall(call)
+    && call.body.caption?.includes('Design Accounts / Figma')
+  ));
+  assert.ok(figmaBrandCall, 'Figma callback should present its brand package chooser.');
+  assert.equal(
+    countCustomEmojiId(figmaBrandCall, newsEmojiIds.diamond),
+    2,
+    'Figma category and brand fallback should both use the semantic Design emoji.'
+  );
+  assert.equal(
+    hasCustomEmojiId(figmaBrandCall, 'ce_ui_reviews'),
+    false,
+    'Figma must not fall back to the KAITO/review emoji pack.'
+  );
+  assertEveryEmojiAnimated(figmaBrandCall, 'Figma brand package chooser message');
 
   calls.length = 0;
   await handleTelegramUpdate({
@@ -1667,6 +1714,30 @@ try {
   );
   assertEveryEmojiAnimated(productDetailCall, 'product-detail message');
   assertAllKeyboardButtonsAnimated(productDetailCall.body.reply_markup, 'product-detail callback keyboard');
+
+  const liveGeminiProduct = (await shop.listProducts())
+    .find((product) => product.sku === 'gemini-advanced-1m');
+  assert.ok(liveGeminiProduct, 'Live catalog should expose the Gemini plan.');
+  calls.length = 0;
+  await handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_product_detail_gemini_emoji',
+      data: `pkg:${liveGeminiProduct.id || liveGeminiProduct.sku}`,
+      message: { chat: { id: 9001 }, message_id: 46, photo: [{ file_id: 'gemini-plan-photo' }] },
+      from: { id: 9001, username: 'buyer' }
+    }
+  });
+  const geminiProductCall = calls.find((call) => (
+    isTelegramMediaCall(call)
+    && call.body.caption?.includes('Gemini Advanced')
+  ));
+  assert.ok(geminiProductCall, 'Gemini package callback should present product details.');
+  assert.equal(
+    countCustomEmojiId(geminiProductCall, 'ce_gemini_motion'),
+    2,
+    'Both Gemini marks should use the Gemini brand pack instead of the generic review emoji.'
+  );
+  assertEveryEmojiAnimated(geminiProductCall, 'Gemini product-detail message');
 
   const liveSeatProduct = (await shop.listProducts())
     .find((product) => product.sku === 'chatgpt-business-seat-1m');

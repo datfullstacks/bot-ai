@@ -148,6 +148,11 @@ export const config = {
     startImageFile: process.env.TELEGRAM_START_IMAGE_FILE || resolve(process.cwd(), 'public', 'brand', 'start', 'welcome.png'),
     supportHandle: process.env.TELEGRAM_SUPPORT_HANDLE || '',
     customTextEmoji: String(process.env.TELEGRAM_CUSTOM_TEXT_EMOJI || 'true').toLowerCase() !== 'false',
+    mediaFileIdCache: String(process.env.TELEGRAM_MEDIA_FILE_ID_CACHE || 'true').toLowerCase() !== 'false',
+    mediaFileIdCacheTtlSeconds: boundedEnv('TELEGRAM_MEDIA_FILE_ID_CACHE_TTL_SECONDS', 180 * 24 * 60 * 60, {
+      min: 60 * 60,
+      max: 365 * 24 * 60 * 60
+    }),
     customEmojiMapFile: process.env.TELEGRAM_CUSTOM_EMOJI_MAP_FILE || resolve(process.cwd(), 'data', 'telegram-custom-emoji-map.json'),
     uiEmojiMapFile: process.env.TELEGRAM_UI_EMOJI_MAP_FILE || resolve(process.cwd(), 'data', 'telegram-ui-emoji-map.json'),
     sloganEmojiMapFile: process.env.TELEGRAM_SLOGAN_EMOJI_MAP_FILE || resolve(process.cwd(), 'data', 'telegram-slogan-emoji-map.json'),

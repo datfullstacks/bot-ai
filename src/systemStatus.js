@@ -496,6 +496,11 @@ export async function getSystemStatus() {
       tokenConfigured: Boolean(config.telegram.token),
       polling: config.telegram.polling,
       webhookSecretConfigured: Boolean(config.telegram.webhookSecret),
+      mediaFileIdCacheEnabled: config.telegram.mediaFileIdCache,
+      mediaFileIdCacheStore: config.telegram.mediaFileIdCache
+        ? configured('REDIS_URL') ? 'redis' : 'memory'
+        : 'disabled',
+      mediaFileIdCacheTtlSeconds: config.telegram.mediaFileIdCacheTtlSeconds,
       webhookUrl: `${config.baseUrl.replace(/\/$/, '')}/api/public/telegram/webhook`
     },
     telegramEmoji,
@@ -551,6 +556,11 @@ export async function getReadiness() {
       tokenConfigured: Boolean(config.telegram.token),
       polling: config.telegram.polling,
       webhookSecretConfigured: Boolean(config.telegram.webhookSecret),
+      mediaFileIdCacheEnabled: config.telegram.mediaFileIdCache,
+      mediaFileIdCacheStore: config.telegram.mediaFileIdCache
+        ? configured('REDIS_URL') ? 'redis' : 'memory'
+        : 'disabled',
+      mediaFileIdCacheTtlSeconds: config.telegram.mediaFileIdCacheTtlSeconds,
       webhookUrl: `${webhookBase}/api/public/telegram/webhook`
     },
     telegramEmoji,

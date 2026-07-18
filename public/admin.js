@@ -2357,6 +2357,10 @@ async function renderSystem(system = null) {
     ${system.sales ? systemLine('Mã hóa kho', system.sales.inventoryEncryptionConfigured ? 'đã cấu hình' : 'còn thiếu') : ''}
     ${systemLine('Thanh toán · Payment', system.payment.configuredProvider)}
     ${systemLine('Telegram', system.telegram.tokenConfigured ? 'đã cấu hình token' : 'chưa cấu hình')}
+    ${system.telegram.mediaFileIdCacheEnabled ? systemLine(
+      'Telegram media cache',
+      `${system.telegram.mediaFileIdCacheStore} file_id · ${Math.round(system.telegram.mediaFileIdCacheTtlSeconds / 86400)} ngày`
+    ) : systemLine('Telegram media cache', 'đã tắt')}
     ${system.telegramEmoji ? systemLine('Telegram emoji', system.telegramEmoji.enabled ? `${Object.values(system.telegramEmoji.packs || {}).filter((pack) => pack.loaded).length}/${system.telegramEmoji.requiredPacks.length} packs loaded` : 'disabled') : ''}
     ${systemLine('Telegram webhook', system.telegram.webhookUrl)}
     ${systemLine('SePay webhook', system.payment.sepayWebhookUrl)}

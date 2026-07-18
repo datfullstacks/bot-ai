@@ -17,7 +17,18 @@ const discountCodes = await readFile(resolve(process.cwd(), 'src', 'discountCode
 const notificationCenter = await readFile(resolve(process.cwd(), 'src', 'notificationCenter.js'), 'utf8');
 const shop = await readFile(resolve(process.cwd(), 'src', 'shop.js'), 'utf8');
 const telegram = await readFile(resolve(process.cwd(), 'src', 'telegram.js'), 'utf8');
+const dockerIgnore = await readFile(resolve(process.cwd(), '.dockerignore'), 'utf8');
 const { getBrandAsset } = await import('../public/brand-assets.js');
+
+assert.match(server, /'\.jpg': 'image\/jpeg'/, 'Static JPG artwork should use the image/jpeg MIME type.');
+assert.match(server, /max-age=604800, stale-while-revalidate=86400/, 'Static artwork should be browser-cacheable.');
+assert.match(server, /'content-length': data\.length/, 'Static assets should expose their byte length.');
+assert.match(js, /Telegram media cache/, 'System runtime should expose the Telegram file_id cache state.');
+assert.match(
+  dockerIgnore,
+  /^public\/brand\/catalog-artwork\/backgrounds$/m,
+  'Source artwork backgrounds should stay out of the production Docker image.'
+);
 
 for (const id of [
   'productSearch',

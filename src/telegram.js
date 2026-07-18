@@ -246,11 +246,15 @@ const KNOWN_BRAND_TEXT_EMOJI = new Map([
   ['discord', '🎮']
 ]);
 
-const CATEGORY_ICONS = new Map([
-  ['AI Accounts', UI_TEXT_EMOJI.ai],
-  ['Design Accounts', UI_TEXT_EMOJI.design],
-  ['Work & Cloud Accounts', UI_TEXT_EMOJI.work],
-  ['Social/MMO Accounts', UI_TEXT_EMOJI.social]
+const BRAND_NEWS_EMOJI_FALLBACKS = new Map([
+  ['figma', 'diamond']
+]);
+
+const CATEGORY_NEWS_EMOJI_KEYS = new Map([
+  ['AI Accounts', 'idea'],
+  ['Design Accounts', 'diamond'],
+  ['Work & Cloud Accounts', 'settings'],
+  ['Social/MMO Accounts', 'chat']
 ]);
 
 const FLOW_MOTION_BRANDS = new Map([
@@ -459,18 +463,23 @@ function brandCustomEmojiAlt(brand) {
 }
 
 function brandTextEmoji(brand) {
-  return brandCustomEmojiId(brand) && brandCustomEmojiAlt(brand)
-    ? brandCustomEmojiAlt(brand)
-    : bannerTextEmoji('kaito');
+  const customEmojiId = brandCustomEmojiId(brand);
+  const emoji = brandCustomEmojiAlt(brand);
+  if (customEmojiId && emoji) return emoji;
+
+  const newsKey = BRAND_NEWS_EMOJI_FALLBACKS.get(normalizeBrandKey(brand));
+  return NEWS_EMOJI[newsKey]?.emoji || bannerTextEmoji('kaito');
 }
 
 function brandTextEmojiCandidate(brand) {
   const customEmojiId = brandCustomEmojiId(brand);
   const emoji = brandCustomEmojiAlt(brand);
-  return customEmojiCandidate(
-    customEmojiId && emoji ? emoji : bannerTextEmoji('kaito'),
-    customEmojiId && emoji ? customEmojiId : bannerCustomEmojiId('kaito')
-  );
+  if (customEmojiId && emoji) return customEmojiCandidate(emoji, customEmojiId);
+
+  const newsKey = BRAND_NEWS_EMOJI_FALLBACKS.get(normalizeBrandKey(brand));
+  return newsKey
+    ? newsEmojiCandidate(newsKey)
+    : bannerCustomEmojiCandidate('kaito');
 }
 
 function defaultTextCustomEmojiCandidates() {
@@ -889,11 +898,8 @@ function genericKeyboardCustomEmojiId() {
 }
 
 function categoryKeyboardCustomEmojiId(category) {
-  const label = String(category || '');
-  if (/design|canva|capcut|figma/i.test(label)) return brandCustomEmojiId('Canva');
-  if (/cloud|work|workspace|mail/i.test(label)) return brandCustomEmojiId('Microsoft');
-  if (/social|mmo|telegram|tiktok|discord/i.test(label)) return bannerCustomEmojiId('mmo');
-  if (/ai/i.test(label)) return bannerCustomEmojiId('ai');
+  const newsKey = categoryNewsEmojiKey(category);
+  if (newsKey) return newsCustomEmojiId(newsKey);
   return sloganCustomEmojiId('catalog');
 }
 
@@ -1029,7 +1035,7 @@ function animatedKeyboardButton(fields, semantic = 'generic', preferredCustomEmo
 }
 
 function brandKeyboardButton(brand, fields) {
-  return animatedKeyboardButton(fields, 'brand', brandCustomEmojiId(brand));
+  return animatedKeyboardButton(fields, 'brand', brandTextEmojiCandidate(brand).customEmojiId);
 }
 
 function uiKeyboardButton(key, label, callbackData) {
@@ -1285,13 +1291,19 @@ function money(amount, currency = 'VND') {
 }
 
 function categoryIcon(category) {
-  const label = String(category || '');
-  if (CATEGORY_ICONS.has(label)) return CATEGORY_ICONS.get(label);
-  if (/design|canva|capcut|figma/i.test(label)) return UI_TEXT_EMOJI.design;
-  if (/cloud|work|workspace|mail/i.test(label)) return UI_TEXT_EMOJI.work;
-  if (/social|mmo|telegram|tiktok|discord/i.test(label)) return UI_TEXT_EMOJI.social;
-  if (/ai/i.test(label)) return UI_TEXT_EMOJI.ai;
+  const newsKey = categoryNewsEmojiKey(category);
+  if (newsKey) return NEWS_EMOJI[newsKey]?.emoji || SLOGAN_TEXT_EMOJI.catalog;
   return SLOGAN_TEXT_EMOJI.catalog;
+}
+
+function categoryNewsEmojiKey(category) {
+  const label = String(category || '');
+  if (CATEGORY_NEWS_EMOJI_KEYS.has(label)) return CATEGORY_NEWS_EMOJI_KEYS.get(label);
+  if (/design|canva|capcut|figma/i.test(label)) return 'diamond';
+  if (/cloud|work|workspace|mail/i.test(label)) return 'settings';
+  if (/social|mmo|telegram|tiktok|discord/i.test(label)) return 'chat';
+  if (/ai/i.test(label)) return 'idea';
+  return '';
 }
 
 function categoryLabel(category) {
@@ -1338,8 +1350,14 @@ function brandPackagesCustomEmojiCandidates(category, brand) {
 
 function productCustomEmojiCandidates(product) {
   const normalized = normalizePublicProduct(product);
+  const brandCandidate = brandTextEmojiCandidate(normalized.brand);
+  const productEmoji = String(normalized.emoji || '');
+  const productBrandCandidate = productEmoji && productEmoji === brandCandidate.emoji
+    ? customEmojiCandidate(productEmoji, brandCandidate.customEmojiId)
+    : null;
   return [
-    brandTextEmojiCandidate(normalized.brand),
+    brandCandidate,
+    ...(productBrandCandidate ? [productBrandCandidate] : []),
     newsEmojiCandidate('shopping-bag'),
     newsEmojiCandidate('info'),
     newsEmojiCandidate('settings'),

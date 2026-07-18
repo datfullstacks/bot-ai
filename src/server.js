@@ -193,15 +193,29 @@ async function serveStatic(pathname, res) {
 
   try {
     const data = await readFile(filePath);
+    const extension = extname(filePath).toLowerCase();
     const type = {
       '.html': 'text/html; charset=utf-8',
       '.css': 'text/css; charset=utf-8',
       '.js': 'application/javascript; charset=utf-8',
       '.svg': 'image/svg+xml',
       '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
       '.webm': 'video/webm'
-    }[extname(filePath)] || 'application/octet-stream';
-    res.writeHead(200, { 'content-type': type });
+    }[extension] || 'application/octet-stream';
+    const cacheControl = ['.svg', '.png', '.jpg', '.jpeg', '.webp', '.webm'].includes(extension)
+      ? 'public, max-age=604800, stale-while-revalidate=86400'
+      : extension === '.html'
+        ? 'no-cache'
+        : 'public, max-age=300, must-revalidate';
+    res.writeHead(200, {
+      'content-type': type,
+      'content-length': data.length,
+      'cache-control': cacheControl,
+      'x-content-type-options': 'nosniff'
+    });
     res.end(data);
   } catch {
     send(res, 404, 'Not found');

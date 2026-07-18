@@ -18,3 +18,4 @@ data/*.log
 data/*.out
 data/*.err
 docker-compose.yml
+public/brand/catalog-artwork/backgrounds

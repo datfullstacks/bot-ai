@@ -159,6 +159,9 @@ try {
   assert.equal(readiness.checks.some((check) => check.id === 'sepay_account_allowlist' && check.status === 'ok'), true);
   assert.equal(readiness.telegram.tokenConfigured, true);
   assert.equal(readiness.telegram.polling, true);
+  assert.equal(readiness.telegram.mediaFileIdCacheEnabled, true);
+  assert.equal(readiness.telegram.mediaFileIdCacheStore, 'memory');
+  assert.equal(readiness.telegram.mediaFileIdCacheTtlSeconds, 180 * 24 * 60 * 60);
   assert.equal(readiness.telegram.webhookSecretConfigured, true);
   assert.equal(readiness.telegramEmoji.enabled, true);
   assert.deepEqual(readiness.telegramEmoji.requiredPacks, emojiRegistry.DEFAULT_REQUIRED_EMOJI_PACKS);

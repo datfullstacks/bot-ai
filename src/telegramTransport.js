@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { config } from './config.js';
+import {
+  deleteTelegramPhotoFileId,
+  getTelegramPhotoFileId,
+  setTelegramPhotoFileId,
+  telegramPhotoCacheKey,
+  telegramPhotoFileId
+} from './telegramMediaCache.js';
 
 const rejectedCustomEmojiIds = new Set();
 const customEmojiCapabilityCooldownMs = normalizeCustomEmojiCapabilityCooldownMs(
@@ -131,11 +138,17 @@ export async function sendTelegramAnimation(chatId, animation, options = {}) {
 }
 
 export async function sendTelegramPhotoUrl(chatId, photoUrl, options = {}) {
-  if (!config.telegram.token || !photoUrl) return { skipped: true };
+  return sendTelegramPhotoReference(chatId, photoUrl, {
+    parse_mode: 'HTML',
+    ...options
+  });
+}
+
+async function sendTelegramPhotoReference(chatId, photo, options = {}) {
+  if (!config.telegram.token || !photo) return { skipped: true };
   const sanitized = sanitizeTelegramOptions({
     chat_id: chatId,
-    photo: photoUrl,
-    parse_mode: 'HTML',
+    photo,
     ...options
   }, 'caption');
   const payload = applyKnownCustomEmojiFallbacks(
@@ -154,6 +167,17 @@ export async function sendTelegramPhotoUrl(chatId, photoUrl, options = {}) {
 export async function sendTelegramPhotoFile(chatId, photoPath, options = {}) {
   if (!config.telegram.token || !photoPath) return { skipped: true };
   const photoBytes = readFileSync(photoPath);
+  const cacheKey = telegramPhotoCacheKey(photoBytes);
+  const cachedFileId = await getTelegramPhotoFileId(cacheKey);
+  if (cachedFileId) {
+    try {
+      return await sendTelegramPhotoReference(chatId, cachedFileId, options);
+    } catch (error) {
+      if (!isInvalidTelegramPhotoReference(error)) throw error;
+      await deleteTelegramPhotoFileId(cacheKey);
+    }
+  }
+
   const sanitized = sanitizeTelegramOptions(options, 'caption');
   let currentOptions = applyKnownCustomEmojiFallbacks(
     sanitized,
@@ -167,7 +191,11 @@ export async function sendTelegramPhotoFile(chatId, photoPath, options = {}) {
       method: 'POST',
       body: form
     });
-    if (response.ok) return response.json();
+    if (response.ok) {
+      const result = await response.json();
+      await setTelegramPhotoFileId(cacheKey, telegramPhotoFileId(result));
+      return result;
+    }
 
     const body = await response.text();
     const error = new Error(`Telegram sendPhoto failed: ${response.status} ${body}`);
@@ -187,6 +215,17 @@ export async function sendTelegramPhotoFile(chatId, photoPath, options = {}) {
 export async function editTelegramPhotoFile(chatId, messageId, photoPath, options = {}) {
   if (!config.telegram.token || !messageId || !photoPath) return { skipped: true };
   const photoBytes = readFileSync(photoPath);
+  const cacheKey = telegramPhotoCacheKey(photoBytes);
+  const cachedFileId = await getTelegramPhotoFileId(cacheKey);
+  if (cachedFileId) {
+    try {
+      return await editTelegramPhotoReference(chatId, messageId, cachedFileId, options);
+    } catch (error) {
+      if (!isInvalidTelegramPhotoReference(error)) throw error;
+      await deleteTelegramPhotoFileId(cacheKey);
+    }
+  }
+
   const sanitized = sanitizeTelegramOptions(options, 'caption');
   let currentOptions = applyKnownCustomEmojiFallbacks(
     sanitized,
@@ -200,7 +239,11 @@ export async function editTelegramPhotoFile(chatId, messageId, photoPath, option
       method: 'POST',
       body: form
     });
-    if (response.ok) return response.json();
+    if (response.ok) {
+      const result = await response.json();
+      await setTelegramPhotoFileId(cacheKey, telegramPhotoFileId(result));
+      return result;
+    }
 
     const body = await response.text();
     if (/message is not modified/i.test(body)) return { ok: true, notModified: true };
@@ -215,6 +258,36 @@ export async function editTelegramPhotoFile(chatId, messageId, photoPath, option
     );
     if (!fallback) throw error;
     currentOptions = fallback;
+  }
+}
+
+async function editTelegramPhotoReference(chatId, messageId, photo, options = {}) {
+  const sanitized = sanitizeTelegramOptions(options, 'caption');
+  let currentOptions = applyKnownCustomEmojiFallbacks(
+    sanitized,
+    'caption_entities',
+    (current) => fallbackPhotoOptions(current, options)
+  );
+
+  while (true) {
+    try {
+      return await telegramJson(
+        'editMessageMedia',
+        buildTelegramEditPhotoReferencePayload(chatId, messageId, photo, currentOptions)
+      );
+    } catch (error) {
+      if (/message is not modified/i.test(`${error.message || ''} ${error.body || ''}`)) {
+        return { ok: true, notModified: true };
+      }
+      const fallback = nextCustomEmojiFallback(
+        error,
+        currentOptions,
+        'caption_entities',
+        (current) => fallbackPhotoOptions(current, options)
+      );
+      if (!fallback) throw error;
+      currentOptions = fallback;
+    }
   }
 }
 
@@ -290,6 +363,34 @@ function buildTelegramEditPhotoForm(chatId, messageId, photoPath, photoBytes, op
   }
   form.append('media', JSON.stringify(media));
   return form;
+}
+
+function buildTelegramEditPhotoReferencePayload(chatId, messageId, photo, options = {}) {
+  const payload = {
+    chat_id: chatId,
+    message_id: messageId
+  };
+  const media = { type: 'photo', media: photo };
+  const mediaOptionKeys = new Set([
+    'caption',
+    'parse_mode',
+    'caption_entities',
+    'show_caption_above_media',
+    'has_spoiler'
+  ]);
+  for (const [key, value] of Object.entries(options)) {
+    if (key.startsWith('_')) continue;
+    if (value === undefined || value === null || value === '') continue;
+    if (mediaOptionKeys.has(key)) media[key] = value;
+    else payload[key] = value;
+  }
+  payload.media = media;
+  return payload;
+}
+
+function isInvalidTelegramPhotoReference(error) {
+  const details = `${error?.message || ''} ${error?.body || ''}`;
+  return /wrong (?:remote )?file (?:id|identifier)|file[_ ](?:id|reference)[_ ](?:invalid|expired)|PHOTO_INVALID|failed to get HTTP URL content/i.test(details);
 }
 
 function photoContentType(photoPath) {
