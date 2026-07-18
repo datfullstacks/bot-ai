@@ -52,12 +52,17 @@ try {
 
   const code = await shop.createDiscountCode(actorId, {
     code: 'ONCE-20K',
+    campaignName: 'Launch campaign',
+    internalNote: 'Private operations note',
     type: 'fixed',
     value: 20000,
     minOrderTotal: 50000
   });
   assert.equal(code.usageLimit, 1);
   assert.equal(code.usedAt, null);
+  assert.equal(code.campaignName, 'Launch campaign');
+  assert.equal(code.internalNote, 'Private operations note');
+  assert.equal(code.createdBy, actorId);
 
   const preview = await shop.previewDiscountForUser(firstUser, product.id, 1, { discountCode: 'once-20k' });
   assert.equal(preview.subtotal, 100000);
@@ -71,6 +76,9 @@ try {
   assert.equal(firstCheckout.order.subtotal, 100000);
   assert.equal(firstCheckout.order.total, 80000);
   assert.equal(firstCheckout.payment.amount, 80000);
+  const reservedCode = (await shop.listDiscountCodes()).find((item) => item.id === code.id);
+  assert.equal(reservedCode.reservedByUserId, firstUser.id);
+  assert.ok(reservedCode.reservedAt);
   await assert.rejects(
     () => shop.previewDiscountForUser(secondUser, product.id, 1, { discountCode: 'ONCE-20K' }),
     (error) => error.code === 'discount_reserved'
@@ -86,6 +94,7 @@ try {
 
   const usedCode = (await shop.listDiscountCodes()).find((item) => item.id === code.id);
   assert.equal(usedCode.usedByOrderId, secondCheckout.order.id);
+  assert.equal(usedCode.usedByUserId, secondUser.id);
   assert.ok(usedCode.usedAt);
   assert.equal(usedCode.reservedByOrderId, null);
   await assert.rejects(
@@ -112,7 +121,8 @@ try {
   const releasedCode = (await shop.listDiscountCodes()).find((item) => item.id === expiringCode.id);
   assert.equal(releasedCode.reservedByOrderId, null);
 
-  await shop.updateDiscountCode(actorId, expiringCode.id, { active: false });
+  const lockedCode = await shop.updateDiscountCode(actorId, expiringCode.id, { active: false });
+  assert.equal(lockedCode.updatedBy, actorId);
   await assert.rejects(
     () => shop.previewDiscountForUser(firstUser, product.id, 1, { discountCode: expiringCode.code }),
     (error) => error.code === 'discount_not_active'

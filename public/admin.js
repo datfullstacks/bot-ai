@@ -7,9 +7,14 @@ const state = {
   productBrand: 'all',
   productStatus: 'all',
   productSort: 'priority',
+  productCreateDirty: false,
+  productSkuManual: false,
   dashboardAnalytics: null,
   dashboardRangeDays: 14,
   discountCodes: [],
+  discountSearch: '',
+  discountStatus: 'all',
+  expandedDiscountId: '',
   telegramPricing: { basePriceList: { id: 'base', prices: {} }, priceLists: [], users: [] },
   telegramPricingUsername: '',
   orderStatus: 'all',
@@ -114,7 +119,129 @@ function setProductCreateOpen(open) {
   toggle.setAttribute('aria-expanded', String(expanded));
   content.classList.toggle('hidden', !expanded);
   $('#productForm')?.classList.toggle('is-open', expanded);
-  if (expanded) closeProductEditors();
+  if (expanded) {
+    closeProductEditors();
+    renderProductCreateExperience();
+  }
+}
+
+function productSkuSlug(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+    .replace(/-+$/g, '');
+}
+
+function productCreateFormData() {
+  const form = $('#productForm');
+  return form ? Object.fromEntries(new FormData(form).entries()) : {};
+}
+
+function generateProductSku(force = false) {
+  const form = $('#productForm');
+  const skuInput = $('#productSkuInput');
+  if (!form || !skuInput || (state.productSkuManual && !force)) return;
+  const brand = productSkuSlug(form.elements.brand?.value);
+  const detail = productSkuSlug(form.elements.packageType?.value || form.elements.name?.value);
+  const generated = detail && (detail === brand || detail.startsWith(`${brand}-`))
+    ? detail
+    : [brand, detail].filter(Boolean).join('-');
+  skuInput.value = generated;
+  state.productSkuManual = false;
+}
+
+function productSeatProviderLabel(data = {}) {
+  const source = `${data.brand || ''} ${data.sku || ''}`.toLowerCase();
+  if (source.includes('chatgpt') || source.includes('openai')) return 'ChatGPT';
+  if (source.includes('canva')) return 'Canva';
+  if (source.includes('claude') || source.includes('anthropic')) return 'Claude';
+  return 'Provider sẽ được xác định từ thương hiệu hoặc SKU';
+}
+
+function renderProductCreateExperience() {
+  const form = $('#productForm');
+  if (!form) return;
+  const data = productCreateFormData();
+  const seatEmail = data.fulfillmentMode === 'seat_email';
+  const required = [
+    ['category', 'Danh mục', String(data.category || '').trim()],
+    ['brand', 'Thương hiệu', String(data.brand || '').trim()],
+    ['name', 'Tên hiển thị', String(data.name || '').trim()],
+    ['sku', 'SKU', String(data.sku || '').trim()],
+    ['price', 'Giá bán', Number(data.price || 0) > 0]
+  ];
+  const completed = required.filter(([, , value]) => Boolean(value)).length;
+  const progress = Math.round((completed / required.length) * 100);
+
+  $$('[data-product-inventory-fields]').forEach((element) => element.classList.toggle('hidden', seatEmail));
+  $$('[data-product-seat-fields]').forEach((element) => element.classList.toggle('hidden', !seatEmail));
+  const deliveryMode = form.elements.deliveryMode;
+  const seatTermMonths = form.elements.seatTermMonths;
+  if (deliveryMode) deliveryMode.disabled = seatEmail;
+  if (seatTermMonths) seatTermMonths.disabled = !seatEmail;
+  $$('.product-mode-option').forEach((option) => {
+    option.classList.toggle('is-selected', option.querySelector('input')?.checked === true);
+  });
+  $$('[data-product-seat-term]').forEach((button) => {
+    button.classList.toggle('active', Number(button.dataset.productSeatTerm) === Number(seatTermMonths?.value || 1));
+  });
+
+  $('#productCreateProgressLabel').textContent = `${completed}/${required.length} hoàn tất`;
+  const progressTrack = $('.product-progress-track');
+  progressTrack?.setAttribute('aria-valuenow', String(completed));
+  $('#productCreateProgressBar').style.width = `${progress}%`;
+  $('#productCreateChecklist').innerHTML = required.map(([key, label, value]) => `
+    <span class="${value ? 'is-complete' : ''}" data-product-check="${escapeHtml(key)}">
+      ${icon(value ? 'circle-check' : 'circle', 'inline-icon')}<span>${escapeHtml(label)}</span>
+    </span>
+  `).join('');
+
+  const brand = String(data.brand || '').trim() || 'Thương hiệu';
+  const productName = String(data.name || '').trim() || 'Tên sản phẩm sẽ hiển thị ở đây';
+  const sku = String(data.sku || '').trim() || 'sku-tu-dong';
+  const description = String(data.description || '').trim() || 'Thêm mô tả ngắn để khách hàng hiểu nhanh quyền lợi sản phẩm.';
+  const fulfillmentLabel = seatEmail
+    ? `Seat qua email · ${Number(data.seatTermMonths || 1)} tháng`
+    : `Từ kho · ${data.deliveryMode === 'file' ? 'Tệp TXT' : 'Tin nhắn'}`;
+  $('#productCreatePreview').innerHTML = `
+    <div class="product-preview-head">
+      <span class="product-preview-brand">${brandLogo(brand, 'product-preview-logo')}</span>
+      <span class="badge ${seatEmail ? 'processing' : 'available'}">${escapeHtml(seatEmail ? 'Seat email' : 'Inventory')}</span>
+    </div>
+    <span class="product-preview-eyebrow">Xem trước catalog</span>
+    <h4>${escapeHtml(productName)}</h4>
+    <code>${escapeHtml(sku)}</code>
+    <p>${escapeHtml(description)}</p>
+    <div class="product-preview-meta"><span>${icon('tag', 'inline-icon')}${escapeHtml(data.category || 'AI Accounts')}</span><span>${icon(seatEmail ? 'mail-check' : 'warehouse', 'inline-icon')}${escapeHtml(fulfillmentLabel)}</span></div>
+    <div class="product-preview-price"><span>Giá bán</span><strong>${escapeHtml(money(Number(data.price || 0), data.currency || 'VND'))}</strong></div>
+  `;
+  $('#productDescriptionCount').textContent = `${String(data.description || '').length}/320`;
+  $('#productPriceCurrencySuffix').textContent = data.currency || 'VND';
+  $('#productSeatProviderHint').textContent = seatEmail
+    ? `${productSeatProviderLabel(data)} · thời hạn ${Number(data.seatTermMonths || 1)} tháng.`
+    : 'Provider được xác định từ thương hiệu hoặc SKU.';
+  $('#productCreateDraftStatus').innerHTML = `${icon(state.productCreateDirty ? 'circle-dot-dashed' : 'circle-dot', 'inline-icon')}<span>${state.productCreateDirty ? 'Bản nháp chưa lưu' : 'Chưa chỉnh sửa'}</span>`;
+  $('#productCreateDraftStatus').classList.toggle('is-dirty', state.productCreateDirty);
+  $('#productCreateToggleMeta').textContent = state.productCreateDirty
+    ? `Bản nháp chưa lưu · ${completed}/${required.length} trường bắt buộc`
+    : 'Thiết lập thông tin bán và cách giao hàng';
+  refreshIcons();
+}
+
+function resetProductCreateForm() {
+  const form = $('#productForm');
+  if (!form) return;
+  form.reset();
+  state.productCreateDirty = false;
+  state.productSkuManual = false;
+  $('#productCreateError').classList.add('hidden');
+  $('#productCreateError').textContent = '';
+  renderProductCreateExperience();
 }
 
 function closeProductEditors(exceptId = '') {
@@ -316,6 +443,12 @@ function seatGuardValues(value) {
 function seatGuardCount(value) {
   const count = Number(value || 0);
   return Number.isFinite(count) ? Math.max(0, count) : 0;
+}
+
+function seatGuardOptionalCount(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const count = Number(value);
+  return Number.isInteger(count) && count >= 0 ? count : null;
 }
 
 function seatGuardDate(value) {
@@ -528,11 +661,21 @@ function renderSeatGuardSummary(summary = {}) {
   for (const [id, value] of Object.entries(values)) {
     $(`#${id}`).textContent = seatGuardCount(value).toLocaleString('vi-VN');
   }
+  const usedSlots = seatGuardOptionalCount(summary.usedSlots) ?? 0;
+  const maxMembers = seatGuardOptionalCount(summary.maxMembers);
+  const remainingSlots = seatGuardOptionalCount(summary.remainingSlots);
+  $('#seatGuardCapacityCount').textContent = maxMembers === null
+    ? `${usedSlots.toLocaleString('vi-VN')} / ?`
+    : `${usedSlots.toLocaleString('vi-VN')} / ${maxMembers.toLocaleString('vi-VN')}`;
+  $('#seatGuardRemainingCount').textContent = remainingSlots === null
+    ? '-'
+    : remainingSlots.toLocaleString('vi-VN');
 }
 
 function renderSeatGuardConnection(data = {}) {
   const capabilities = data.capabilities || {};
   const expiry = data.expiryAutomation || {};
+  const capacity = data.capacity || {};
   const status = data.configured ? (capabilities.canRead ? 'ok' : 'warn') : 'warn';
   const title = data.configured
     ? capabilities.canRead ? 'Đã kết nối' : 'Đã cấu hình nhưng thiếu quyền đọc thành viên'
@@ -544,6 +687,27 @@ function renderSeatGuardConnection(data = {}) {
       : expiry.storageReason === 'database_pool_too_small'
         ? `Bị chặn: DATABASE_POOL_MAX tối thiểu ${Number(expiry.requiredDatabasePoolMax || 0)}`
         : 'Bị chặn: cần PostgreSQL row mode';
+  const usedSlots = seatGuardOptionalCount(capacity.usedSlots) ?? 0;
+  const maxMembers = seatGuardOptionalCount(capacity.maxMembers);
+  const remainingSlots = seatGuardOptionalCount(capacity.remainingSlots);
+  const utilization = seatGuardOptionalCount(capacity.utilizationPercent);
+  const progressWidth = Math.min(100, utilization ?? 0);
+  const capacityTone = capacity.atLimit ? 'danger' : (utilization !== null && utilization >= 80 ? 'warning' : 'ok');
+  const capacityMarkup = maxMembers === null ? `
+    <div class="seat-guard-capacity unknown">
+      <div><strong>Giới hạn thành viên chưa được member-service trả về</strong><span>Đang ghi nhận ${usedSlots.toLocaleString('vi-VN')} slot đã dùng.</span></div>
+    </div>
+  ` : `
+    <div class="seat-guard-capacity ${capacityTone}">
+      <div class="seat-guard-capacity-head">
+        <span><strong>Sức chứa workspace</strong>${usedSlots.toLocaleString('vi-VN')} / ${maxMembers.toLocaleString('vi-VN')} slot đã dùng</span>
+        <span><strong>${remainingSlots === null ? '-' : remainingSlots.toLocaleString('vi-VN')}</strong> slot còn trống · ${utilization ?? 0}%</span>
+      </div>
+      <div class="seat-guard-capacity-track" role="progressbar" aria-label="Mức sử dụng Seat" aria-valuemin="0" aria-valuemax="${maxMembers}" aria-valuenow="${Math.min(maxMembers, usedSlots)}">
+        <span style="width: ${progressWidth}%"></span>
+      </div>
+    </div>
+  `;
   $('#seatGuardConnection').innerHTML = `
     <div class="seat-guard-connection-head">
       <span class="status-dot ${status}">${escapeHtml(title)}</span>
@@ -555,6 +719,7 @@ function renderSeatGuardConnection(data = {}) {
       <span><strong>Hết hạn 30 ngày · 30-day expiry</strong>${escapeHtml(expiryStatus)}</span>
       <span><strong>Khả năng · Capabilities</strong>Đọc ${capabilities.canRead ? 'có' : 'không'} · Xóa ${capabilities.canRemove ? 'có' : 'không'}</span>
     </div>
+    ${capacityMarkup}
   `;
 }
 
@@ -1142,43 +1307,197 @@ function discountValueLabel(discount) {
     : money(discount.value, 'VND');
 }
 
+function discountDate(value, fallback = '-') {
+  if (!value) return fallback;
+  const timestamp = Date.parse(String(value));
+  return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString('vi-VN') : fallback;
+}
+
+function filteredDiscountCodes() {
+  const query = state.discountSearch.trim().toLowerCase();
+  return state.discountCodes.filter((discount) => {
+    const status = discountDisplayState(discount).key;
+    const statusMatch = state.discountStatus === 'all'
+      || status === state.discountStatus
+      || (state.discountStatus === 'unavailable' && ['expired', 'inactive'].includes(status));
+    if (!statusMatch) return false;
+    if (!query) return true;
+    return [
+      discount.code,
+      discount.campaignName,
+      discount.internalNote,
+      discount.reservedByOrderId,
+      discount.reservedByUserId,
+      discount.usedByOrderId,
+      discount.usedByUserId,
+      discount.createdBy,
+      status
+    ].some((value) => String(value || '').toLowerCase().includes(query));
+  });
+}
+
+function renderDiscountMetrics() {
+  const counts = { active: 0, reserved: 0, used: 0, unavailable: 0 };
+  for (const discount of state.discountCodes) {
+    const status = discountDisplayState(discount).key;
+    if (counts[status] !== undefined) counts[status] += 1;
+    if (['expired', 'inactive'].includes(status)) counts.unavailable += 1;
+  }
+  $('#discountMetricTotal').textContent = state.discountCodes.length.toLocaleString('vi-VN');
+  $('#discountMetricActive').textContent = counts.active.toLocaleString('vi-VN');
+  $('#discountMetricReserved').textContent = counts.reserved.toLocaleString('vi-VN');
+  $('#discountMetricUsed').textContent = counts.used.toLocaleString('vi-VN');
+  $('#discountMetricUnavailable').textContent = counts.unavailable.toLocaleString('vi-VN');
+  $$('[data-discount-status]').forEach((button) => {
+    const active = button.dataset.discountStatus === state.discountStatus;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
+function discountUsageMarkup(discount, status) {
+  if (status.key === 'used') {
+    return `
+      <strong>${escapeHtml(discount.usedByOrderId || 'Không rõ đơn')}</strong>
+      <span>User: ${escapeHtml(discount.usedByUserId || '-')}</span>
+      <span>${escapeHtml(discountDate(discount.usedAt))}</span>
+    `;
+  }
+  if (status.key === 'reserved') {
+    return `
+      <strong>${escapeHtml(discount.reservedByOrderId || 'Đơn đang giữ')}</strong>
+      <span>User: ${escapeHtml(discount.reservedByUserId || '-')}</span>
+      <span>Giữ đến ${escapeHtml(discountDate(discount.reservedUntil))}</span>
+    `;
+  }
+  return '<strong>0 / 1 lượt</strong><span>Chưa sử dụng</span>';
+}
+
+function discountDetailMarkup(discount, status) {
+  const expiry = discount.expiresAt ? discountDate(discount.expiresAt) : 'Không giới hạn';
+  const lifecycle = status.key === 'used'
+    ? `Đã thanh toán đơn ${discount.usedByOrderId || '-'} lúc ${discountDate(discount.usedAt)}`
+    : status.key === 'reserved'
+      ? `Đang giữ cho đơn ${discount.reservedByOrderId || '-'} từ ${discountDate(discount.reservedAt)} đến ${discountDate(discount.reservedUntil)}`
+      : status.key === 'expired'
+        ? `Mã hết hạn lúc ${expiry}`
+        : status.key === 'inactive'
+          ? 'Mã đã được Admin khóa thủ công'
+          : 'Mã sẵn sàng cho một đơn hàng hợp lệ';
+  return `
+    <div class="discount-detail-grid">
+      <span><strong>Chiến dịch</strong>${escapeHtml(discount.campaignName || 'Không đặt tên')}</span>
+      <span><strong>Phạm vi</strong>Tất cả sản phẩm · 1 đơn duy nhất</span>
+      <span><strong>Điều kiện đơn</strong>${escapeHtml(discount.minOrderTotal ? `Tối thiểu ${money(discount.minOrderTotal)}` : 'Không yêu cầu tối thiểu')}</span>
+      <span><strong>Thời hạn</strong>${escapeHtml(expiry)}</span>
+      <span><strong>Người tạo</strong>${escapeHtml(discount.createdBy || '-')} · ${escapeHtml(discountDate(discount.createdAt))}</span>
+      <span><strong>Cập nhật dữ liệu</strong>${escapeHtml(discountDate(discount.updatedAt))} · Admin gần nhất: ${escapeHtml(discount.updatedBy || '-')}</span>
+    </div>
+    <div class="discount-lifecycle-note">${icon('route', 'inline-icon')}<span>${escapeHtml(lifecycle)}</span></div>
+    ${discount.internalNote ? `<div class="discount-internal-note"><strong>Ghi chú nội bộ</strong><span>${escapeHtml(discount.internalNote)}</span></div>` : ''}
+  `;
+}
+
 function renderDiscountCodes(discounts = state.discountCodes) {
   state.discountCodes = Array.isArray(discounts) ? discounts : [];
-  $('#discountCodeCount').textContent = `${state.discountCodes.length} mã`;
-  $('#discountCodesList').innerHTML = state.discountCodes.length ? `
+  const filtered = filteredDiscountCodes();
+  renderDiscountMetrics();
+  $('#discountCodeCount').textContent = `${filtered.length}/${state.discountCodes.length} mã`;
+  $('#discountFilterSummary').textContent = state.discountCodes.length
+    ? `Hiển thị ${filtered.length}/${state.discountCodes.length} mã · Sắp xếp mới nhất trước`
+    : 'Theo dõi mã khả dụng, đang giữ và đã sử dụng.';
+  $('#discountStatusFilter').value = state.discountStatus;
+  $('#discountSearch').value = state.discountSearch;
+  $('#discountFilterReset').disabled = state.discountStatus === 'all' && !state.discountSearch;
+  $('#discountCodesList').innerHTML = filtered.length ? `
     <div class="table-wrap">
       <table class="data-table responsive-table discount-table">
         <thead>
-          <tr><th>Mã</th><th>Mức giảm</th><th>Điều kiện</th><th>Trạng thái</th><th>Sử dụng</th><th>Hành động</th></tr>
+          <tr><th>Mã / chiến dịch</th><th>Mức giảm</th><th>Điều kiện</th><th>Trạng thái</th><th>Sử dụng</th><th>Hành động</th></tr>
         </thead>
         <tbody>
-          ${state.discountCodes.map((discount) => {
+          ${filtered.map((discount) => {
             const status = discountDisplayState(discount);
             const expiry = discount.expiresAt
-              ? new Date(discount.expiresAt).toLocaleString('vi-VN')
+              ? discountDate(discount.expiresAt)
               : 'Không giới hạn';
+            const expanded = state.expandedDiscountId === discount.id;
+            const immutable = ['used', 'expired'].includes(status.key);
             return `
               <tr class="discount-row status-${escapeHtml(status.key)}">
-                <td data-label="Mã"><code class="discount-code-token">${escapeHtml(discount.code)}</code><span>Tạo ${escapeHtml(new Date(discount.createdAt).toLocaleString('vi-VN'))}</span></td>
+                <td data-label="Mã / chiến dịch"><code class="discount-code-token">${escapeHtml(discount.code)}</code><strong>${escapeHtml(discount.campaignName || 'Không đặt tên chiến dịch')}</strong><span>Tạo ${escapeHtml(discountDate(discount.createdAt))}</span></td>
                 <td data-label="Mức giảm"><strong>${escapeHtml(discountValueLabel(discount))}</strong><span>Dùng 1 lần</span></td>
                 <td data-label="Điều kiện"><strong>${escapeHtml(discount.minOrderTotal ? `Từ ${money(discount.minOrderTotal)}` : 'Không tối thiểu')}</strong><span>Hết hạn: ${escapeHtml(expiry)}</span></td>
                 <td data-label="Trạng thái">${renderStatusPill(status.badge, status.label)}</td>
-                <td data-label="Sử dụng">${status.key === 'used'
-                  ? `<strong>${escapeHtml(discount.usedByOrderId)}</strong><span>${escapeHtml(new Date(discount.usedAt).toLocaleString('vi-VN'))}</span>`
-                  : status.key === 'reserved'
-                    ? `<strong>${escapeHtml(discount.reservedByOrderId)}</strong><span>Giữ đến ${escapeHtml(new Date(discount.reservedUntil).toLocaleString('vi-VN'))}</span>`
-                    : '<span>Chưa sử dụng</span>'}</td>
-                <td data-label="Hành động">${status.key === 'used'
-                  ? '<span class="meta">Đã hoàn tất</span>'
-                  : `<button class="small secondary" data-action="toggle-discount-code" data-id="${escapeHtml(discount.id)}" data-active="${discount.active !== false}">${icon(discount.active !== false ? 'lock-keyhole' : 'lock-keyhole-open')}<span>${discount.active !== false ? 'Khóa mã' : 'Mở mã'}</span></button>`}</td>
+                <td data-label="Sử dụng">${discountUsageMarkup(discount, status)}</td>
+                <td data-label="Hành động"><div class="discount-row-actions">
+                  <button class="small secondary icon-button" data-action="copy-discount-code" data-code="${escapeHtml(discount.code)}">${icon('copy')}<span>Sao chép</span></button>
+                  <button class="small secondary icon-button" data-action="toggle-discount-detail" data-id="${escapeHtml(discount.id)}" aria-expanded="${expanded}">${icon(expanded ? 'chevron-up' : 'chevron-down')}<span>Chi tiết</span></button>
+                  ${immutable ? '' : `<button class="small secondary icon-button" data-action="toggle-discount-code" data-id="${escapeHtml(discount.id)}" data-active="${discount.active !== false}">${icon(discount.active !== false ? 'lock-keyhole' : 'lock-keyhole-open')}<span>${discount.active !== false ? 'Khóa' : 'Mở'}</span></button>`}
+                </div></td>
               </tr>
+              ${expanded ? `<tr class="discount-detail-row"><td colspan="6">${discountDetailMarkup(discount, status)}</td></tr>` : ''}
             `;
           }).join('')}
         </tbody>
       </table>
     </div>
-  ` : '<p class="meta empty-state">Chưa có mã giảm giá. Tạo mã đầu tiên để dùng trong Telegram checkout.</p>';
+  ` : `<p class="meta empty-state">${state.discountCodes.length ? 'Không có mã phù hợp bộ lọc hiện tại.' : 'Chưa có mã giảm giá. Tạo mã đầu tiên để dùng trong Telegram checkout.'}</p>`;
   refreshIcons();
+}
+
+function renderDiscountFormPreview() {
+  const form = $('#discountForm');
+  const data = Object.fromEntries(new FormData(form).entries());
+  const code = String(data.code || '').trim().toUpperCase() || 'MA-GIAM-GIA';
+  const value = Number(data.value || 0);
+  const minimum = Number(data.minOrderTotal || 0);
+  const valueLabel = value > 0
+    ? discountValueLabel({ type: data.type, value })
+    : 'Chưa nhập mức giảm';
+  const condition = minimum > 0 ? `Đơn từ ${money(minimum)}` : 'Không yêu cầu đơn tối thiểu';
+  const expiryTimestamp = Date.parse(String(data.expiresAt || ''));
+  const expiry = Number.isFinite(expiryTimestamp)
+    ? discountDate(new Date(expiryTimestamp).toISOString())
+    : 'Không hết hạn';
+  let example = 'Mã chỉ được dùng cho một đơn thanh toán thành công.';
+  if (value > 0 && data.type === 'percent' && minimum > 0) {
+    example = `Ví dụ ở mức đơn tối thiểu: giảm ${money(Math.floor(minimum * value / 100))}.`;
+  } else if (value > 0 && data.type === 'fixed' && minimum > 0 && value >= minimum) {
+    example = 'Lưu ý: tổng đơn thực tế phải lớn hơn số tiền giảm.';
+  }
+  $('#discountFormPreview').innerHTML = `
+    <span class="discount-preview-code">${escapeHtml(code)}</span>
+    <strong>${escapeHtml(valueLabel)} · ${escapeHtml(condition)}</strong>
+    <span>${escapeHtml(expiry)} · ${escapeHtml(example)}</span>
+  `;
+}
+
+function discountExpiryInputValue(days) {
+  const date = new Date(Date.now() + (Number(days) * 24 * 60 * 60_000));
+  const local = new Date(date.getTime() - (date.getTimezoneOffset() * 60_000));
+  return local.toISOString().slice(0, 16);
+}
+
+async function copyDiscountCode(code) {
+  const value = String(code || '').trim();
+  if (!value) return;
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch { }
+  }
+  const input = document.createElement('textarea');
+  input.value = value;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw new Error('Copy command was rejected');
 }
 
 function compactNumber(value) {
@@ -1769,6 +2088,56 @@ $('#productCreateToggle').addEventListener('click', (event) => {
   setProductCreateOpen(event.currentTarget.getAttribute('aria-expanded') !== 'true');
 });
 
+const productForm = $('#productForm');
+productForm.addEventListener('input', (event) => {
+  state.productCreateDirty = true;
+  if (event.target === $('#productSkuInput')) {
+    state.productSkuManual = Boolean(event.target.value.trim());
+  } else if (['brand', 'packageType', 'name'].includes(event.target.name)) {
+    generateProductSku();
+  }
+  $('#productCreateError').classList.add('hidden');
+  renderProductCreateExperience();
+});
+
+productForm.addEventListener('change', () => {
+  state.productCreateDirty = true;
+  renderProductCreateExperience();
+});
+
+productForm.addEventListener('invalid', () => {
+  const missing = [...productForm.querySelectorAll(':invalid')];
+  const error = $('#productCreateError');
+  error.textContent = `Còn ${missing.length} trường bắt buộc hoặc chưa hợp lệ. Kiểm tra các trường được trình duyệt đánh dấu.`;
+  error.classList.remove('hidden');
+  renderProductCreateExperience();
+}, true);
+
+$('#productSkuGenerate').addEventListener('click', () => {
+  state.productCreateDirty = true;
+  generateProductSku(true);
+  renderProductCreateExperience();
+  $('#productSkuInput').focus();
+});
+
+$$('[data-product-seat-term]').forEach((button) => {
+  button.addEventListener('click', () => {
+    productForm.elements.seatTermMonths.value = button.dataset.productSeatTerm;
+    state.productCreateDirty = true;
+    renderProductCreateExperience();
+  });
+});
+
+$('#productCreateReset').addEventListener('click', () => {
+  resetProductCreateForm();
+  productForm.elements.brand.focus();
+});
+
+$('#productCreateClose').addEventListener('click', () => {
+  setProductCreateOpen(false);
+  $('#productCreateToggle').focus();
+});
+
 $$('[data-dashboard-range]').forEach((button) => {
   button.addEventListener('click', () => {
     state.dashboardRangeDays = Number(button.dataset.dashboardRange || 14);
@@ -1850,6 +2219,7 @@ $('#discountGenerateBtn').addEventListener('click', () => {
   const suffix = Array.from(bytes, (value) => alphabet[value % alphabet.length]).join('');
   $('#discountCodeInput').value = `KAITO-${suffix}`;
   $('#discountCodeInput').focus();
+  renderDiscountFormPreview();
 });
 
 $('#discountForm select[name="type"]').addEventListener('change', (event) => {
@@ -1858,6 +2228,42 @@ $('#discountForm select[name="type"]').addEventListener('change', (event) => {
   if (percent) valueInput.setAttribute('max', '99');
   else valueInput.removeAttribute('max');
   valueInput.placeholder = percent ? '10' : '50000';
+  renderDiscountFormPreview();
+});
+
+$('#discountForm').addEventListener('input', renderDiscountFormPreview);
+
+$$('[data-discount-expiry-days]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const expiryInput = $('#discountForm input[name="expiresAt"]');
+    expiryInput.value = button.dataset.discountExpiryDays === 'none'
+      ? ''
+      : discountExpiryInputValue(button.dataset.discountExpiryDays);
+    renderDiscountFormPreview();
+  });
+});
+
+$$('[data-discount-status]').forEach((button) => {
+  button.addEventListener('click', () => {
+    state.discountStatus = button.dataset.discountStatus;
+    renderDiscountCodes();
+  });
+});
+
+$('#discountSearch').addEventListener('input', (event) => {
+  state.discountSearch = event.currentTarget.value;
+  renderDiscountCodes();
+});
+
+$('#discountStatusFilter').addEventListener('change', (event) => {
+  state.discountStatus = event.currentTarget.value;
+  renderDiscountCodes();
+});
+
+$('#discountFilterReset').addEventListener('click', () => {
+  state.discountSearch = '';
+  state.discountStatus = 'all';
+  renderDiscountCodes();
 });
 
 $('#discountForm').addEventListener('submit', async (event) => {
@@ -1876,6 +2282,7 @@ $('#discountForm').addEventListener('submit', async (event) => {
     form.reset();
     form.elements.value.removeAttribute('max');
     form.elements.value.placeholder = '50000';
+    renderDiscountFormPreview();
     await refresh();
     toast(`Đã tạo mã ${data.code}`);
   } catch (error) {
@@ -1966,16 +2373,22 @@ $('#productForm').addEventListener('submit', async (event) => {
   const submit = form.querySelector('button[type="submit"]');
   const data = Object.fromEntries(new FormData(form).entries());
   data.price = Number(data.price);
-  data.seatTermMonths = Number(data.seatTermMonths || 1);
+  if (data.fulfillmentMode === 'seat_email') data.seatTermMonths = Number(data.seatTermMonths || 1);
+  else delete data.seatTermMonths;
   data.hot = data.hot === 'true';
+  const errorMessage = $('#productCreateError');
+  errorMessage.textContent = '';
+  errorMessage.classList.add('hidden');
   setButtonBusy(submit, true);
   try {
     await api('/api/products', { method: 'POST', body: JSON.stringify(data) });
-    form.reset();
+    resetProductCreateForm();
     setProductCreateOpen(false);
     await refresh();
     toast('Đã tạo sản phẩm');
   } catch (error) {
+    errorMessage.textContent = `Không thể tạo sản phẩm: ${error.message}`;
+    errorMessage.classList.remove('hidden');
     toast(error.message);
   } finally {
     setButtonBusy(submit, false);
@@ -2090,6 +2503,20 @@ document.addEventListener('click', async (event) => {
   const { action, id } = target.dataset;
   if (action === 'toggle-product-editor') {
     toggleProductEditor(target);
+    return;
+  }
+  if (action === 'toggle-discount-detail') {
+    state.expandedDiscountId = state.expandedDiscountId === id ? '' : id;
+    renderDiscountCodes();
+    return;
+  }
+  if (action === 'copy-discount-code') {
+    try {
+      await copyDiscountCode(target.dataset.code);
+      toast(`Đã sao chép mã ${target.dataset.code}`);
+    } catch {
+      toast('Không thể sao chép mã tự động');
+    }
     return;
   }
   try {
@@ -2259,4 +2686,6 @@ document.addEventListener('click', async (event) => {
   }
 });
 
+renderDiscountFormPreview();
+renderProductCreateExperience();
 boot();

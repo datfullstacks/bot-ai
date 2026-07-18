@@ -246,7 +246,9 @@ route the 1x and 6.5x products to different Claude organizations.
 The admin dashboard includes **Seat Guard** for configured ChatGPT, Canva, and
 Claude targets. A provider switcher loads the matching member-service snapshot,
 compares members and pending invitations with paid Seat orders, and highlights
-unauthorized, expired, protected, or needs-review entries. ChatGPT's
+unauthorized, expired, protected, or needs-review entries. The overview shows
+used slots, the provider-reported member limit, remaining capacity, and current
+utilization. ChatGPT's
 `allowedMembers` list is operational state, not proof of payment: entries found
 only there are shown as **unverified allow-list** and can be reviewed manually.
 Owner/admin roles, locked members, and each provider's
@@ -360,6 +362,10 @@ percentage discount with an optional minimum order total and expiry. Each code
 can complete exactly one paid order. Checkout reserves the code until the order
 expires or is cancelled, then consumes it only after a matching payment succeeds.
 Both inventory and Seat-email Telegram checkout flows support entering a code.
+Admin metadata includes an internal campaign name and note, creator, reservation
+order/user, consumption order/user, timestamps, lifecycle status, KPI filters,
+search, copy action, and an expandable detail view. Discount rules remain
+immutable after creation; Admin can only lock or reopen an unused code.
 
 ## System Status
 

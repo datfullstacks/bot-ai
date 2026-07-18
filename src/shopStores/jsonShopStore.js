@@ -354,6 +354,8 @@ export async function createDiscountCode(actorId, input = {}) {
       usedByOrderId: null,
       usedByUserId: null,
       usedAt: null,
+      createdBy: actorId,
+      updatedBy: actorId,
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
@@ -375,6 +377,7 @@ export async function updateDiscountCode(actorId, discountId, input = {}) {
       throw Object.assign(new Error('Discount active state is required'), { statusCode: 400 });
     }
     discount.active = input.active === true;
+    discount.updatedBy = actorId;
     discount.updatedAt = nowIso();
     addAudit(db, actorId, discount.active ? 'discount.activate' : 'discount.deactivate', 'discount_code', discount.id, {
       code: discount.code

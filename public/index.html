@@ -195,56 +195,105 @@
             <form id="productForm" class="panel accordion-panel product-create-panel">
               <button id="productCreateToggle" class="accordion-toggle" type="button" aria-expanded="false" aria-controls="productCreateContent">
                 <span class="accordion-icon" data-lucide="package-plus" aria-hidden="true"></span>
-                <span class="accordion-heading"><strong>Tạo sản phẩm mới</strong><small>Thêm SKU, giá bán và quy trình giao hàng</small></span>
+                <span class="accordion-heading"><strong>Tạo sản phẩm mới</strong><small id="productCreateToggleMeta">Thiết lập thông tin bán và cách giao hàng</small></span>
                 <span class="accordion-chevron" data-lucide="chevron-down" aria-hidden="true"></span>
               </button>
               <div id="productCreateContent" class="accordion-content hidden">
-                <fieldset class="editor-section">
-                  <legend><span data-lucide="scan-line" aria-hidden="true"></span>Nhận diện sản phẩm</legend>
-                  <p>Thông tin dùng để tìm kiếm, phân nhóm và hiển thị trong catalog.</p>
-                  <div class="editor-grid create-editor-grid">
-                    <label>Danh mục · Category<input name="category" placeholder="AI Accounts" value="AI Accounts" required></label>
-                    <label>Thương hiệu · Brand<input name="brand" placeholder="ChatGPT" required></label>
-                    <label>Gói · Package<input name="packageType" placeholder="Plus 1M"></label>
-                    <label>SKU<input name="sku" placeholder="chatgpt-plus-1m" required></label>
-                    <label class="editor-span-2">Tên sản phẩm<input name="name" placeholder="ChatGPT Plus - 1 tháng" required></label>
-                    <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3"></textarea></label>
+                <div class="product-create-intro">
+                  <div>
+                    <span class="product-create-kicker">Product builder</span>
+                    <h3>Tạo đúng cấu hình ngay từ đầu</h3>
+                    <p>Chọn cách giao hàng trước; biểu mẫu sẽ chỉ hiển thị những thông tin cần thiết.</p>
                   </div>
-                </fieldset>
-                <fieldset class="editor-section">
-                  <legend><span data-lucide="badge-dollar-sign" aria-hidden="true"></span>Bán hàng &amp; giao nhận</legend>
-                  <p>Giá bán hiện tại và cách hệ thống hoàn tất đơn hàng.</p>
-                  <div class="editor-grid create-editor-grid">
-                    <label>Giá bán<input name="price" type="number" min="1" value="10000" required></label>
-                    <label>Tiền tệ · Currency<input name="currency" value="VND" required></label>
-                    <label>Giá hãng tham khảo<input name="officialPriceNote" placeholder="Official: $20/mo"></label>
-                    <label>Hình thức giao
-                      <select name="deliveryMode">
-                        <option value="text">Tin nhắn văn bản</option>
-                        <option value="file">Tệp TXT</option>
-                      </select>
-                    </label>
-                    <label>Fulfillment
-                      <select name="fulfillmentMode">
-                        <option value="inventory">Từ kho · Inventory</option>
-                        <option value="seat_email">Seat qua email khách hàng</option>
-                      </select>
-                    </label>
-                    <label>Thời hạn Seat (tháng)<input name="seatTermMonths" type="number" min="1" max="120" value="1"></label>
-                    <label class="checkbox-label"><input name="hot" type="checkbox" value="true"> Sản phẩm nổi bật · Hot</label>
+                  <span id="productCreateDraftStatus" class="product-draft-status"><span data-lucide="circle-dot" aria-hidden="true"></span>Chưa chỉnh sửa</span>
+                </div>
+
+                <div class="product-create-workspace">
+                  <div class="product-create-fields">
+                    <fieldset class="editor-section product-fulfillment-picker">
+                      <legend><span data-lucide="route" aria-hidden="true"></span>1. Chọn cách giao hàng</legend>
+                      <p>Cấu hình này quyết định đơn hàng dùng kho mã hay quy trình mời Seat.</p>
+                      <div class="product-mode-options">
+                        <label class="product-mode-option is-selected">
+                          <input type="radio" name="fulfillmentMode" value="inventory" checked>
+                          <span class="product-mode-icon" data-lucide="warehouse" aria-hidden="true"></span>
+                          <span><strong>Từ kho</strong><small>Giao tài khoản hoặc mã đã nhập kho</small></span>
+                          <span class="product-mode-check" data-lucide="circle-check" aria-hidden="true"></span>
+                        </label>
+                        <label class="product-mode-option">
+                          <input type="radio" name="fulfillmentMode" value="seat_email">
+                          <span class="product-mode-icon" data-lucide="mail-check" aria-hidden="true"></span>
+                          <span><strong>Seat qua email khách hàng</strong><small>Mời khách vào workspace sau thanh toán</small></span>
+                          <span class="product-mode-check" data-lucide="circle-check" aria-hidden="true"></span>
+                        </label>
+                      </div>
+                    </fieldset>
+
+                    <fieldset class="editor-section">
+                      <legend><span data-lucide="scan-line" aria-hidden="true"></span>2. Nhận diện sản phẩm</legend>
+                      <p>Các trường có dấu <span class="required-mark">*</span> là bắt buộc và sẽ xuất hiện trong catalog.</p>
+                      <div class="editor-grid create-editor-grid">
+                        <label>Danh mục <span class="required-mark">*</span><input name="category" list="productCategoryOptions" placeholder="AI Accounts" value="AI Accounts" required autocomplete="off"></label>
+                        <label>Thương hiệu <span class="required-mark">*</span><input id="productBrandInput" name="brand" list="productBrandOptions" placeholder="Ví dụ: ChatGPT" required autocomplete="off"></label>
+                        <datalist id="productCategoryOptions"><option value="AI Accounts"></option><option value="Design"></option><option value="Productivity"></option><option value="Social Accounts"></option><option value="Developer Tools"></option></datalist>
+                        <datalist id="productBrandOptions"><option value="ChatGPT"></option><option value="Claude"></option><option value="Canva"></option><option value="Gemini"></option><option value="Perplexity"></option><option value="Cursor"></option><option value="Figma"></option><option value="Microsoft"></option><option value="Google Workspace"></option></datalist>
+                        <label>Gói sản phẩm<input name="packageType" placeholder="Ví dụ: Plus 1M"><small class="field-help">Tên gói ngắn gọn, chẳng hạn Pro 1M hoặc Business Seat.</small></label>
+                        <label>Tên hiển thị <span class="required-mark">*</span><input id="productNameInput" name="name" placeholder="Ví dụ: ChatGPT Plus - 1 tháng" required></label>
+                        <div class="editor-span-2 product-sku-field"><label for="productSkuInput">SKU <span class="required-mark">*</span></label>
+                          <span class="product-input-action"><input id="productSkuInput" name="sku" placeholder="chatgpt-plus-1m" required spellcheck="false"><button id="productSkuGenerate" class="secondary" type="button"><span data-lucide="wand-sparkles" aria-hidden="true"></span><span>Tạo lại</span></button></span>
+                          <small class="field-help">SKU được gợi ý từ thương hiệu và gói; bạn vẫn có thể sửa thủ công.</small>
+                        </div>
+                        <label class="editor-span-2">Mô tả ngắn
+                          <textarea id="productDescriptionInput" name="description" rows="3" maxlength="320" placeholder="Nêu quyền lợi chính, đối tượng phù hợp và cách nhận sản phẩm"></textarea>
+                          <small class="field-help product-character-count"><span>Hiển thị trong catalog và Telegram.</span><span id="productDescriptionCount">0/320</span></small>
+                        </label>
+                      </div>
+                    </fieldset>
+
+                    <fieldset class="editor-section">
+                      <legend><span data-lucide="badge-dollar-sign" aria-hidden="true"></span>3. Giá bán &amp; vận hành</legend>
+                      <p>Giá bán là giá gốc của sản phẩm; bảng giá Telegram có thể ghi đè riêng.</p>
+                      <div class="editor-grid create-editor-grid">
+                        <label>Giá bán <span class="required-mark">*</span><span class="product-price-input"><input id="productPriceInput" name="price" type="number" min="1" step="1000" value="10000" inputmode="numeric" required><span id="productPriceCurrencySuffix">VND</span></span></label>
+                        <label>Tiền tệ<select name="currency" required><option value="VND">VND · Việt Nam Đồng</option><option value="USD">USD · US Dollar</option></select></label>
+                        <label class="editor-span-2">Giá hãng tham khảo<input name="officialPriceNote" placeholder="Ví dụ: Official: $20/mo"><small class="field-help">Chỉ dùng làm thông tin đối chiếu, không ảnh hưởng giá thanh toán.</small></label>
+                        <div class="editor-span-2 product-conditional-fields" data-product-inventory-fields>
+                          <label>Hình thức giao<select name="deliveryMode"><option value="text">Tin nhắn văn bản</option><option value="file">Tệp TXT</option></select></label>
+                          <div class="product-operation-note"><span data-lucide="package-open" aria-hidden="true"></span><span><strong>Nhập kho sau khi tạo</strong><small>Sản phẩm sẽ hiển thị hết hàng cho tới khi có dữ liệu kho.</small></span></div>
+                        </div>
+                        <div class="editor-span-2 product-conditional-fields hidden" data-product-seat-fields>
+                          <label>Thời hạn Seat (tháng)<input name="seatTermMonths" type="number" min="1" max="120" value="1" inputmode="numeric"></label>
+                          <div class="product-seat-presets" aria-label="Chọn nhanh thời hạn Seat"><button class="small secondary active" type="button" data-product-seat-term="1">1 tháng</button><button class="small secondary" type="button" data-product-seat-term="3">3 tháng</button><button class="small secondary" type="button" data-product-seat-term="6">6 tháng</button><button class="small secondary" type="button" data-product-seat-term="12">12 tháng</button></div>
+                          <div class="product-operation-note"><span data-lucide="shield-check" aria-hidden="true"></span><span><strong>Seat Guard sẽ theo dõi quyền truy cập</strong><small id="productSeatProviderHint">Provider được xác định từ thương hiệu hoặc SKU.</small></span></div>
+                        </div>
+                        <label class="editor-span-2 product-hot-toggle"><input name="hot" type="checkbox" value="true"><span><strong>Đánh dấu sản phẩm nổi bật</strong><small>Ưu tiên hiển thị với nhãn Hot trong catalog.</small></span></label>
+                      </div>
+                    </fieldset>
+
+                    <details class="product-optional-details">
+                      <summary><span><span data-lucide="shield-check" aria-hidden="true"></span><strong>Thông tin &amp; chính sách</strong></span><small>Tùy chọn · có thể bổ sung sau</small></summary>
+                      <div class="editor-grid create-editor-grid">
+                        <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="2" placeholder="Tài khoản riêng, slot dùng chung, kích hoạt hoặc gói tài khoản"></textarea></label>
+                        <label>Chính sách bảo hành<textarea name="warrantyPolicy" rows="3" placeholder="Thời hạn và phạm vi bảo hành"></textarea></label>
+                        <label>Chính sách đổi mới<textarea name="replacementPolicy" rows="3" placeholder="Điều kiện đổi khi giao hàng lỗi"></textarea></label>
+                      </div>
+                    </details>
                   </div>
-                </fieldset>
-                <fieldset class="editor-section editor-section-policy">
-                  <legend><span data-lucide="shield-check" aria-hidden="true"></span>Thông tin &amp; chính sách</legend>
-                  <p>Nội dung hỗ trợ khách hàng ra quyết định và xử lý sau bán.</p>
-                  <div class="editor-grid create-editor-grid">
-                    <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="2" placeholder="Tài khoản riêng, slot dùng chung, kích hoạt hoặc gói tài khoản"></textarea></label>
-                    <label>Chính sách bảo hành<textarea name="warrantyPolicy" rows="3" placeholder="Ghi rõ thời hạn và phạm vi bảo hành"></textarea></label>
-                    <label>Chính sách đổi mới<textarea name="replacementPolicy" rows="3" placeholder="Ghi rõ điều kiện được đổi khi giao hàng lỗi"></textarea></label>
-                  </div>
-                </fieldset>
-                <div class="actions accordion-actions">
-                  <button type="submit"><span class="icon" data-lucide="plus" aria-hidden="true"></span><span>Tạo sản phẩm</span></button>
+
+                  <aside class="product-create-aside" aria-label="Xem trước sản phẩm">
+                    <div class="product-create-progress">
+                      <div><span>Thông tin bắt buộc</span><strong id="productCreateProgressLabel">1/5 hoàn tất</strong></div>
+                      <div class="product-progress-track" role="progressbar" aria-label="Tiến độ hoàn thiện sản phẩm" aria-valuemin="0" aria-valuemax="5" aria-valuenow="1"><span id="productCreateProgressBar"></span></div>
+                    </div>
+                    <div id="productCreatePreview" class="product-create-preview" aria-live="polite"></div>
+                    <div id="productCreateChecklist" class="product-create-checklist"></div>
+                    <div id="productCreateError" class="product-create-error hidden" role="alert"></div>
+                    <div class="actions accordion-actions product-create-actions">
+                      <button id="productCreateReset" class="secondary" type="button"><span class="icon" data-lucide="rotate-ccw" aria-hidden="true"></span><span>Đặt lại</span></button>
+                      <button id="productCreateSubmit" type="submit"><span class="icon" data-lucide="package-plus" aria-hidden="true"></span><span>Tạo sản phẩm</span></button>
+                    </div>
+                    <button id="productCreateClose" class="product-create-close" type="button"><span data-lucide="minimize-2" aria-hidden="true"></span>Thu gọn · dữ liệu vẫn được giữ</button>
+                  </aside>
                 </div>
               </div>
             </form>
@@ -349,14 +398,37 @@
         </section>
 
         <section id="discountsTab" class="tab">
-          <div class="grid two discount-layout">
+          <section class="panel discount-overview-panel">
+            <div class="panel-head">
+              <div>
+                <h2>Vận hành mã giảm giá</h2>
+                <p class="panel-subtitle">Theo dõi toàn bộ vòng đời voucher một lần từ lúc tạo, giữ cho đơn đến khi thanh toán.</p>
+              </div>
+              <span class="badge reserved">Giới hạn cố định: 1 lượt</span>
+            </div>
+            <div class="discount-metrics">
+              <button type="button" class="discount-metric active" data-discount-status="all" aria-pressed="true"><span>Tổng số</span><strong id="discountMetricTotal">0</strong><small>Tất cả mã</small></button>
+              <button type="button" class="discount-metric" data-discount-status="active" aria-pressed="false"><span>Khả dụng</span><strong id="discountMetricActive">0</strong><small>Có thể áp dụng</small></button>
+              <button type="button" class="discount-metric" data-discount-status="reserved" aria-pressed="false"><span>Đang giữ</span><strong id="discountMetricReserved">0</strong><small>Chờ thanh toán</small></button>
+              <button type="button" class="discount-metric" data-discount-status="used" aria-pressed="false"><span>Đã dùng</span><strong id="discountMetricUsed">0</strong><small>Đã thanh toán</small></button>
+              <button type="button" class="discount-metric" data-discount-status="unavailable" aria-pressed="false"><span>Không khả dụng</span><strong id="discountMetricUnavailable">0</strong><small>Hết hạn hoặc khóa</small></button>
+            </div>
+          </section>
+
+          <div class="discount-layout">
             <form id="discountForm" class="panel discount-create-panel">
               <div class="panel-head">
                 <div>
                   <h2>Tạo mã dùng một lần</h2>
-                  <p class="panel-subtitle">Mỗi mã chỉ có thể hoàn tất thanh toán cho một đơn hàng.</p>
+                  <p class="panel-subtitle">Điều kiện được chụp cố định sau khi tạo để bảo vệ đơn đang checkout.</p>
                 </div>
-                <span class="badge reserved">1 lượt dùng</span>
+                <span class="badge available">Mã mới</span>
+              </div>
+              <div class="discount-form-section">
+                <span class="discount-section-label">1 · Nhận diện chiến dịch</span>
+                <label>Tên chiến dịch <small>Hiển thị nội bộ</small>
+                  <input name="campaignName" maxlength="80" placeholder="Khách hàng mới tháng 7">
+                </label>
               </div>
               <div class="discount-code-field">
                 <label>Mã giảm giá
@@ -365,6 +437,10 @@
                 <button id="discountGenerateBtn" class="secondary" type="button">
                   <span class="icon" data-lucide="sparkles" aria-hidden="true"></span><span>Tạo mã</span>
                 </button>
+              </div>
+              <span class="field-help">4–32 ký tự, chỉ dùng A–Z, 0–9, dấu gạch ngang hoặc gạch dưới.</span>
+              <div class="discount-form-section">
+                <span class="discount-section-label">2 · Điều kiện áp dụng</span>
               </div>
               <div class="discount-form-grid">
                 <label>Kiểu giảm
@@ -377,6 +453,16 @@
                 <label>Đơn tối thiểu<input name="minOrderTotal" type="number" min="0" step="1000" value="0"></label>
                 <label>Hết hạn lúc<input name="expiresAt" type="datetime-local"></label>
               </div>
+              <div class="discount-expiry-presets" aria-label="Chọn nhanh thời hạn">
+                <span>Thời hạn nhanh</span>
+                <button type="button" class="small secondary" data-discount-expiry-days="7">7 ngày</button>
+                <button type="button" class="small secondary" data-discount-expiry-days="30">30 ngày</button>
+                <button type="button" class="small secondary" data-discount-expiry-days="none">Không hết hạn</button>
+              </div>
+              <label class="discount-note-field">Ghi chú nội bộ <small>Không hiển thị cho khách hàng</small>
+                <textarea name="internalNote" rows="3" maxlength="500" placeholder="Mục đích phát hành, người nhận hoặc lưu ý đối soát..."></textarea>
+              </label>
+              <div id="discountFormPreview" class="discount-form-preview" aria-live="polite"></div>
               <div class="discount-rule-note">
                 <span data-lucide="shield-check" aria-hidden="true"></span>
                 <span>Mã được giữ khi tạo đơn, tự trả lại nếu đơn bị hủy hoặc hết hạn, và chỉ ghi nhận đã dùng sau thanh toán.</span>
@@ -388,9 +474,22 @@
               <div class="panel-head">
                 <div>
                   <h2>Danh sách mã</h2>
-                  <p class="panel-subtitle">Theo dõi mã khả dụng, đang giữ và đã sử dụng.</p>
+                  <p id="discountFilterSummary" class="panel-subtitle">Theo dõi mã khả dụng, đang giữ và đã sử dụng.</p>
                 </div>
                 <span id="discountCodeCount" class="badge available">0 mã</span>
+              </div>
+              <div class="discount-list-toolbar">
+                <label class="search-field"><span class="icon" data-lucide="search" aria-hidden="true"></span><input id="discountSearch" type="search" placeholder="Tìm mã, chiến dịch, đơn hoặc người dùng..." autocomplete="off"></label>
+                <select id="discountStatusFilter" aria-label="Lọc trạng thái mã giảm giá">
+                  <option value="all">Tất cả trạng thái</option>
+                  <option value="active">Khả dụng</option>
+                  <option value="reserved">Đang giữ</option>
+                  <option value="used">Đã sử dụng</option>
+                  <option value="unavailable">Hết hạn hoặc khóa</option>
+                  <option value="expired">Hết hạn</option>
+                  <option value="inactive">Đã khóa</option>
+                </select>
+                <button id="discountFilterReset" class="secondary icon-button" type="button"><span class="icon" data-lucide="rotate-ccw" aria-hidden="true"></span><span>Đặt lại</span></button>
               </div>
               <div id="discountCodesList" class="discount-codes-list"></div>
             </section>
@@ -436,6 +535,8 @@
             <div class="stats seat-guard-stats">
               <div class="stat"><span>Thành viên</span><strong id="seatGuardMembersCount">0</strong></div>
               <div class="stat"><span>Lời mời chờ</span><strong id="seatGuardPendingCount">0</strong></div>
+              <div class="stat"><span>Đã dùng / Giới hạn</span><strong id="seatGuardCapacityCount">-</strong></div>
+              <div class="stat"><span>Slot còn trống</span><strong id="seatGuardRemainingCount">-</strong></div>
               <div class="stat"><span>Hợp lệ</span><strong id="seatGuardValidCount">0</strong></div>
               <div class="stat warning-stat"><span>Allow-list chưa xác minh</span><strong id="seatGuardAllowedCount">0</strong></div>
               <div class="stat"><span>Được bảo vệ</span><strong id="seatGuardProtectedCount">0</strong></div>

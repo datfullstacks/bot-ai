@@ -231,6 +231,13 @@ const remote = {
     { id: 'invite-unknown', email: 'invite-unknown@example.com', role: 'member', createdAt: observedCreatedAt },
     { email: 'invite-no-id@example.com', role: 'member', createdAt: observedCreatedAt }
   ],
+  occupancy: {
+    members: 7,
+    pendingInvitations: 3,
+    usedSlots: 10,
+    maxMembers: 999,
+    remainingSlots: 989
+  },
   observedAt: '2026-07-17T00:00:00.000Z'
 };
 const view = buildSeatGuardView({
@@ -256,6 +263,16 @@ assert.equal(view.invitations.find((item) => item.email === 'invite-no-id@exampl
 assert.equal(view.invitations.find((item) => item.email === 'invite-no-id@example.com').cancelable, true);
 assert.equal(view.summary.unauthorizedMembers, 1);
 assert.equal(view.summary.unauthorizedInvitations, 2);
+assert.deepEqual(view.capacity, {
+  members: 7,
+  pendingInvitations: 3,
+  usedSlots: 10,
+  maxMembers: 999,
+  remainingSlots: 989,
+  utilizationPercent: 1,
+  atLimit: false,
+  reported: true
+});
 const missingLifecycleView = buildSeatGuardView({
   identity: { permissions: ['accounts:read', 'members:remove'] },
   remote: {
@@ -313,8 +330,14 @@ for (const provider of ['canva', 'claude']) {
       return {
         async getIdentity() { return { permissions: ['accounts:read', 'members:remove'] }; },
         async getAccountMembers() {
+          const maxMembers = provider === 'canva' ? 50 : 150;
           return {
-            account: { id: providerIntegration.accountRef, loginEmail: `owner@${provider}.example` },
+            account: {
+              id: providerIntegration.accountRef,
+              loginEmail: `owner@${provider}.example`,
+              maxMembers,
+              snapshot: { memberCount: 1, invitationCount: 0, usedSlots: 2, remainingSlots: maxMembers - 2 }
+            },
             members: [{
               id: provider === 'claude' ? 'remote-member-id' : undefined,
               email: memberEmail,
@@ -346,6 +369,8 @@ for (const provider of ['canva', 'claude']) {
   assert.equal(providerSnapshot.provider, provider);
   assert.equal(providerSnapshot.members[0].actionRef, memberEmail, `${provider} removals must use email references.`);
   assert.equal(providerSnapshot.members[0].name, provider === 'canva' ? 'Canva Rogue' : 'Claude Rogue');
+  assert.equal(providerSnapshot.capacity.maxMembers, provider === 'canva' ? 50 : 150);
+  assert.equal(providerSnapshot.capacity.usedSlots, 2);
 
   const removal = await removeSeatGuardMember(memberEmail, {
     expectedEmail: memberEmail,

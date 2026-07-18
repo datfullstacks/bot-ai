@@ -220,6 +220,47 @@ function decorateSubject(subject, context, actionKey, subjectKind) {
   };
 }
 
+function capacityInteger(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function buildSeatCapacity(remote = {}) {
+  const account = remote.account || {};
+  const snapshot = account.snapshot && typeof account.snapshot === 'object' ? account.snapshot : {};
+  const occupancy = remote.occupancy && typeof remote.occupancy === 'object' ? remote.occupancy : {};
+  const members = capacityInteger(occupancy.members ?? snapshot.memberCount)
+    ?? (Array.isArray(remote.members) ? remote.members.length : 0);
+  const pendingInvitations = capacityInteger(
+    occupancy.pendingInvitations ?? occupancy.pending ?? snapshot.invitationCount
+  ) ?? (Array.isArray(remote.invitations) ? remote.invitations.length : 0);
+  const occupiedEmails = new Set([
+    ...(Array.isArray(remote.members) ? remote.members : []),
+    ...(Array.isArray(remote.invitations) ? remote.invitations : [])
+  ].map((item) => normalizedEmail(item?.email)).filter(Boolean));
+  const reportedUsedSlots = capacityInteger(occupancy.usedSlots ?? snapshot.usedSlots);
+  const usedSlots = reportedUsedSlots ?? occupiedEmails.size;
+  const reportedRemaining = capacityInteger(occupancy.remainingSlots ?? snapshot.remainingSlots);
+  let maxMembers = capacityInteger(occupancy.maxMembers ?? account.maxMembers ?? snapshot.maxMembers);
+  if (maxMembers === null && reportedRemaining !== null) maxMembers = usedSlots + reportedRemaining;
+  const remainingSlots = reportedRemaining
+    ?? (maxMembers === null ? null : Math.max(0, maxMembers - usedSlots));
+  const utilizationPercent = maxMembers && maxMembers > 0
+    ? Math.round((usedSlots / maxMembers) * 100)
+    : null;
+  return {
+    members,
+    pendingInvitations,
+    usedSlots,
+    maxMembers,
+    remainingSlots,
+    utilizationPercent,
+    atLimit: maxMembers !== null && remainingSlots === 0,
+    reported: reportedUsedSlots !== null || capacityInteger(occupancy.maxMembers) !== null
+  };
+}
+
 export function buildSeatGuardView({
   provider = 'chatgpt',
   identity = {},
@@ -248,6 +289,7 @@ export function buildSeatGuardView({
   ));
   const memberCount = (classification) => members.filter((item) => item.classification === classification).length;
   const invitationCount = (classification) => invitations.filter((item) => item.classification === classification).length;
+  const capacity = buildSeatCapacity(remote);
   return {
     provider,
     configured: true,
@@ -255,6 +297,7 @@ export function buildSeatGuardView({
     capabilities: { canRead, canRemove },
     account,
     observedAt: remote.observedAt || null,
+    capacity,
     summary: {
       members: members.length,
       pendingInvitations: invitations.length,
@@ -267,7 +310,11 @@ export function buildSeatGuardView({
       unauthorizedInvitations: invitationCount('unauthorized'),
       expiredInvitations: invitationCount('expired'),
       reviewInvitations: invitationCount('review'),
-      missingAuthorized: missingAuthorized.length
+      missingAuthorized: missingAuthorized.length,
+      usedSlots: capacity.usedSlots,
+      maxMembers: capacity.maxMembers,
+      remainingSlots: capacity.remainingSlots,
+      utilizationPercent: capacity.utilizationPercent
     },
     members,
     invitations,
@@ -299,6 +346,16 @@ function unconfiguredSnapshot(provider) {
     account: null,
     observedAt: null,
     summary: {},
+    capacity: {
+      members: 0,
+      pendingInvitations: 0,
+      usedSlots: 0,
+      maxMembers: null,
+      remainingSlots: null,
+      utilizationPercent: null,
+      atLimit: false,
+      reported: false
+    },
     members: [],
     invitations: [],
     entitlements: [],

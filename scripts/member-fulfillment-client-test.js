@@ -332,8 +332,14 @@ for (const provider of ['canva', 'claude']) {
       }), { status: 200 });
     }
     if (options.method === 'GET' && pathname.endsWith('/members')) {
+      const maxMembers = provider === 'canva' ? 50 : 150;
       return new Response(JSON.stringify({
-        account: { id: `${provider}-account`, loginEmail: `owner@${provider}.example` },
+        account: {
+          id: `${provider}-account`,
+          loginEmail: `owner@${provider}.example`,
+          maxMembers,
+          snapshot: { memberCount: 1, invitationCount: 1, usedSlots: 3, remainingSlots: maxMembers - 3 }
+        },
         members: [{ id: `${provider}-member`, email: `member@${provider}.example` }],
         snapshotCapturedAt: '2026-07-18T01:00:00.000Z'
       }), { status: 200 });
@@ -362,6 +368,13 @@ for (const provider of ['canva', 'claude']) {
   assert.equal(snapshot.members[0].email, `member@${provider}.example`);
   assert.equal(snapshot.invitations[0].email, `pending@${provider}.example`);
   assert.equal(snapshot.observedAt, '2026-07-18T02:00:00.000Z');
+  assert.deepEqual(snapshot.occupancy, {
+    members: 1,
+    pendingInvitations: 1,
+    usedSlots: 3,
+    maxMembers: provider === 'canva' ? 50 : 150,
+    remainingSlots: provider === 'canva' ? 47 : 147
+  });
   assert.equal((await client.removeAccountMember(`${provider}-account`, `member@${provider}.example`, {
     idempotencyKey: `seat-${provider}-remove-0001`
   })).operationId, `op_${provider}_seat_guard`);

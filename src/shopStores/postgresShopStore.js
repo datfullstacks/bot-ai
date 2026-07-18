@@ -605,6 +605,8 @@ export async function createDiscountCode(actorId, input = {}) {
       usedByOrderId: null,
       usedByUserId: null,
       usedAt: null,
+      createdBy: actorId,
+      updatedBy: actorId,
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
@@ -627,6 +629,7 @@ export async function updateDiscountCode(actorId, discountId, input = {}) {
     }
     const discount = row.doc;
     discount.active = input.active === true;
+    discount.updatedBy = actorId;
     discount.updatedAt = nowIso();
     await upsertDoc(client, 'discountCodes', discount);
     await addAuditDoc(

@@ -180,6 +180,12 @@ function normalizeSeatGuardReference(value, name) {
   return reference;
 }
 
+function optionalNonNegativeInteger(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
 function normalizeExplicitIdempotencyKey(value) {
   const key = String(value || '').trim();
   if (!explicitIdempotencyKeyPattern.test(key)) {
@@ -610,10 +616,28 @@ export function createMemberFulfillmentClient(options = {}) {
     const observedTimes = [members.snapshotCapturedAt, invitations.snapshotCapturedAt]
       .map((value) => Date.parse(String(value || '')))
       .filter(Number.isFinite);
+    const account = members.account || invitations.account || {};
+    const memberRows = Array.isArray(members.members) ? members.members : [];
+    const invitationRows = Array.isArray(invitations.invitations) ? invitations.invitations : [];
+    const snapshot = account.snapshot && typeof account.snapshot === 'object' ? account.snapshot : {};
+    const maxMembers = optionalNonNegativeInteger(account.maxMembers ?? snapshot.maxMembers);
+    const uniqueOccupied = new Set([...memberRows, ...invitationRows]
+      .map((item) => String(item?.email || '').trim().toLowerCase())
+      .filter(Boolean)).size;
+    const usedSlots = optionalNonNegativeInteger(snapshot.usedSlots) ?? uniqueOccupied;
+    const remainingSlots = optionalNonNegativeInteger(snapshot.remainingSlots)
+      ?? (maxMembers === null ? null : Math.max(0, maxMembers - usedSlots));
     return {
-      account: members.account || invitations.account || {},
-      members: Array.isArray(members.members) ? members.members : [],
-      invitations: Array.isArray(invitations.invitations) ? invitations.invitations : [],
+      account,
+      members: memberRows,
+      invitations: invitationRows,
+      occupancy: {
+        members: optionalNonNegativeInteger(snapshot.memberCount) ?? memberRows.length,
+        pendingInvitations: optionalNonNegativeInteger(snapshot.invitationCount) ?? invitationRows.length,
+        usedSlots,
+        maxMembers,
+        remainingSlots
+      },
       observedAt: observedTimes.length ? new Date(Math.max(...observedTimes)).toISOString() : null
     };
   }

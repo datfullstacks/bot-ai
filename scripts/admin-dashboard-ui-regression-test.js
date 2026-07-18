@@ -26,6 +26,22 @@ for (const id of [
   'productFilterReset',
   'productCreateToggle',
   'productCreateContent',
+  'productCreateToggleMeta',
+  'productCreateDraftStatus',
+  'productBrandInput',
+  'productNameInput',
+  'productSkuInput',
+  'productSkuGenerate',
+  'productDescriptionCount',
+  'productPriceCurrencySuffix',
+  'productCreateProgressLabel',
+  'productCreateProgressBar',
+  'productCreatePreview',
+  'productCreateChecklist',
+  'productCreateError',
+  'productCreateReset',
+  'productCreateSubmit',
+  'productCreateClose',
   'productMetricActive',
   'productMetricStock',
   'productMetricLowStock',
@@ -38,6 +54,16 @@ for (const id of [
   'discountGenerateBtn',
   'discountCodeCount',
   'discountCodesList',
+  'discountMetricTotal',
+  'discountMetricActive',
+  'discountMetricReserved',
+  'discountMetricUsed',
+  'discountMetricUnavailable',
+  'discountFormPreview',
+  'discountSearch',
+  'discountStatusFilter',
+  'discountFilterReset',
+  'discountFilterSummary',
   'adminSidebar',
   'sidebarToggle',
   'sidebarClose',
@@ -54,6 +80,8 @@ for (const id of [
   'seatGuardConnection',
   'seatGuardProviderSwitcher',
   'seatGuardProviderLabel',
+  'seatGuardCapacityCount',
+  'seatGuardRemainingCount',
   'seatGuardMembers',
   'seatGuardInvitations',
   'seatGuardEntitlements',
@@ -82,15 +110,32 @@ for (const provider of ['chatgpt', 'canva', 'claude']) {
 assert.ok(html.includes('<html lang="vi">'), 'Admin content should declare Vietnamese as its primary language.');
 assert.ok(html.includes('aria-controls="productCreateContent"'), 'Create-product accordion should expose its controlled region.');
 assert.ok(html.includes('id="productCreateContent" class="accordion-content hidden"'), 'Create-product accordion should start closed.');
+assert.ok(html.includes('type="radio" name="fulfillmentMode"'), 'Create-product flow should choose fulfillment before showing related fields.');
+assert.ok(html.includes('data-product-inventory-fields'), 'Create-product flow should expose inventory-only controls.');
+assert.ok(html.includes('data-product-seat-fields'), 'Create-product flow should expose Seat-only controls.');
+assert.ok(html.includes('data-product-seat-term="12"'), 'Create-product flow should provide quick Seat-term presets.');
+assert.ok(html.includes('<details class="product-optional-details">'), 'Optional policies should not crowd primary fields.');
+assert.ok(html.includes('role="progressbar"'), 'Create-product flow should expose accessible completion progress.');
+assert.ok(js.includes('deliveryMode.disabled = seatEmail'), 'Hidden inventory fields should not be submitted for Seat products.');
+assert.ok(js.includes('seatTermMonths.disabled = !seatEmail'), 'Hidden Seat fields should not be submitted for inventory products.');
+assert.ok(js.includes("productForm.addEventListener('invalid'"), 'Create-product validation should surface an inline error summary.');
 
 for (const fn of [
   'renderProductFilters',
   'renderProductCatalogMetrics',
   'renderDiscountCodes',
   'discountDisplayState',
+  'filteredDiscountCodes',
+  'renderDiscountMetrics',
+  'renderDiscountFormPreview',
+  'copyDiscountCode',
   'setSidebarOpen',
   'setButtonBusy',
   'setProductCreateOpen',
+  'productSkuSlug',
+  'generateProductSku',
+  'renderProductCreateExperience',
+  'resetProductCreateForm',
   'toggleProductEditor',
   'filteredProducts',
   'renderProductCard',
@@ -149,6 +194,8 @@ assert.ok(js.includes("state.seatGuard"), 'Admin JS should retain the latest Sea
 assert.ok(js.includes("seatGuardUrl('/api/seat-guard', provider)"), 'Seat Guard should load the selected provider snapshot.');
 assert.ok(js.includes("seatGuardProvider: 'chatgpt'"), 'Seat Guard should default safely to ChatGPT.');
 assert.ok(js.includes('provider=${encodeURIComponent(provider)}'), 'Seat Guard API calls should preserve the selected provider.');
+assert.ok(js.includes('capacity.maxMembers'), 'Seat Guard should render the workspace member limit.');
+assert.ok(js.includes('aria-label="Mức sử dụng Seat"'), 'Seat Guard capacity should expose an accessible progress indicator.');
 assert.ok(js.includes("if (state.tab === 'seatGuard') await renderSeatGuard()"), 'Refreshing the active Seat Guard tab should reload its snapshot.');
 assert.ok(js.includes("seat-guard-remove-member"), 'Removable members should expose a guarded remove action.');
 assert.ok(js.includes("seat-guard-cancel-invitation"), 'Cancelable invitations should expose a guarded cancel action.');
@@ -185,6 +232,12 @@ assert.ok(server.includes("routeParams('/api/discount-codes/:id'"), 'Server shou
 assert.ok(shop.includes('previewDiscountForUser'), 'The active shop store should expose discount previews to Telegram checkout.');
 assert.ok(discountCodes.includes('discountReservationIsLive'), 'Discount domain should model live one-order reservations.');
 assert.ok(discountCodes.includes('usageLimit: 1'), 'Public discount data should expose the fixed one-use limit.');
+assert.ok(discountCodes.includes('reservedByUserId'), 'Admin discount data should expose the user holding a code.');
+assert.ok(discountCodes.includes('usedByUserId'), 'Admin discount data should expose the user who consumed a code.');
+assert.ok(html.includes('name="campaignName"'), 'Discount creation should capture an internal campaign name.');
+assert.ok(html.includes('name="internalNote"'), 'Discount creation should capture a private operations note.');
+assert.ok(js.includes('toggle-discount-detail'), 'Discount rows should expose lifecycle details.');
+assert.ok(js.includes('copy-discount-code'), 'Discount rows should provide a copy action.');
 assert.ok(jsonShopStore.includes('consumeDiscountReservation'), 'JSON checkout should consume a reserved code after payment.');
 assert.ok(postgresShopStore.includes('consumeDiscountReservation'), 'Postgres checkout should consume a reserved code transactionally.');
 assert.ok(postgresStore.includes("discountCodes: 'discountCodes'"), 'Postgres document snapshots should persist discount codes.');
@@ -275,6 +328,12 @@ for (const selector of [
   '.discount-form-grid',
   '.discount-code-token',
   '.discount-table',
+  '.discount-metrics',
+  '.discount-metric',
+  '.discount-list-toolbar',
+  '.discount-form-preview',
+  '.discount-detail-grid',
+  '.discount-lifecycle-note',
   '.editor-grid',
   '.data-table',
   '.status-dot',
@@ -288,11 +347,20 @@ for (const selector of [
   '.recipient-list',
   '.seat-guard-stats',
   '.seat-guard-connection',
+  '.seat-guard-capacity',
+  '.seat-guard-capacity-track',
   '.seat-guard-table',
   '.seat-guard-reference-list',
   '.pricing-base-panel',
   '.pricing-table',
   '.accordion-toggle',
+  '.product-create-workspace',
+  '.product-mode-option',
+  '.product-create-aside',
+  '.product-create-preview',
+  '.product-create-checklist',
+  '.product-create-error',
+  '.product-optional-details',
   '.pricing-row.has-override',
   '.base-price-row.has-base-price',
   '.analytics-grid',

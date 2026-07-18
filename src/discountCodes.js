@@ -31,6 +31,14 @@ function optionalExpiry(value) {
   return new Date(timestamp).toISOString();
 }
 
+function optionalText(value, maxLength, code, label) {
+  const text = String(value || '').trim();
+  if (text.length > maxLength) {
+    throw discountError(`${label} must be at most ${maxLength} characters`, code);
+  }
+  return text || null;
+}
+
 export function normalizeDiscountInput(input = {}) {
   const type = String(input.type || '').trim().toLowerCase();
   if (!['fixed', 'percent'].includes(type)) {
@@ -49,6 +57,8 @@ export function normalizeDiscountInput(input = {}) {
   }
   return {
     code: normalizeDiscountCode(input.code, { strict: true }),
+    campaignName: optionalText(input.campaignName, 80, 'discount_campaign_invalid', 'Campaign name'),
+    internalNote: optionalText(input.internalNote, 500, 'discount_note_invalid', 'Internal note'),
     type,
     value: Math.round(value),
     minOrderTotal: Math.round(minOrderTotal),
@@ -118,9 +128,16 @@ export function publicDiscountCode(discount = {}) {
     usageLimit: 1,
     expiresAt: discount.expiresAt || null,
     reservedByOrderId: discount.reservedByOrderId || null,
+    reservedByUserId: discount.reservedByUserId || null,
+    reservedAt: discount.reservedAt || null,
     reservedUntil: discount.reservedUntil || null,
     usedByOrderId: discount.usedByOrderId || null,
+    usedByUserId: discount.usedByUserId || null,
     usedAt: discount.usedAt || null,
+    campaignName: discount.campaignName || null,
+    internalNote: discount.internalNote || null,
+    createdBy: discount.createdBy || null,
+    updatedBy: discount.updatedBy || null,
     createdAt: discount.createdAt,
     updatedAt: discount.updatedAt
   };
