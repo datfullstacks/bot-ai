@@ -10,13 +10,20 @@ import {
 } from './catalog.js';
 import {
   cancelOrderForUser,
+  claimNotificationCampaign,
+  completeNotificationCampaign,
   createOrderForUser,
   getDeliveryForOrder,
+  getNotificationCampaign,
+  getNotificationCenterForUser,
   getOrderCheckoutForUser,
+  listDueNotificationCampaigns,
   listOrdersForUser,
   listProducts,
   previewDiscountForUser,
   recordAudit,
+  recordNotificationClick,
+  updateNotificationPreferences,
   upsertTelegramUser
 } from './shop.js';
 import { readStore } from './storage.js';
@@ -35,6 +42,7 @@ import { brandIcon as brandAssetIcon } from '../public/brand-assets.js';
 import * as telegramEmoji from './telegramEmoji.js';
 import * as telegramTransport from './telegramTransport.js';
 import { buildCustomEmojiEntityPayload } from './telegramTextEntities.js';
+import { userAllowsNotification } from './notificationCenter.js';
 
 const {
   UI_ICONS,
@@ -287,7 +295,7 @@ const TELEGRAM_ALL_MENU_COMMANDS = [
   { command: 'logout', description: 'Đóng menu' }
 ];
 
-const TELEGRAM_VISIBLE_COMMAND_ORDER = ['start', 'products', 'orders', 'support', 'account'];
+const TELEGRAM_VISIBLE_COMMAND_ORDER = ['start', 'products', 'orders', 'notifications', 'support', 'account'];
 export const BOT_RESTORED_MESSAGE = `${newsEmoji('refresh')} Bot đã hoạt động trở lại`;
 
 export const TELEGRAM_MENU_COMMANDS = TELEGRAM_VISIBLE_COMMAND_ORDER
@@ -318,7 +326,7 @@ const TELEGRAM_ALL_MAIN_MENU_ITEMS = [
 ];
 
 export const TELEGRAM_MAIN_MENU_ITEMS = TELEGRAM_ALL_MAIN_MENU_ITEMS.filter((item) => (
-  ['products', 'topup', 'account', 'orders', 'support'].includes(item.key)
+  ['products', 'topup', 'account', 'orders', 'notifications', 'support'].includes(item.key)
 ));
 
 const TELEGRAM_MENU_COMMAND_ACTIONS = new Map(
@@ -1027,6 +1035,7 @@ function uiKeyboardButton(key, label, callbackData) {
 function knownTelegramChatIds(db) {
   return [...new Set(
     db.users
+      .filter((user) => !user.notificationBlockedAt && userAllowsNotification(user, 'service'))
       .map((user) => String(user.telegramId || '').trim())
       .filter(Boolean)
   )];
@@ -1059,6 +1068,93 @@ export async function notifyBotRestoredToUsers(message = BOT_RESTORED_MESSAGE) {
     failed: failures.length,
     failures
   };
+}
+
+function telegramRecipientIsBlocked(error) {
+  const text = String(error?.message || error || '').toLowerCase();
+  return text.includes('bot was blocked') || text.includes('forbidden') || text.includes('chat not found');
+}
+
+function notificationDelay(ms) {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
+async function deliverNotificationRecipient(campaign, recipient) {
+  const emojiKey = NEWS_EMOJI[campaign.emojiKey] ? campaign.emojiKey : 'bell';
+  const friendlyKey = ({ promotion: 'party', stock: 'ok', news: 'salute', service: 'ok' })[campaign.category] || 'ok';
+  const friendlyFallback = ({ party: '🥳', salute: '🫡', ok: '👌' })[friendlyKey] || '👌';
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await sendCustomTelegramMessage(
+        recipient.telegramId,
+        notificationCampaignMessage({ ...campaign, emojiKey }),
+        [
+          newsEmojiCandidate(emojiKey),
+          customEmojiCandidate(roboEmoji(friendlyKey, friendlyFallback), roboCustomEmojiId(friendlyKey)),
+          newsEmojiCandidate('info')
+        ],
+        { reply_markup: notificationCampaignKeyboard(campaign) }
+      );
+      return { userId: recipient.id, telegramId: recipient.telegramId, status: 'sent' };
+    } catch (error) {
+      if (telegramRecipientIsBlocked(error)) {
+        return {
+          userId: recipient.id,
+          telegramId: recipient.telegramId,
+          status: 'blocked',
+          error: String(error.message || error).slice(0, 300)
+        };
+      }
+      if (attempt === 3) {
+        return {
+          userId: recipient.id,
+          telegramId: recipient.telegramId,
+          status: 'failed',
+          error: String(error.message || error).slice(0, 300)
+        };
+      }
+      await notificationDelay(attempt * 300);
+    }
+  }
+  return { userId: recipient.id, telegramId: recipient.telegramId, status: 'failed', error: 'Unknown delivery failure' };
+}
+
+export async function sendNotificationCampaign(campaignId, { actorId = 'system' } = {}) {
+  const claim = await claimNotificationCampaign(campaignId, actorId);
+  if (!claim.claimed) return claim.campaign;
+  const deliveries = [];
+  for (let index = 0; index < claim.recipients.length; index += 10) {
+    const batch = claim.recipients.slice(index, index + 10);
+    deliveries.push(...await Promise.all(batch.map((recipient) => deliverNotificationRecipient(claim.campaign, recipient))));
+    if (index + 10 < claim.recipients.length) await notificationDelay(400);
+  }
+  return completeNotificationCampaign(campaignId, deliveries, actorId);
+}
+
+export async function processDueNotificationCampaigns() {
+  const due = await listDueNotificationCampaigns();
+  const results = [];
+  for (const campaign of due) {
+    try {
+      results.push(await sendNotificationCampaign(campaign.id));
+    } catch (error) {
+      console.error(`[telegram] scheduled notification ${campaign.id} failed:`, error.message);
+    }
+  }
+  return { attempted: due.length, completed: results.length };
+}
+
+let notificationCampaignTimer;
+
+export function startNotificationCampaignAutomation({ intervalMs = 30_000 } = {}) {
+  if (notificationCampaignTimer) return notificationCampaignTimer;
+  notificationCampaignTimer = setInterval(() => {
+    processDueNotificationCampaigns().catch((error) => {
+      console.error('[telegram] notification scheduler failed:', error.message);
+    });
+  }, Math.max(5_000, Number(intervalMs) || 30_000));
+  notificationCampaignTimer.unref?.();
+  return notificationCampaignTimer;
 }
 
 export async function configureTelegramMenu() {
@@ -1617,6 +1713,109 @@ function memberMessage(user) {
   ].join('\n');
 }
 
+const NOTIFICATION_PREFERENCE_LABELS = {
+  promotions: 'Ưu đãi và mã giảm giá',
+  stockAlerts: 'Hàng mới và restock',
+  news: 'Tin tức từ shop',
+  serviceUpdates: 'Cập nhật dịch vụ'
+};
+
+function notificationCenterMessage(center = {}) {
+  const preferences = center.preferences || {};
+  const preferenceLines = Object.entries(NOTIFICATION_PREFERENCE_LABELS).map(([key, label]) => (
+    `${preferences[key] ? newsEmoji('check') : '○'} ${label}: <b>${preferences[key] ? 'Đang bật' : 'Đang tắt'}</b>`
+  ));
+  const recent = (center.notifications || []).slice(0, 5);
+  return [
+    `${newsEmoji('bell')} <b>Trung tâm thông báo</b>`,
+    'Chọn đúng nội dung bạn muốn nhận để bot hữu ích mà không làm phiền.',
+    '',
+    `${newsEmoji('shield')} Đơn hàng, thanh toán và Seat: <b>Luôn bật</b>`,
+    ...preferenceLines,
+    '',
+    recent.length ? `${newsEmoji('tracking')} <b>Thông báo gần đây</b>` : `${newsEmoji('info')} Chưa có thông báo chiến dịch nào.`,
+    ...recent.map((item) => `• ${escapeHtml(item.title)} · ${escapeHtml(new Date(item.sentAt).toLocaleDateString('vi-VN'))}`),
+    '',
+    'Bạn có thể thay đổi tùy chọn bất kỳ lúc nào bằng các nút bên dưới.'
+  ].join('\n');
+}
+
+function notificationCenterKeyboard(center = {}) {
+  const preferences = center.preferences || {};
+  const preferenceButtons = Object.entries(NOTIFICATION_PREFERENCE_LABELS).map(([key, label]) => (
+    uiKeyboardButton(
+      'notifications',
+      `${preferences[key] ? '✓' : '○'} ${label}`,
+      `notify_pref:${key}`
+    )
+  ));
+  return {
+    inline_keyboard: [
+      ...chunkButtons(preferenceButtons, 1),
+      [uiKeyboardButton('products', 'Xem sản phẩm', 'catalog:all'), uiKeyboardButton('orders', 'Đơn hàng', 'orders:mine')]
+    ]
+  };
+}
+
+async function presentNotificationCenter(chatId, messageId, user) {
+  const center = await getNotificationCenterForUser(user.id, { markRead: true });
+  const preferenceCandidates = Object.keys(NOTIFICATION_PREFERENCE_LABELS)
+    .filter((key) => center.preferences?.[key])
+    .map(() => newsEmojiCandidate('check'));
+  await presentCustomTelegramMessage(
+    chatId,
+    messageId,
+    notificationCenterMessage(center),
+    [
+      newsEmojiCandidate('bell'),
+      newsEmojiCandidate('shield'),
+      ...preferenceCandidates,
+      newsEmojiCandidate(center.notifications?.length ? 'tracking' : 'info')
+    ],
+    { reply_markup: notificationCenterKeyboard(center) }
+  );
+  return center;
+}
+
+function notificationCampaignMessage(campaign) {
+  const categoryLabels = {
+    promotion: 'Ưu đãi',
+    stock: 'Hàng mới / restock',
+    news: 'Tin tức',
+    service: 'Cập nhật dịch vụ'
+  };
+  const friendly = {
+    promotion: { key: 'party', fallback: '🥳', text: 'Chúc bạn chọn được gói phù hợp.' },
+    stock: { key: 'ok', fallback: '👌', text: 'Bot sẵn sàng hỗ trợ bạn đặt nhanh.' },
+    news: { key: 'salute', fallback: '🫡', text: 'Cảm ơn bạn đã đồng hành cùng KAITO.' },
+    service: { key: 'ok', fallback: '👌', text: 'Cảm ơn bạn đã kiên nhẫn cùng KAITO.' }
+  }[campaign.category] || { key: 'ok', fallback: '👌', text: 'KAITO luôn sẵn sàng hỗ trợ bạn.' };
+  return [
+    `${newsEmoji(campaign.emojiKey) || newsEmoji('bell')} <b>${escapeHtml(campaign.title)}</b>`,
+    '',
+    escapeHtml(campaign.message).replaceAll('\n', '\n'),
+    '',
+    `${roboEmoji(friendly.key, friendly.fallback)} ${friendly.text}`,
+    `${newsEmoji('info')} ${escapeHtml(categoryLabels[campaign.category] || 'Thông báo từ shop')} · Quản lý tại /notifications`
+  ].join('\n');
+}
+
+function notificationCampaignKeyboard(campaign) {
+  if (!campaign.cta || campaign.cta.type === 'none') return undefined;
+  const labels = {
+    catalog: 'Xem sản phẩm',
+    orders: 'Xem đơn hàng',
+    product: 'Xem gói ngay'
+  };
+  return {
+    inline_keyboard: [[uiKeyboardButton(
+      campaign.cta.type === 'orders' ? 'orders' : 'products',
+      campaign.cta.label || labels[campaign.cta.type] || 'Xem chi tiết',
+      `notify_cta:${campaign.id}`
+    )]]
+  };
+}
+
 function menuInfoMessage(key, user) {
   const messages = {
     security: [
@@ -1775,6 +1974,12 @@ async function sendMenuAction(chatId, user, action, products, options = {}) {
   if (action === 'support') {
     if (options.track) await trackTelegramClick(user, 'support');
     await presentCustomTelegramMessage(chatId, messageId, supportMessage(), supportCustomEmojiCandidates(), { reply_markup: buildMainMenuKeyboard() });
+    return true;
+  }
+
+  if (action === 'notifications') {
+    if (options.track) await trackTelegramClick(user, 'notifications');
+    await presentNotificationCenter(chatId, messageId, user);
     return true;
   }
 
@@ -2710,6 +2915,50 @@ async function handleCallbackQuery(callbackQuery) {
   const user = await upsertTelegramUser(callbackQuery.from);
   const products = await listProducts({ user });
   const categories = uniqueSorted(products.map((product) => normalizePublicProduct(product).category));
+
+  if (data.startsWith('notify_pref:')) {
+    if (!privateTelegramChat(callbackQuery.message?.chat)) {
+      await answerCallbackQuery(callbackQuery.id, 'Hãy quản lý thông báo trong cuộc trò chuyện riêng với bot.');
+      return;
+    }
+    const key = data.slice('notify_pref:'.length);
+    const center = await getNotificationCenterForUser(user.id);
+    if (!Object.prototype.hasOwnProperty.call(center.preferences, key)) {
+      await answerCallbackQuery(callbackQuery.id, 'Tùy chọn thông báo không hợp lệ.');
+      return;
+    }
+    const enabled = !center.preferences[key];
+    await updateNotificationPreferences(user.id, { [key]: enabled });
+    await answerCallbackQuery(callbackQuery.id, enabled ? 'Đã bật thông báo' : 'Đã tắt thông báo');
+    await presentNotificationCenter(chatId, messageId, user);
+    return;
+  }
+
+  if (data.startsWith('notify_cta:')) {
+    const campaignId = data.slice('notify_cta:'.length);
+    const campaign = await getNotificationCampaign(campaignId);
+    if (!campaign) {
+      await answerCallbackQuery(callbackQuery.id, 'Thông báo này không còn khả dụng.');
+      return;
+    }
+    await recordNotificationClick(campaignId, user.id);
+    await answerCallbackQuery(callbackQuery.id, 'Đang mở nội dung');
+    if (campaign.cta?.type === 'orders') {
+      await sendMenuAction(chatId, user, 'orders:mine', products, { track: true });
+      return;
+    }
+    if (campaign.cta?.type === 'product') {
+      const product = findProduct(products, campaign.cta.value);
+      if (product) {
+        await sendCustomTelegramMessage(chatId, productDetailMessage(product), productCustomEmojiCandidates(product), {
+          reply_markup: buildProductDetailKeyboard(product)
+        });
+        return;
+      }
+    }
+    await sendMenuAction(chatId, user, 'catalog:all', products, { track: true });
+    return;
+  }
 
   if ((data.startsWith('seat_') || data.startsWith('discount_')) && !privateTelegramChat(callbackQuery.message?.chat)) {
     await answerCallbackQuery(callbackQuery.id, 'Hãy nhập thông tin checkout trong cuộc trò chuyện riêng với bot.');

@@ -11,12 +11,14 @@ import {
   cancelOrder,
   completeSeatFulfillment,
   createDiscountCode,
+  createNotificationCampaign,
   createOrderForUser,
   createProduct,
   deleteTelegramPriceList,
   expireOrders,
   getDashboardSummary,
   getDeliveryForOrder,
+  getNotificationAdminOverview,
   getPublicPaymentStatus,
   getTelegramPricingOverview,
   importInventory,
@@ -36,7 +38,15 @@ import {
   upsertTelegramUser
 } from './shop.js';
 import { paymentProviders } from './payments.js';
-import { configureTelegramMenu, handleTelegramUpdate, notifyBotRestoredToUsers, notifyDelivery, startTelegramPolling } from './telegram.js';
+import {
+  configureTelegramMenu,
+  handleTelegramUpdate,
+  notifyBotRestoredToUsers,
+  notifyDelivery,
+  sendNotificationCampaign,
+  startNotificationCampaignAutomation,
+  startTelegramPolling
+} from './telegram.js';
 import { assertRateLimit, classifyHttpLimit, clientIp } from './rateLimit.js';
 import { getReadiness, getSystemStatus } from './systemStatus.js';
 import {
@@ -365,6 +375,34 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, await updateDiscountCode(admin.id, params.id, body));
   }
 
+  if (req.method === 'GET' && pathname === '/api/notifications') {
+    return sendJson(res, 200, await getNotificationAdminOverview(), { 'cache-control': 'no-store' });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/notifications/campaigns') {
+    const { body } = await readJson(req);
+    const campaign = await createNotificationCampaign(admin.id, body);
+    const sendNow = body.sendNow === true && campaign.status === 'draft';
+    if (sendNow) {
+      setImmediate(() => {
+        sendNotificationCampaign(campaign.id, { actorId: admin.id }).catch((error) => {
+          console.error(`[telegram] notification campaign ${campaign.id} failed:`, error.message);
+        });
+      });
+    }
+    return sendJson(res, sendNow ? 202 : 201, { campaign, queued: sendNow });
+  }
+
+  params = routeParams('/api/notifications/campaigns/:id/send', pathname);
+  if (params && req.method === 'POST') {
+    setImmediate(() => {
+      sendNotificationCampaign(params.id, { actorId: admin.id }).catch((error) => {
+        console.error(`[telegram] notification campaign ${params.id} failed:`, error.message);
+      });
+    });
+    return sendJson(res, 202, { ok: true, queued: true, campaignId: params.id });
+  }
+
   if (req.method === 'PUT' && pathname === '/api/catalog-pricing') {
     const { body } = await readJson(req);
     return sendJson(res, 200, await setCatalogPriceList(admin.id, body));
@@ -666,6 +704,7 @@ await initStore();
 configureTelegramMenu().catch((error) => console.error('[telegram] menu setup failed:', error.message));
 setInterval(() => expireOrders().catch((error) => console.error('[orders] expire failed:', error.message)), 60_000);
 startSeatFulfillmentAutomation({ onDelivered: notifyAutomaticSeatDelivery });
+startNotificationCampaignAutomation();
 for (const provider of ['chatgpt', 'canva', 'claude']) {
   startSeatEntitlementTargetBackfill({ provider });
   startSeatExpiryAutomation({ provider });

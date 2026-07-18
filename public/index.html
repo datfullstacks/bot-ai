@@ -63,6 +63,7 @@
           <button class="nav" data-tab="products"><span class="nav-icon" data-lucide="package" aria-hidden="true"></span><span>Sản phẩm</span></button>
           <button class="nav" data-tab="pricing"><span class="nav-icon" data-lucide="badge-dollar-sign" aria-hidden="true"></span><span>Bảng giá Telegram</span></button>
           <button class="nav" data-tab="discounts"><span class="nav-icon" data-lucide="ticket-percent" aria-hidden="true"></span><span>Mã giảm giá</span></button>
+          <button class="nav" data-tab="notifications"><span class="nav-icon" data-lucide="bell-ring" aria-hidden="true"></span><span>Thông báo</span></button>
           <button class="nav" data-tab="inventory"><span class="nav-icon" data-lucide="boxes" aria-hidden="true"></span><span>Kho hàng</span></button>
           <button class="nav" data-tab="seatGuard"><span class="nav-icon" data-lucide="shield-check" aria-hidden="true"></span><span>Seat Guard</span></button>
           <button class="nav" data-tab="orders"><span class="nav-icon" data-lucide="shopping-cart" aria-hidden="true"></span><span>Đơn hàng</span></button>
@@ -492,6 +493,68 @@
                 <button id="discountFilterReset" class="secondary icon-button" type="button"><span class="icon" data-lucide="rotate-ccw" aria-hidden="true"></span><span>Đặt lại</span></button>
               </div>
               <div id="discountCodesList" class="discount-codes-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="notificationsTab" class="tab">
+          <section class="notification-metrics" aria-label="Tổng quan kênh thông báo">
+            <div class="notification-metric"><span data-lucide="send" aria-hidden="true"></span><span><small>Chiến dịch</small><strong id="notificationMetricCampaigns">0</strong><em>Đã tạo</em></span></div>
+            <div class="notification-metric metric-success"><span data-lucide="circle-check-big" aria-hidden="true"></span><span><small>Đã gửi</small><strong id="notificationMetricSent">0</strong><em>Delivery thành công</em></span></div>
+            <div class="notification-metric metric-audience"><span data-lucide="users" aria-hidden="true"></span><span><small>Người nhận</small><strong id="notificationMetricSubscribers">0</strong><em id="notificationMetricSubscribersMeta">0 user đã biết</em></span></div>
+            <div class="notification-metric metric-warning"><span data-lucide="triangle-alert" aria-hidden="true"></span><span><small>Lỗi / chặn</small><strong id="notificationMetricFailed">0</strong><em>Cần theo dõi</em></span></div>
+            <div class="notification-metric metric-click"><span data-lucide="mouse-pointer-click" aria-hidden="true"></span><span><small>CTA click</small><strong id="notificationMetricClicked">0</strong><em>Tương tác ghi nhận</em></span></div>
+          </section>
+
+          <div class="notification-layout">
+            <form id="notificationForm" class="panel notification-composer">
+              <div class="panel-head">
+                <div>
+                  <span class="chart-kicker">Notification composer</span>
+                  <h2>Soạn thông báo</h2>
+                  <p class="panel-subtitle">Nội dung marketing chỉ gửi đến user đã chủ động đăng ký.</p>
+                </div>
+                <span class="badge available">Telegram</span>
+              </div>
+
+              <div class="notification-form-section">
+                <span class="discount-section-label">1 · Nội dung và cảm xúc</span>
+                <div class="notification-form-grid">
+                  <label>Nhóm thông báo<select name="category" required><option value="promotion">Ưu đãi</option><option value="stock">Hàng mới / restock</option><option value="news">Tin tức</option><option value="service">Cập nhật dịch vụ</option></select></label>
+                  <label>Emoji chủ đạo<select name="emojiKey" required><option value="boom">💥 Khuyến mãi</option><option value="fire">🔥 Sản phẩm hot</option><option value="shopping-bag">🛍 Hàng mới</option><option value="megaphone">📣 Tin tức</option><option value="bell">🔔 Dịch vụ</option><option value="party">🎉 Sự kiện</option><option value="info">ℹ️ Thông tin</option><option value="warning">⚠️ Cảnh báo</option></select></label>
+                  <label class="notification-span-2">Tiêu đề<input name="title" maxlength="100" placeholder="ChatGPT Plus vừa có hàng" required></label>
+                  <label class="notification-span-2">Nội dung<textarea id="notificationMessage" name="message" rows="6" maxlength="1200" placeholder="Nêu thông tin chính, lợi ích và lý do người dùng nên quan tâm..." required></textarea><small class="field-help product-character-count"><span>Viết ngắn, rõ và chỉ dùng emoji có mục đích.</span><span id="notificationMessageCount">0/1200</span></small></label>
+                </div>
+              </div>
+
+              <div class="notification-form-section">
+                <span class="discount-section-label">2 · Người nhận và hành động</span>
+                <div class="notification-form-grid">
+                  <label>Nhóm người nhận<select name="audienceType" required><option value="subscribers">Tất cả người đã đăng ký</option><option value="customers">Khách đã thanh toán</option><option value="product">Khách từng mua SKU</option><option value="username">Một username Telegram</option></select></label>
+                  <label id="notificationAudienceValueField" class="hidden">Giá trị đối tượng<input name="audienceValue" list="notificationProductOptions" placeholder="SKU hoặc username"></label>
+                  <datalist id="notificationProductOptions"></datalist>
+                  <datalist id="notificationUserOptions"></datalist>
+                  <label>CTA<select name="ctaType"><option value="none">Không có nút</option><option value="catalog">Mở danh mục</option><option value="orders">Mở đơn hàng</option><option value="product">Mở một sản phẩm</option></select></label>
+                  <label id="notificationCtaValueField" class="hidden">SKU cho CTA<input name="ctaValue" list="notificationProductOptions" placeholder="chatgpt-plus-1m"></label>
+                  <label>Nhãn nút<input name="ctaLabel" maxlength="40" placeholder="Xem ngay"></label>
+                  <label>Lên lịch gửi<input name="scheduledAt" type="datetime-local"><small class="field-help">Để trống nếu gửi ngay.</small></label>
+                </div>
+              </div>
+
+              <div id="notificationPreview" class="notification-preview" aria-live="polite"></div>
+              <div id="notificationFormError" class="product-create-error hidden" role="alert"></div>
+              <div class="actions notification-form-actions">
+                <button id="notificationScheduleBtn" class="secondary" type="submit" data-notification-submit="schedule"><span class="icon" data-lucide="calendar-clock" aria-hidden="true"></span><span>Lưu lịch gửi</span></button>
+                <button id="notificationSendBtn" type="submit" data-notification-submit="send"><span class="icon" data-lucide="send" aria-hidden="true"></span><span>Gửi ngay</span></button>
+              </div>
+            </form>
+
+            <section class="panel notification-history-panel">
+              <div class="panel-head">
+                <div><h2>Lịch sử chiến dịch</h2><p class="panel-subtitle">Theo dõi trạng thái, delivery và click CTA.</p></div>
+                <span id="notificationCampaignCount" class="badge available">0 chiến dịch</span>
+              </div>
+              <div id="notificationCampaignsList" class="notification-campaigns-list"></div>
             </section>
           </div>
         </section>

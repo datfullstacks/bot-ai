@@ -14,6 +14,7 @@ const postgresShopStore = await readFile(resolve(process.cwd(), 'src', 'shopStor
 const postgresStore = await readFile(resolve(process.cwd(), 'src', 'postgresStore.js'), 'utf8');
 const dashboardAnalytics = await readFile(resolve(process.cwd(), 'src', 'dashboardAnalytics.js'), 'utf8');
 const discountCodes = await readFile(resolve(process.cwd(), 'src', 'discountCodes.js'), 'utf8');
+const notificationCenter = await readFile(resolve(process.cwd(), 'src', 'notificationCenter.js'), 'utf8');
 const shop = await readFile(resolve(process.cwd(), 'src', 'shop.js'), 'utf8');
 const telegram = await readFile(resolve(process.cwd(), 'src', 'telegram.js'), 'utf8');
 const { getBrandAsset } = await import('../public/brand-assets.js');
@@ -64,6 +65,23 @@ for (const id of [
   'discountStatusFilter',
   'discountFilterReset',
   'discountFilterSummary',
+  'notificationsTab',
+  'notificationForm',
+  'notificationMetricCampaigns',
+  'notificationMetricSent',
+  'notificationMetricSubscribers',
+  'notificationMetricFailed',
+  'notificationMetricClicked',
+  'notificationMessage',
+  'notificationMessageCount',
+  'notificationAudienceValueField',
+  'notificationUserOptions',
+  'notificationCtaValueField',
+  'notificationPreview',
+  'notificationFormError',
+  'notificationScheduleBtn',
+  'notificationSendBtn',
+  'notificationCampaignsList',
   'adminSidebar',
   'sidebarToggle',
   'sidebarClose',
@@ -101,6 +119,7 @@ assert.ok(html.includes('data-lucide="log-out"'), 'Logout button should include 
 assert.ok(html.includes('data-tab="seatGuard"'), 'Admin nav should expose the Seat Guard tab.');
 assert.ok(html.includes('data-tab="pricing"'), 'Admin nav should expose Telegram username pricing.');
 assert.ok(html.includes('data-tab="discounts"'), 'Admin nav should expose one-time discount management.');
+assert.ok(html.includes('data-tab="notifications"'), 'Admin nav should expose the Notification Center.');
 assert.ok(html.includes('id="seatGuardTab"'), 'Admin HTML should include the Seat Guard panel.');
 assert.ok(html.includes('data-lucide="shield-check"'), 'Seat Guard nav should include a shield icon.');
 assert.ok(html.includes('thời hạn 30 ngày'), 'Seat Guard should explain its fixed 30-day entitlement term.');
@@ -129,6 +148,9 @@ for (const fn of [
   'renderDiscountMetrics',
   'renderDiscountFormPreview',
   'copyDiscountCode',
+  'syncNotificationForm',
+  'renderNotifications',
+  'refreshNotifications',
   'setSidebarOpen',
   'setButtonBusy',
   'setProductCreateOpen',
@@ -228,6 +250,18 @@ assert.ok(server.includes('TELEGRAM_OWNER_USER_ID'), 'Dev order API should fall 
 assert.ok(server.includes("pathname === '/api/telegram-pricing'"), 'Server should expose the authenticated Telegram pricing overview.');
 assert.ok(server.includes("pathname === '/api/catalog-pricing'"), 'Server should expose the authenticated base price-list update.');
 assert.ok(server.includes("pathname === '/api/discount-codes'"), 'Server should expose authenticated discount list and creation endpoints.');
+assert.ok(server.includes("pathname === '/api/notifications'"), 'Server should expose the authenticated notification overview.');
+assert.ok(server.includes("pathname === '/api/notifications/campaigns'"), 'Server should expose notification campaign creation.');
+assert.ok(server.includes("routeParams('/api/notifications/campaigns/:id/send'"), 'Server should expose queued notification sending.');
+assert.ok(notificationCenter.includes('DEFAULT_NOTIFICATION_PREFERENCES'), 'Notification preferences should have explicit safe defaults.');
+assert.ok(notificationCenter.includes('userAllowsNotification'), 'Campaign targeting should honor user opt-in preferences.');
+assert.ok(jsonShopStore.includes('claimNotificationCampaign'), 'JSON storage should claim notification campaigns idempotently.');
+assert.ok(postgresShopStore.includes('claimNotificationCampaign'), 'Postgres storage should claim notification campaigns transactionally.');
+assert.ok(postgresStore.includes("notificationCampaigns: 'notificationCampaigns'"), 'Document snapshots should persist notification campaigns.');
+assert.ok(telegram.includes("'notifications', 'support'"), 'Telegram commands should expose the Notification Center.');
+assert.ok(telegram.includes("data.startsWith('notify_pref:'"), 'Telegram should handle notification preference toggles.');
+assert.ok(telegram.includes("data.startsWith('notify_cta:'"), 'Telegram should track notification CTA callbacks.');
+assert.ok(telegram.includes('startNotificationCampaignAutomation'), 'Scheduled notification campaigns should have a background worker.');
 assert.ok(server.includes("routeParams('/api/discount-codes/:id'"), 'Server should expose discount activation mutations.');
 assert.ok(shop.includes('previewDiscountForUser'), 'The active shop store should expose discount previews to Telegram checkout.');
 assert.ok(discountCodes.includes('discountReservationIsLive'), 'Discount domain should model live one-order reservations.');
@@ -334,6 +368,11 @@ for (const selector of [
   '.discount-form-preview',
   '.discount-detail-grid',
   '.discount-lifecycle-note',
+  '.notification-metrics',
+  '.notification-layout',
+  '.notification-preview',
+  '.notification-campaign-card',
+  '.notification-delivery-summary',
   '.editor-grid',
   '.data-table',
   '.status-dot',

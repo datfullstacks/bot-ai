@@ -589,7 +589,8 @@ try {
       ['Đơn hàng', 'orders:mine', newsEmojiIds.search]
     ],
     [
-      ['Hỗ trợ', 'support', newsEmojiIds.chat]
+      ['Hỗ trợ', 'support', newsEmojiIds.chat],
+      ['Thông báo', 'notifications', newsEmojiIds.bell]
     ]
   ];
   assert.deepEqual(
@@ -1451,7 +1452,7 @@ try {
   const vietnameseCommandsCall = commandCalls.find((call) => call.body.language_code === 'vi');
   assert.ok(defaultCommandsCall, 'Startup should publish default Telegram bot commands so English/non-Vietnamese clients can open the bot menu.');
   assert.ok(vietnameseCommandsCall, 'Startup should also publish Vietnamese Telegram bot commands for Vietnamese clients.');
-  assert.deepEqual(defaultCommandsCall.body.commands.map((item) => item.command), ['start', 'products', 'orders', 'support', 'account']);
+  assert.deepEqual(defaultCommandsCall.body.commands.map((item) => item.command), ['start', 'products', 'orders', 'notifications', 'support', 'account']);
   assert.deepEqual(vietnameseCommandsCall.body.commands.map((item) => item.command), defaultCommandsCall.body.commands.map((item) => item.command));
   assert.match(defaultCommandsCall.body.commands.find((item) => item.command === 'start').description, /menu/i);
   assert.ok(Array.isArray(TELEGRAM_MENU_LANGUAGE_CODES), 'Supported menu languages should be explicit and testable.');

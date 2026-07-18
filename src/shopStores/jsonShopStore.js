@@ -25,6 +25,14 @@ import {
 } from '../discountCodes.js';
 import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
 import { parseSeatEmailLines } from '../seatFulfillment.js';
+import {
+  normalizeNotificationCampaignInput,
+  normalizeNotificationPreferencePatch,
+  normalizeNotificationPreferences,
+  notificationDeliverySummary,
+  publicNotificationCampaign,
+  userAllowsNotification
+} from '../notificationCenter.js';
 import { addAudit, makeId, publicProduct, readStore, withWrite } from '../storage.js';
 import { paymentProvider } from '../payments.js';
 import {
@@ -226,6 +234,212 @@ export async function upsertTelegramUser(from) {
       user.updatedAt = nowIso();
     }
     return user;
+  });
+}
+
+function notificationAudienceUsers(db, campaign) {
+  const type = campaign.audience?.type || 'subscribers';
+  const value = String(campaign.audience?.value || '').trim().toLowerCase().replace(/^@/, '');
+  let userIds = null;
+  if (type === 'customers') {
+    userIds = new Set(db.orders
+      .filter((order) => ['awaiting_fulfillment', 'delivered', 'refunded'].includes(order.status))
+      .map((order) => order.userId));
+  } else if (type === 'product') {
+    userIds = new Set(db.orders
+      .filter((order) => String(order.productSku || '').trim().toLowerCase() === value)
+      .map((order) => order.userId));
+  }
+  return db.users.filter((user) => {
+    if (!String(user.telegramId || '').trim() || user.notificationBlockedAt) return false;
+    if (!userAllowsNotification(user, campaign.category)) return false;
+    if (type === 'username') return String(user.username || '').trim().toLowerCase().replace(/^@/, '') === value;
+    if (userIds) return userIds.has(user.id);
+    return true;
+  });
+}
+
+export async function getNotificationCenterForUser(userId, { markRead = false } = {}) {
+  const read = async (db) => {
+    const user = db.users.find((item) => item.id === userId);
+    if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+    const deliveries = (db.notificationDeliveries || [])
+      .filter((item) => item.userId === userId && item.status === 'sent')
+      .sort((left, right) => String(right.sentAt || '').localeCompare(String(left.sentAt || '')))
+      .slice(0, 8);
+    if (markRead) {
+      const readAt = nowIso();
+      for (const delivery of deliveries) delivery.readAt ||= readAt;
+    }
+    return {
+      preferences: normalizeNotificationPreferences(user.notificationPreferences),
+      unread: deliveries.filter((item) => !item.readAt).length,
+      notifications: deliveries.map((item) => ({
+        id: item.id,
+        campaignId: item.campaignId,
+        title: item.title,
+        category: item.category,
+        sentAt: item.sentAt,
+        readAt: item.readAt || null,
+        clickedAt: item.clickedAt || null
+      }))
+    };
+  };
+  return markRead ? withWrite(read) : read(await readStore());
+}
+
+export async function updateNotificationPreferences(userId, input) {
+  return withWrite(async (db) => {
+    const user = db.users.find((item) => item.id === userId);
+    if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+    user.notificationPreferences = {
+      ...normalizeNotificationPreferences(user.notificationPreferences),
+      ...normalizeNotificationPreferencePatch(input)
+    };
+    user.updatedAt = nowIso();
+    return normalizeNotificationPreferences(user.notificationPreferences);
+  });
+}
+
+export async function getNotificationAdminOverview() {
+  const db = await readStore();
+  const campaigns = (db.notificationCampaigns || [])
+    .slice()
+    .sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')))
+    .map(publicNotificationCampaign);
+  const deliveries = db.notificationDeliveries || [];
+  return {
+    campaigns,
+    metrics: {
+      campaigns: campaigns.length,
+      sent: deliveries.filter((item) => item.status === 'sent').length,
+      failed: deliveries.filter((item) => item.status === 'failed').length,
+      blocked: deliveries.filter((item) => item.status === 'blocked').length,
+      clicked: deliveries.filter((item) => item.clickedAt).length
+    },
+    audience: {
+      knownUsers: db.users.filter((user) => String(user.telegramId || '').trim()).length,
+      subscribers: db.users.filter((user) => (
+        String(user.telegramId || '').trim()
+        && !user.notificationBlockedAt
+        && Object.values(normalizeNotificationPreferences(user.notificationPreferences)).some(Boolean)
+      )).length
+    },
+    users: db.users
+      .filter((user) => String(user.username || '').trim() && !user.notificationBlockedAt)
+      .map((user) => ({ username: user.username }))
+      .sort((left, right) => left.username.localeCompare(right.username))
+  };
+}
+
+export async function createNotificationCampaign(actorId, input) {
+  return withWrite(async (db) => {
+    const normalized = normalizeNotificationCampaignInput(input);
+    const campaign = {
+      id: makeId('ntf'),
+      ...normalized,
+      createdBy: actorId,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      deliverySummary: { targeted: 0, sent: 0, failed: 0, blocked: 0, clicked: 0 }
+    };
+    db.notificationCampaigns ||= [];
+    db.notificationCampaigns.push(campaign);
+    addAudit(db, actorId, 'notification.campaign.create', 'notification_campaign', campaign.id, {
+      category: campaign.category,
+      audience: campaign.audience,
+      status: campaign.status
+    });
+    return publicNotificationCampaign(campaign);
+  });
+}
+
+export async function getNotificationCampaign(campaignId) {
+  const db = await readStore();
+  const campaign = (db.notificationCampaigns || []).find((item) => item.id === campaignId);
+  return campaign ? publicNotificationCampaign(campaign) : null;
+}
+
+export async function listDueNotificationCampaigns(at = nowIso()) {
+  const db = await readStore();
+  const timestamp = Date.parse(at);
+  return (db.notificationCampaigns || [])
+    .filter((campaign) => campaign.status === 'scheduled' && Date.parse(campaign.scheduledAt) <= timestamp)
+    .map(publicNotificationCampaign);
+}
+
+export async function claimNotificationCampaign(campaignId, actorId = 'system') {
+  return withWrite(async (db) => {
+    const campaign = (db.notificationCampaigns || []).find((item) => item.id === campaignId);
+    if (!campaign) throw Object.assign(new Error('Notification campaign not found'), { statusCode: 404 });
+    if (!['draft', 'scheduled'].includes(campaign.status)) return { claimed: false, campaign: publicNotificationCampaign(campaign), recipients: [] };
+    if (campaign.status === 'scheduled' && Date.parse(campaign.scheduledAt) > Date.now()) {
+      throw Object.assign(new Error('Notification campaign is not due yet'), { statusCode: 409 });
+    }
+    campaign.status = 'sending';
+    campaign.startedAt = nowIso();
+    campaign.updatedAt = campaign.startedAt;
+    const recipients = notificationAudienceUsers(db, campaign).map((user) => ({
+      id: user.id,
+      telegramId: user.telegramId,
+      username: user.username || '',
+      firstName: user.firstName || ''
+    }));
+    addAudit(db, actorId, 'notification.campaign.send_started', 'notification_campaign', campaign.id, {
+      targeted: recipients.length
+    });
+    return { claimed: true, campaign: publicNotificationCampaign(campaign), recipients };
+  });
+}
+
+export async function completeNotificationCampaign(campaignId, deliveries, actorId = 'system') {
+  return withWrite(async (db) => {
+    const campaign = (db.notificationCampaigns || []).find((item) => item.id === campaignId);
+    if (!campaign) throw Object.assign(new Error('Notification campaign not found'), { statusCode: 404 });
+    const completedAt = nowIso();
+    db.notificationDeliveries ||= [];
+    const records = deliveries.map((item) => ({
+      id: makeId('ndl'),
+      campaignId,
+      userId: item.userId,
+      telegramId: String(item.telegramId || ''),
+      title: campaign.title,
+      category: campaign.category,
+      status: item.status,
+      error: item.error || null,
+      sentAt: item.status === 'sent' ? completedAt : null,
+      readAt: null,
+      clickedAt: null,
+      createdAt: completedAt
+    }));
+    db.notificationDeliveries.push(...records);
+    for (const record of records.filter((item) => item.status === 'blocked')) {
+      const user = db.users.find((item) => item.id === record.userId);
+      if (user) user.notificationBlockedAt = completedAt;
+    }
+    campaign.deliverySummary = notificationDeliverySummary(records);
+    campaign.status = records.some((item) => item.status === 'failed') || records.some((item) => item.status === 'blocked')
+      ? 'completed_with_errors'
+      : 'completed';
+    campaign.completedAt = completedAt;
+    campaign.updatedAt = completedAt;
+    addAudit(db, actorId, 'notification.campaign.completed', 'notification_campaign', campaign.id, campaign.deliverySummary);
+    return publicNotificationCampaign(campaign);
+  });
+}
+
+export async function recordNotificationClick(campaignId, userId) {
+  return withWrite(async (db) => {
+    const delivery = (db.notificationDeliveries || []).find((item) => item.campaignId === campaignId && item.userId === userId);
+    if (!delivery) return { recorded: false };
+    delivery.clickedAt ||= nowIso();
+    const campaign = (db.notificationCampaigns || []).find((item) => item.id === campaignId);
+    if (campaign) {
+      const deliveries = (db.notificationDeliveries || []).filter((item) => item.campaignId === campaignId);
+      campaign.deliverySummary = notificationDeliverySummary(deliveries);
+      campaign.updatedAt = nowIso();
+    }
+    return { recorded: true, clickedAt: delivery.clickedAt };
   });
 }
 

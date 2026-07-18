@@ -6,7 +6,7 @@ It includes:
 
 - Telegram bot commands for product browsing and ordering.
 - Four-step Telegram checkout: category, brand, package details, then explicit confirmation.
-- Admin dashboard for products, one-time discount codes, inventory, orders, payments, audit logs, and 30-day operational analytics.
+- Admin dashboard for products, one-time discount codes, opt-in Telegram notifications, inventory, orders, payments, audit logs, and 30-day operational analytics.
 - AES-256-GCM inventory encryption, reservation, buyer cancellation, payment resume, and delivery.
 - Payment provider adapter with mock and SePay providers.
 - Manual payment-review resolution for approving delivery or marking a review order refunded.
@@ -53,6 +53,7 @@ src/
   telegram.js               Telegram sales-flow orchestration
   telegramTransport.js      Telegram Bot API transport and fallback handling
   telegramEmoji*.js         Emoji registry, resolution, and health checks
+  notificationCenter.js     Notification preferences, campaigns, targeting, and summaries
   telegramOffsetStore.js    Persistent Telegram polling offset
 ```
 
@@ -68,6 +69,18 @@ npm.cmd run verify
 ```
 
 The smoke test creates a temporary data file, then verifies admin login/logout, product creation, inventory import, paid delivery, duplicate payment idempotency, payment review approval, payment review refund, cancellation, and dashboard summary counts.
+
+## Telegram Notification Center
+
+The bot exposes `Thông báo` in its main menu and `/notifications` command. Transactional order, payment, and Seat messages always remain available; optional promotion, restock, news, and service categories are controlled independently by each user. Marketing categories default to off, while service updates default to on.
+
+The Admin `Thông báo` workspace can create campaigns for opted-in subscribers, paid customers, buyers of one SKU, or one Telegram username. Campaigns support semantic custom emoji, catalog/order/product CTAs, immediate queueing, future schedules, per-recipient delivery records, blocked-user suppression, retry, click tracking, and audit logs. The scheduler claims each campaign before sending so concurrent workers cannot start the same campaign twice.
+
+Run the focused regression suite with:
+
+```powershell
+npm.cmd run test:notifications
+```
 
 When `DATABASE_URL` points to a real PostgreSQL instance, run the same flow through the row-level production path:
 

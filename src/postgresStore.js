@@ -11,6 +11,8 @@ const collections = {
   catalogPriceLists: 'catalogPriceLists',
   telegramPriceLists: 'telegramPriceLists',
   discountCodes: 'discountCodes',
+  notificationCampaigns: 'notificationCampaigns',
+  notificationDeliveries: 'notificationDeliveries',
   products: 'products',
   inventory: 'inventory',
   orders: 'orders',
@@ -33,6 +35,8 @@ export function emptyDb() {
     catalogPriceLists: [],
     telegramPriceLists: [],
     discountCodes: [],
+    notificationCampaigns: [],
+    notificationDeliveries: [],
     products: [],
     inventory: [],
     orders: [],
@@ -127,6 +131,8 @@ function sortDb(db) {
   db.catalogPriceLists.sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
   db.telegramPriceLists.sort((a, b) => String(a.username || '').localeCompare(String(b.username || '')));
   db.discountCodes.sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
+  db.notificationCampaigns.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  db.notificationDeliveries.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   db.products.sort(ascCreated);
   db.inventory.sort(ascCreated);
   db.orders.sort(ascCreated);

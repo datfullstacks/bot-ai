@@ -15,6 +15,7 @@ const state = {
   discountSearch: '',
   discountStatus: 'all',
   expandedDiscountId: '',
+  notificationOverview: { campaigns: [], metrics: {}, audience: {} },
   telegramPricing: { basePriceList: { id: 'base', prices: {} }, priceLists: [], users: [] },
   telegramPricingUsername: '',
   orderStatus: 'all',
@@ -281,6 +282,7 @@ function setTab(tab) {
     products: ['Sản phẩm', 'Tạo và quản lý mặt hàng đang bán'],
     pricing: ['Bảng giá Telegram', 'Giá gốc và giá riêng theo username'],
     discounts: ['Mã giảm giá', 'Voucher dùng một lần và trạng thái sử dụng'],
+    notifications: ['Thông báo', 'Soạn, phân nhóm và theo dõi Notify Telegram'],
     inventory: ['Kho hàng', 'Nhập tài khoản và mã giao hàng'],
     seatGuard: ['Seat Guard', 'Đối chiếu Seat đã thanh toán với workspace'],
     orders: ['Đơn hàng', 'Theo dõi thanh toán và giao hàng'],
@@ -1500,6 +1502,133 @@ async function copyDiscountCode(code) {
   if (!copied) throw new Error('Copy command was rejected');
 }
 
+const notificationEmojiText = {
+  boom: '💥',
+  fire: '🔥',
+  'shopping-bag': '🛍',
+  megaphone: '📣',
+  bell: '🔔',
+  party: '🎉',
+  info: 'ℹ️',
+  warning: '⚠️'
+};
+
+function notificationStatus(status) {
+  return ({
+    draft: { label: 'Bản nháp', badge: 'reserved' },
+    scheduled: { label: 'Đã lên lịch', badge: 'processing' },
+    sending: { label: 'Đang gửi', badge: 'processing' },
+    completed: { label: 'Hoàn tất', badge: 'available' },
+    completed_with_errors: { label: 'Có lỗi', badge: 'payment_review' }
+  })[status] || { label: status || 'Không rõ', badge: 'cancelled' };
+}
+
+function notificationCategoryLabel(category) {
+  return ({ promotion: 'Ưu đãi', stock: 'Hàng mới / restock', news: 'Tin tức', service: 'Cập nhật dịch vụ' })[category] || category;
+}
+
+function notificationAudienceLabel(audience = {}) {
+  const labels = {
+    subscribers: 'Người đã đăng ký',
+    customers: 'Khách đã thanh toán',
+    product: `Khách mua ${audience.value || 'SKU'}`,
+    username: `@${String(audience.value || '').replace(/^@/, '')}`
+  };
+  return labels[audience.type] || audience.type || '-';
+}
+
+function syncNotificationForm() {
+  const form = $('#notificationForm');
+  if (!form) return;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const needsAudienceValue = ['product', 'username'].includes(data.audienceType);
+  const audienceField = $('#notificationAudienceValueField');
+  audienceField.classList.toggle('hidden', !needsAudienceValue);
+  const audienceInput = audienceField.querySelector('input');
+  audienceInput.disabled = !needsAudienceValue;
+  audienceInput.required = needsAudienceValue;
+  audienceInput.placeholder = data.audienceType === 'username' ? '@username' : 'chatgpt-plus-1m';
+  audienceInput.setAttribute('list', data.audienceType === 'username' ? 'notificationUserOptions' : 'notificationProductOptions');
+  audienceField.firstChild.textContent = data.audienceType === 'username' ? 'Username Telegram' : 'SKU đã mua';
+
+  const needsCtaValue = data.ctaType === 'product';
+  const ctaField = $('#notificationCtaValueField');
+  ctaField.classList.toggle('hidden', !needsCtaValue);
+  const ctaInput = ctaField.querySelector('input');
+  ctaInput.disabled = !needsCtaValue;
+  ctaInput.required = needsCtaValue;
+
+  const emoji = notificationEmojiText[data.emojiKey] || '🔔';
+  const title = String(data.title || '').trim() || 'Tiêu đề thông báo';
+  const message = String(data.message || '').trim() || 'Nội dung thân thiện, ngắn gọn và hữu ích sẽ xuất hiện tại đây.';
+  const friendly = ({
+    promotion: '🥳 Chúc bạn chọn được gói phù hợp.',
+    stock: '👌 Bot sẵn sàng hỗ trợ bạn đặt nhanh.',
+    news: '🫡 Cảm ơn bạn đã đồng hành cùng KAITO.',
+    service: '👌 Cảm ơn bạn đã kiên nhẫn cùng KAITO.'
+  })[data.category] || '👌 KAITO luôn sẵn sàng hỗ trợ bạn.';
+  const ctaLabels = { catalog: 'Xem sản phẩm', orders: 'Xem đơn hàng', product: 'Xem gói ngay' };
+  const ctaLabel = String(data.ctaLabel || '').trim() || ctaLabels[data.ctaType] || '';
+  $('#notificationPreview').innerHTML = `
+    <div class="notification-preview-head"><span>${escapeHtml(emoji)}</span><div><small>Xem trước Telegram</small><strong>${escapeHtml(title)}</strong></div></div>
+    <p>${escapeHtml(message).replaceAll('\n', '<br>')}</p>
+    <span class="notification-preview-friendly">${escapeHtml(friendly)}</span>
+    <span class="notification-preview-category">${icon('bell-ring', 'inline-icon')}${escapeHtml(notificationCategoryLabel(data.category))} · /notifications</span>
+    ${data.ctaType !== 'none' ? `<button type="button" tabindex="-1">${escapeHtml(ctaLabel)}</button>` : ''}
+  `;
+  $('#notificationMessageCount').textContent = `${String(data.message || '').length}/1200`;
+  refreshIcons();
+}
+
+function renderNotifications(overview = state.notificationOverview) {
+  state.notificationOverview = overview || { campaigns: [], metrics: {}, audience: {} };
+  const metrics = state.notificationOverview.metrics || {};
+  const audience = state.notificationOverview.audience || {};
+  const campaigns = state.notificationOverview.campaigns || [];
+  $('#notificationMetricCampaigns').textContent = Number(metrics.campaigns || 0).toLocaleString('vi-VN');
+  $('#notificationMetricSent').textContent = Number(metrics.sent || 0).toLocaleString('vi-VN');
+  $('#notificationMetricSubscribers').textContent = Number(audience.subscribers || 0).toLocaleString('vi-VN');
+  $('#notificationMetricSubscribersMeta').textContent = `${Number(audience.knownUsers || 0).toLocaleString('vi-VN')} user đã biết`;
+  $('#notificationMetricFailed').textContent = Number(metrics.failed || 0) + Number(metrics.blocked || 0);
+  $('#notificationMetricClicked').textContent = Number(metrics.clicked || 0).toLocaleString('vi-VN');
+  $('#notificationCampaignCount').textContent = `${campaigns.length} chiến dịch`;
+  $('#notificationProductOptions').innerHTML = state.products.map((product) => (
+    `<option value="${escapeHtml(product.sku)}">${escapeHtml(product.name)}</option>`
+  )).join('');
+  $('#notificationUserOptions').innerHTML = (state.notificationOverview.users || []).map((user) => (
+    `<option value="@${escapeHtml(String(user.username || '').replace(/^@/, ''))}"></option>`
+  )).join('');
+  $('#notificationCampaignsList').innerHTML = campaigns.length ? campaigns.map((campaign) => {
+    const status = notificationStatus(campaign.status);
+    const summary = campaign.deliverySummary || {};
+    const scheduled = campaign.scheduledAt ? new Date(campaign.scheduledAt).toLocaleString('vi-VN') : '';
+    return `
+      <article class="notification-campaign-card">
+        <div class="notification-campaign-head">
+          <span class="notification-campaign-emoji">${escapeHtml(notificationEmojiText[campaign.emojiKey] || '🔔')}</span>
+          <div><strong>${escapeHtml(campaign.title)}</strong><small>${escapeHtml(notificationCategoryLabel(campaign.category))} · ${escapeHtml(notificationAudienceLabel(campaign.audience))}</small></div>
+          ${renderStatusPill(status.badge, status.label)}
+        </div>
+        <p>${escapeHtml(campaign.message)}</p>
+        ${scheduled ? `<span class="notification-campaign-schedule">${icon('calendar-clock', 'inline-icon')} ${escapeHtml(scheduled)}</span>` : ''}
+        <div class="notification-delivery-summary">
+          <span><strong>${escapeHtml(summary.targeted || 0)}</strong>nhắm đến</span>
+          <span><strong>${escapeHtml(summary.sent || 0)}</strong>đã gửi</span>
+          <span><strong>${escapeHtml((summary.failed || 0) + (summary.blocked || 0))}</strong>lỗi/chặn</span>
+          <span><strong>${escapeHtml(summary.clicked || 0)}</strong>click</span>
+        </div>
+        ${campaign.status === 'draft' ? `<div class="actions"><button class="small" data-action="send-notification-campaign" data-id="${escapeHtml(campaign.id)}">${icon('send')}<span>Gửi chiến dịch</span></button></div>` : ''}
+      </article>
+    `;
+  }).join('') : '<p class="meta empty-state">Chưa có chiến dịch. Có thể bắt đầu với một username đã bật đúng nhóm thông báo.</p>';
+  syncNotificationForm();
+  refreshIcons();
+}
+
+async function refreshNotifications() {
+  renderNotifications(await api('/api/notifications'));
+}
+
 function compactNumber(value) {
   return new Intl.NumberFormat('vi-VN', {
     notation: 'compact',
@@ -2007,17 +2136,19 @@ async function renderSystem(system = null) {
 }
 
 async function refresh() {
-  const [summary, products, system, telegramPricing, discountCodes] = await Promise.all([
+  const [summary, products, system, telegramPricing, discountCodes, notificationOverview] = await Promise.all([
     api('/api/dashboard/summary'),
     api('/api/products'),
     api('/api/system/status'),
     api('/api/telegram-pricing'),
-    api('/api/discount-codes')
+    api('/api/discount-codes'),
+    api('/api/notifications')
   ]);
   renderQuickStatus(system);
   renderProducts(products);
   renderTelegramPricing(telegramPricing);
   renderDiscountCodes(discountCodes);
+  renderNotifications(notificationOverview);
   renderSummary(summary);
   if (state.tab === 'inventory') await renderInventory();
   if (state.tab === 'seatGuard') await renderSeatGuard();
@@ -2292,6 +2423,62 @@ $('#discountForm').addEventListener('submit', async (event) => {
   }
 });
 
+$('#notificationForm').addEventListener('input', syncNotificationForm);
+$('#notificationForm').addEventListener('change', (event) => {
+  const form = event.currentTarget;
+  if (event.target.name === 'category') {
+    const emojiByCategory = { promotion: 'boom', stock: 'shopping-bag', news: 'megaphone', service: 'bell' };
+    form.elements.emojiKey.value = emojiByCategory[event.target.value] || 'bell';
+  }
+  syncNotificationForm();
+});
+
+$('#notificationForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submit = event.submitter || $('#notificationSendBtn');
+  const otherSubmit = submit === $('#notificationSendBtn') ? $('#notificationScheduleBtn') : $('#notificationSendBtn');
+  const action = submit.dataset.notificationSubmit || 'send';
+  const data = Object.fromEntries(new FormData(form).entries());
+  const error = $('#notificationFormError');
+  error.classList.add('hidden');
+  error.textContent = '';
+  if (action === 'schedule') {
+    const timestamp = Date.parse(String(data.scheduledAt || ''));
+    if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
+      error.textContent = 'Chọn thời gian gửi trong tương lai trước khi lưu lịch.';
+      error.classList.remove('hidden');
+      form.elements.scheduledAt.focus();
+      return;
+    }
+    data.scheduledAt = new Date(timestamp).toISOString();
+    data.sendNow = false;
+  } else {
+    data.scheduledAt = null;
+    data.sendNow = true;
+  }
+  setButtonBusy(submit, true);
+  otherSubmit.disabled = true;
+  try {
+    const result = await api('/api/notifications/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    form.reset();
+    syncNotificationForm();
+    await refreshNotifications();
+    toast(result.queued ? 'Đã đưa chiến dịch vào hàng gửi' : 'Đã lưu lịch gửi thông báo');
+    if (result.queued) setTimeout(() => refreshNotifications().catch(() => {}), 1200);
+  } catch (requestError) {
+    error.textContent = requestError.message;
+    error.classList.remove('hidden');
+    toast(requestError.message);
+  } finally {
+    setButtonBusy(submit, false);
+    otherSubmit.disabled = false;
+  }
+});
+
 $('#telegramPricingUsername').addEventListener('change', (event) => {
   selectTelegramPricingUsername(event.currentTarget.value);
 });
@@ -2519,6 +2706,20 @@ document.addEventListener('click', async (event) => {
     }
     return;
   }
+  if (action === 'send-notification-campaign') {
+    setButtonBusy(target, true);
+    try {
+      await api(`/api/notifications/campaigns/${encodeURIComponent(id)}/send`, { method: 'POST' });
+      toast('Đã đưa chiến dịch vào hàng gửi');
+      await refreshNotifications();
+      setTimeout(() => refreshNotifications().catch(() => {}), 1200);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      setButtonBusy(target, false);
+    }
+    return;
+  }
   try {
     if (action === 'toggle-discount-code') {
       setButtonBusy(target, true);
@@ -2688,4 +2889,5 @@ document.addEventListener('click', async (event) => {
 
 renderDiscountFormPreview();
 renderProductCreateExperience();
+syncNotificationForm();
 boot();

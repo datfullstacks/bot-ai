@@ -28,6 +28,14 @@ import {
 import { paymentProvider } from '../payments.js';
 import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
 import { parseSeatEmailLines } from '../seatFulfillment.js';
+import {
+  normalizeNotificationCampaignInput,
+  normalizeNotificationPreferencePatch,
+  normalizeNotificationPreferences,
+  notificationDeliverySummary,
+  publicNotificationCampaign,
+  userAllowsNotification
+} from '../notificationCenter.js';
 import { lockSeatAccessTransaction } from '../seatAccessLock.js';
 import {
   applyTelegramProductPricing,
@@ -429,6 +437,261 @@ export async function upsertTelegramUser(from) {
       await upsertDoc(client, 'users', user);
     }
     return user;
+  });
+}
+
+function notificationAudienceUsers(users, orders, campaign) {
+  const type = campaign.audience?.type || 'subscribers';
+  const value = String(campaign.audience?.value || '').trim().toLowerCase().replace(/^@/, '');
+  let userIds = null;
+  if (type === 'customers') {
+    userIds = new Set(orders
+      .filter((order) => ['awaiting_fulfillment', 'delivered', 'refunded'].includes(order.status))
+      .map((order) => order.userId));
+  } else if (type === 'product') {
+    userIds = new Set(orders
+      .filter((order) => String(order.productSku || '').trim().toLowerCase() === value)
+      .map((order) => order.userId));
+  }
+  return users.filter((user) => {
+    if (!String(user.telegramId || '').trim() || user.notificationBlockedAt) return false;
+    if (!userAllowsNotification(user, campaign.category)) return false;
+    if (type === 'username') return String(user.username || '').trim().toLowerCase().replace(/^@/, '') === value;
+    if (userIds) return userIds.has(user.id);
+    return true;
+  });
+}
+
+export async function getNotificationCenterForUser(userId, { markRead = false } = {}) {
+  const operation = async (client) => {
+    const userRow = await getDoc(client, 'users', userId, { forUpdate: markRead });
+    if (!userRow) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+    const result = await client.query(
+      `SELECT id, doc FROM app_documents
+       WHERE collection = 'notificationDeliveries'
+         AND doc->>'userId' = $1
+         AND doc->>'status' = 'sent'
+       ORDER BY doc->>'sentAt' DESC
+       LIMIT 8${markRead ? ' FOR UPDATE' : ''}`,
+      [userId]
+    );
+    const deliveries = result.rows.map((row) => row.doc);
+    if (markRead) {
+      const readAt = nowIso();
+      for (const delivery of deliveries) {
+        if (!delivery.readAt) {
+          delivery.readAt = readAt;
+          await upsertDoc(client, 'notificationDeliveries', delivery);
+        }
+      }
+    }
+    return {
+      preferences: normalizeNotificationPreferences(userRow.doc.notificationPreferences),
+      unread: deliveries.filter((item) => !item.readAt).length,
+      notifications: deliveries.map((item) => ({
+        id: item.id,
+        campaignId: item.campaignId,
+        title: item.title,
+        category: item.category,
+        sentAt: item.sentAt,
+        readAt: item.readAt || null,
+        clickedAt: item.clickedAt || null
+      }))
+    };
+  };
+  return markRead ? withPostgresTransaction(operation) : withPostgresClient(operation);
+}
+
+export async function updateNotificationPreferences(userId, input) {
+  return withPostgresTransaction(async (client) => {
+    const userRow = await getDoc(client, 'users', userId, { forUpdate: true });
+    if (!userRow) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+    const user = userRow.doc;
+    user.notificationPreferences = {
+      ...normalizeNotificationPreferences(user.notificationPreferences),
+      ...normalizeNotificationPreferencePatch(input)
+    };
+    user.updatedAt = nowIso();
+    await upsertDoc(client, 'users', user);
+    return normalizeNotificationPreferences(user.notificationPreferences);
+  });
+}
+
+export async function getNotificationAdminOverview() {
+  return withPostgresClient(async (client) => {
+    const [campaignRows, deliveryRows, userRows] = await Promise.all([
+      client.query(`SELECT doc FROM app_documents WHERE collection = 'notificationCampaigns' ORDER BY doc->>'createdAt' DESC`),
+      client.query(`SELECT doc FROM app_documents WHERE collection = 'notificationDeliveries'`),
+      client.query(`SELECT doc FROM app_documents WHERE collection = 'users'`)
+    ]);
+    const campaigns = campaignRows.rows.map((row) => publicNotificationCampaign(row.doc));
+    const deliveries = deliveryRows.rows.map((row) => row.doc);
+    const users = userRows.rows.map((row) => row.doc);
+    return {
+      campaigns,
+      metrics: {
+        campaigns: campaigns.length,
+        sent: deliveries.filter((item) => item.status === 'sent').length,
+        failed: deliveries.filter((item) => item.status === 'failed').length,
+        blocked: deliveries.filter((item) => item.status === 'blocked').length,
+        clicked: deliveries.filter((item) => item.clickedAt).length
+      },
+      audience: {
+        knownUsers: users.filter((user) => String(user.telegramId || '').trim()).length,
+        subscribers: users.filter((user) => (
+          String(user.telegramId || '').trim()
+          && !user.notificationBlockedAt
+          && Object.values(normalizeNotificationPreferences(user.notificationPreferences)).some(Boolean)
+        )).length
+      },
+      users: users
+        .filter((user) => String(user.username || '').trim() && !user.notificationBlockedAt)
+        .map((user) => ({ username: user.username }))
+        .sort((left, right) => left.username.localeCompare(right.username))
+    };
+  });
+}
+
+export async function createNotificationCampaign(actorId, input) {
+  return withPostgresTransaction(async (client) => {
+    const campaign = {
+      id: makeId('ntf'),
+      ...normalizeNotificationCampaignInput(input),
+      createdBy: actorId,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      deliverySummary: { targeted: 0, sent: 0, failed: 0, blocked: 0, clicked: 0 }
+    };
+    await insertDoc(client, 'notificationCampaigns', campaign);
+    await addAuditDoc(client, actorId, 'notification.campaign.create', 'notification_campaign', campaign.id, {
+      category: campaign.category,
+      audience: campaign.audience,
+      status: campaign.status
+    });
+    return publicNotificationCampaign(campaign);
+  });
+}
+
+export async function getNotificationCampaign(campaignId) {
+  return withPostgresClient(async (client) => {
+    const row = await getDoc(client, 'notificationCampaigns', campaignId);
+    return row ? publicNotificationCampaign(row.doc) : null;
+  });
+}
+
+export async function listDueNotificationCampaigns(at = nowIso()) {
+  return withPostgresClient(async (client) => {
+    const result = await client.query(
+      `SELECT doc FROM app_documents
+       WHERE collection = 'notificationCampaigns'
+         AND doc->>'status' = 'scheduled'
+         AND (doc->>'scheduledAt')::timestamptz <= $1::timestamptz
+       ORDER BY doc->>'scheduledAt' ASC`,
+      [at]
+    );
+    return result.rows.map((row) => publicNotificationCampaign(row.doc));
+  });
+}
+
+export async function claimNotificationCampaign(campaignId, actorId = 'system') {
+  return withPostgresTransaction(async (client) => {
+    const campaignRow = await getDoc(client, 'notificationCampaigns', campaignId, { forUpdate: true });
+    if (!campaignRow) throw Object.assign(new Error('Notification campaign not found'), { statusCode: 404 });
+    const campaign = campaignRow.doc;
+    if (!['draft', 'scheduled'].includes(campaign.status)) return { claimed: false, campaign: publicNotificationCampaign(campaign), recipients: [] };
+    if (campaign.status === 'scheduled' && Date.parse(campaign.scheduledAt) > Date.now()) {
+      throw Object.assign(new Error('Notification campaign is not due yet'), { statusCode: 409 });
+    }
+    const [usersResult, ordersResult] = await Promise.all([
+      client.query(`SELECT doc FROM app_documents WHERE collection = 'users'`),
+      client.query(`SELECT doc FROM app_documents WHERE collection = 'orders'`)
+    ]);
+    campaign.status = 'sending';
+    campaign.startedAt = nowIso();
+    campaign.updatedAt = campaign.startedAt;
+    await upsertDoc(client, 'notificationCampaigns', campaign);
+    const recipients = notificationAudienceUsers(
+      usersResult.rows.map((row) => row.doc),
+      ordersResult.rows.map((row) => row.doc),
+      campaign
+    ).map((user) => ({
+      id: user.id,
+      telegramId: user.telegramId,
+      username: user.username || '',
+      firstName: user.firstName || ''
+    }));
+    await addAuditDoc(client, actorId, 'notification.campaign.send_started', 'notification_campaign', campaign.id, {
+      targeted: recipients.length
+    });
+    return { claimed: true, campaign: publicNotificationCampaign(campaign), recipients };
+  });
+}
+
+export async function completeNotificationCampaign(campaignId, deliveries, actorId = 'system') {
+  return withPostgresTransaction(async (client) => {
+    const campaignRow = await getDoc(client, 'notificationCampaigns', campaignId, { forUpdate: true });
+    if (!campaignRow) throw Object.assign(new Error('Notification campaign not found'), { statusCode: 404 });
+    const campaign = campaignRow.doc;
+    const completedAt = nowIso();
+    const records = deliveries.map((item) => ({
+      id: makeId('ndl'),
+      campaignId,
+      userId: item.userId,
+      telegramId: String(item.telegramId || ''),
+      title: campaign.title,
+      category: campaign.category,
+      status: item.status,
+      error: item.error || null,
+      sentAt: item.status === 'sent' ? completedAt : null,
+      readAt: null,
+      clickedAt: null,
+      createdAt: completedAt
+    }));
+    for (const record of records) await insertDoc(client, 'notificationDeliveries', record);
+    for (const record of records.filter((item) => item.status === 'blocked')) {
+      const userRow = await getDoc(client, 'users', record.userId, { forUpdate: true });
+      if (userRow) {
+        userRow.doc.notificationBlockedAt = completedAt;
+        await upsertDoc(client, 'users', userRow.doc);
+      }
+    }
+    campaign.deliverySummary = notificationDeliverySummary(records);
+    campaign.status = records.some((item) => ['failed', 'blocked'].includes(item.status))
+      ? 'completed_with_errors'
+      : 'completed';
+    campaign.completedAt = completedAt;
+    campaign.updatedAt = completedAt;
+    await upsertDoc(client, 'notificationCampaigns', campaign);
+    await addAuditDoc(client, actorId, 'notification.campaign.completed', 'notification_campaign', campaign.id, campaign.deliverySummary);
+    return publicNotificationCampaign(campaign);
+  });
+}
+
+export async function recordNotificationClick(campaignId, userId) {
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(
+      `SELECT id, doc FROM app_documents
+       WHERE collection = 'notificationDeliveries'
+         AND doc->>'campaignId' = $1
+         AND doc->>'userId' = $2
+       LIMIT 1 FOR UPDATE`,
+      [campaignId, userId]
+    );
+    const delivery = result.rows[0]?.doc;
+    if (!delivery) return { recorded: false };
+    delivery.clickedAt ||= nowIso();
+    await upsertDoc(client, 'notificationDeliveries', delivery);
+    const campaignRow = await getDoc(client, 'notificationCampaigns', campaignId, { forUpdate: true });
+    if (campaignRow) {
+      const deliveriesResult = await client.query(
+        `SELECT doc FROM app_documents WHERE collection = 'notificationDeliveries' AND doc->>'campaignId' = $1`,
+        [campaignId]
+      );
+      campaignRow.doc.deliverySummary = notificationDeliverySummary(deliveriesResult.rows.map((row) => row.doc));
+      campaignRow.doc.updatedAt = nowIso();
+      await upsertDoc(client, 'notificationCampaigns', campaignRow.doc);
+    }
+    return { recorded: true, clickedAt: delivery.clickedAt };
   });
 }
 
