@@ -13,6 +13,7 @@ process.env.TELEGRAM_CUSTOM_EMOJI_CAPABILITY_COOLDOWN_MS = '20';
 
 const { config } = await import('../src/config.js');
 const {
+  editTelegramPhotoFile,
   editTelegramMessage,
   sendTelegramAnimation,
   sendTelegramMessage,
@@ -187,6 +188,7 @@ try {
   assert.equal(calls.length, 2, 'sendMessage should retry without rejected button custom emojis.');
   assert.deepEqual(calls[0].body.reply_markup, customButtonKeyboard);
   assert.equal(collectButtonCustomEmojiIds(calls[1].body.reply_markup).length, 0);
+
   assert.equal(calls[1].body.reply_markup.inline_keyboard[0][0].text, 'Buy');
   assert.equal(calls[1].body.reply_markup.inline_keyboard[0][0].callback_data, 'buy:42');
   assert.equal(calls[1].body.reply_markup.inline_keyboard[0][0].style, 'success');
@@ -196,6 +198,21 @@ try {
     calls[1].body.reply_markup.inline_keyboard[1][0].copy_text,
     { text: 'ORDER-42' }
   );
+
+  calls.length = 0;
+  await editTelegramPhotoFile(9001, 77, photoFile, {
+    caption: 'Plan artwork',
+    reply_markup: { inline_keyboard: [[{ text: 'Buy', callback_data: 'buy:plan:1' }]] }
+  });
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].url.includes('/editMessageMedia'));
+  assert.equal(calls[0].body.chat_id, '9001');
+  assert.equal(calls[0].body.message_id, '77');
+  assert.equal(calls[0].body.media.type, 'photo');
+  assert.equal(calls[0].body.media.media, 'attach://photo');
+  assert.equal(calls[0].body.media.caption, 'Plan artwork');
+  assert.equal(calls[0].body.photo.type, 'image/png');
+  assert.equal(calls[0].body.reply_markup.inline_keyboard[0][0].callback_data, 'buy:plan:1');
 
   calls.length = 0;
   await sendTelegramMessage(9001, 'Known button fallback', {
@@ -639,7 +656,7 @@ function parseTelegramBody(body) {
   if (body instanceof FormData) {
     const parsed = {};
     for (const [key, value] of body.entries()) {
-      if (['reply_markup', 'caption_entities', 'entities'].includes(key)) {
+      if (['reply_markup', 'caption_entities', 'entities', 'media'].includes(key)) {
         parsed[key] = JSON.parse(value);
       } else {
         parsed[key] = value;

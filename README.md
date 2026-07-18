@@ -552,6 +552,20 @@ HTTPS URL, then local file upload. When the URL is blank and the local file is u
 cached as a Telegram `file_id` for later `/start` requests. If the local image is
 missing, the bot falls back to `public/brand/slogan-image/welcome.png`.
 
+Brand and plan navigation uses catalog-specific media cards instead of the shared
+welcome image. AI-generated category backgrounds live in
+`public/brand/catalog-artwork/backgrounds`; exact local logos and catalog copy are
+rendered deterministically into 17 brand banners and 21 plan cards:
+
+```powershell
+npm.cmd run telegram:render-catalog-artwork
+```
+
+Brand banners are written to `public/brand/catalog-artwork/brands`, while plan
+cards are written to `public/brand/product-plans`. Telegram sends a matching brand
+banner when opening a brand, then replaces that media message with the selected
+plan artwork so navigation does not keep adding duplicate cards.
+
 The separate slogan custom-emoji pack is optional and is no longer part of production readiness. If you still want to maintain it, upload the videos and write the ids to the slogan map:
 
 ```powershell

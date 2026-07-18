@@ -58,6 +58,7 @@
     "telegram:generate-slogan-tiles": "node scripts/telegram-slogan-tile-assets.js",
     "telegram:generate-slogan-motion": "node scripts/telegram-slogan-motion-assets.js",
     "telegram:render-start-image": "python scripts/render-start-retro-image.py",
+    "telegram:render-catalog-artwork": "python scripts/render-catalog-artwork.py",
     "telegram:generate-shop-stickers": "node scripts/telegram-shop-sticker-assets.js",
     "telegram:create-shop-stickers": "node scripts/telegram-shop-sticker-pack.js",
     "backup": "node scripts/backup.js",

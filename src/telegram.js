@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { config } from './config.js';
 import {
+  brandArtworkPath,
   brandSortKey,
   isSeatEmailFulfillment,
   normalizeDeliveryMode,
@@ -67,6 +68,7 @@ const {
 } = telegramEmoji;
 const {
   answerCallbackQuery,
+  editTelegramPhotoFile,
   editTelegramMessage,
   sendTelegramAnimation,
   sendTelegramMessage,
@@ -82,6 +84,7 @@ export {
   bannerCustomEmojiId,
   brandCustomEmojiId,
   brandStickerFileId,
+  editTelegramPhotoFile,
   editTelegramMessage,
   sendTelegramAnimation,
   sendTelegramMessage,
@@ -2104,6 +2107,10 @@ export function productDetailMessage(product) {
 
 export function productArtworkFilePath(product = {}, publicDir = resolve(process.cwd(), 'public')) {
   const artwork = normalizeProductArtwork(product.artwork);
+  return publicArtworkFilePath(artwork, publicDir);
+}
+
+function publicArtworkFilePath(artwork, publicDir = resolve(process.cwd(), 'public')) {
   if (!artwork) return '';
   const imagePath = resolve(publicDir, artwork.replace(/^\/+/, ''));
   const relativePath = relative(publicDir, imagePath);
@@ -2111,34 +2118,62 @@ export function productArtworkFilePath(product = {}, publicDir = resolve(process
   return imagePath;
 }
 
-async function sendProductArtwork(chatId, product) {
-  const normalized = normalizePublicProduct(product);
-  const imagePath = productArtworkFilePath(normalized);
-  if (!imagePath) return false;
+export function brandArtworkFilePath(brand, publicDir = resolve(process.cwd(), 'public')) {
+  return publicArtworkFilePath(brandArtworkPath(brand), publicDir);
+}
+
+function catalogArtworkPhotoOptions(htmlText, candidates, options = {}) {
+  const fallbackCaption = stripCustomEmojiTags(htmlText);
+  const payload = customCaptionOptions(htmlText, candidates, {
+    ...options,
+    _fallback_caption: fallbackCaption,
+    _fallback_parse_mode: 'HTML'
+  });
+  return { ...payload.options, caption: payload.caption };
+}
+
+async function presentCatalogArtworkCard(chatId, messageId, imagePath, htmlText, candidates, options = {}) {
+  if (!imagePath) {
+    return presentCustomTelegramMessage(chatId, messageId, htmlText, candidates, options);
+  }
+  const photoOptions = catalogArtworkPhotoOptions(htmlText, candidates, options);
+  if (messageId) {
+    try {
+      return await editTelegramPhotoFile(chatId, messageId, imagePath, photoOptions);
+    } catch (error) {
+      console.warn(`[telegram] artwork media edit failed, sending a new card: ${error.message}`);
+    }
+  }
   try {
-    await sendTelegramPhotoFile(chatId, imagePath, {
-      caption: `${normalized.emoji ? `${escapeHtml(normalized.emoji)} ` : ''}<b>${escapeHtml(normalized.name)}</b>${normalized.packageType ? `\n${newsEmoji('shopping-bag')} ${escapeHtml(normalized.packageType)}` : ''}`,
-      parse_mode: 'HTML'
-    });
-    return true;
+    return await sendTelegramPhotoFile(chatId, imagePath, photoOptions);
   } catch (error) {
-    console.warn(`[telegram] product artwork skipped for ${normalized.sku}: ${error.message}`);
-    return false;
+    console.warn(`[telegram] artwork card skipped, falling back to text: ${error.message}`);
+    return presentCustomTelegramMessage(chatId, messageId, htmlText, candidates, options);
   }
 }
 
 async function presentProductDetailCard(chatId, messageId, product) {
-  const artworkSent = await sendProductArtwork(chatId, product);
+  const normalized = normalizePublicProduct(product);
+  const detail = productDetailMessage(normalized);
   const options = { reply_markup: buildProductDetailKeyboard(product) };
-  if (artworkSent) {
-    return sendCustomTelegramMessage(chatId, productDetailMessage(product), productCustomEmojiCandidates(product), options);
-  }
-  return presentCustomTelegramMessage(
+  return presentCatalogArtworkCard(
     chatId,
     messageId,
-    productDetailMessage(product),
-    productCustomEmojiCandidates(product),
+    productArtworkFilePath(normalized),
+    detail,
+    productCustomEmojiCandidates(normalized),
     options
+  );
+}
+
+async function presentBrandPackagesCard(chatId, messageId, products, category, brand) {
+  return presentCatalogArtworkCard(
+    chatId,
+    messageId,
+    brandArtworkFilePath(brand),
+    brandPackagesMessage(products, category, brand),
+    brandPackagesCustomEmojiCandidates(category, brand),
+    { reply_markup: buildPackageKeyboard(products.filter((product) => product.category === category && product.brand === brand)) }
   );
 }
 
@@ -2948,6 +2983,9 @@ async function handleTextMessage(message) {
 async function handleCallbackQuery(callbackQuery) {
   const chatId = callbackQuery.message?.chat?.id;
   const messageId = callbackQuery.message?.message_id;
+  const mediaMessageId = Array.isArray(callbackQuery.message?.photo) && callbackQuery.message.photo.length
+    ? messageId
+    : null;
   const data = String(callbackQuery.data || '');
   if (!chatId) return;
 
@@ -3214,13 +3252,7 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
     await trackTelegramClick(user, 'brand', { category, brand });
-    await presentCustomTelegramMessage(
-      chatId,
-      messageId,
-      brandPackagesMessage(products, category, brand),
-      brandPackagesCustomEmojiCandidates(category, brand),
-      { reply_markup: buildPackageKeyboard(selected) }
-    );
+    await presentBrandPackagesCard(chatId, mediaMessageId, products, category, brand);
     return;
   }
 
@@ -3233,7 +3265,7 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
     await trackTelegramClick(user, 'package', { sku: product.sku });
-    await presentProductDetailCard(chatId, messageId, product);
+    await presentProductDetailCard(chatId, mediaMessageId, product);
     return;
   }
 
@@ -3283,7 +3315,7 @@ async function handleCallbackQuery(callbackQuery) {
       : null;
     if (draft?.id === draftId) await discardSeatEmailDraft(user.id, chatId);
     if (product) {
-      await presentProductDetailCard(chatId, messageId, product);
+      await presentProductDetailCard(chatId, mediaMessageId, product);
     } else {
       await presentTelegramMessage(chatId, messageId, `${newsEmoji('warning')} Nút hủy này đã hết hạn. Hãy dùng nút trong tin nhắn Seat mới nhất.`, {
         reply_markup: buildCategoryKeyboard(products)

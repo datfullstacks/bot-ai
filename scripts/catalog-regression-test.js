@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   DEFAULT_CATALOG_PRODUCTS,
+  brandArtworkPath,
   brandSortKey,
   normalizeDeliveryMode,
   normalizeFulfillmentMode,
@@ -18,12 +19,8 @@ const bySku = new Map(DEFAULT_CATALOG_PRODUCTS.map((product) => [product.sku, pr
 assert.equal(bySku.get('gemini-advanced-1m')?.emoji, '✨', 'Gemini should ship with its catalog emoji.');
 assert.equal(
   bySku.get('gemini-advanced-1m')?.artwork,
-  '/brand/product-plans/gemini-advanced-1m.png',
+  '/brand/product-plans/gemini-advanced-1m-v2.jpg',
   'Gemini should ship with AI-generated plan artwork.'
-);
-assert.ok(
-  existsSync(resolve(process.cwd(), 'public', 'brand', 'product-plans', 'gemini-advanced-1m.png')),
-  'Gemini plan artwork should be committed with the catalog.'
 );
 assert.equal(
   bySku.size,
@@ -41,7 +38,22 @@ for (const product of DEFAULT_CATALOG_PRODUCTS) {
   assert.ok(product.warrantyPolicy, `${product.sku} should describe warranty coverage.`);
   assert.ok(product.replacementPolicy, `${product.sku} should describe replacement conditions.`);
   assert.equal(product.deliveryMode, 'text', `${product.sku} should default to text delivery.`);
+  assert.equal(
+    product.artwork,
+    `/brand/product-plans/${product.sku}-v2.jpg`,
+    `${product.sku} should use its own plan-specific artwork.`
+  );
+  assert.ok(
+    existsSync(resolve(process.cwd(), 'public', product.artwork.replace(/^\/+/, ''))),
+    `${product.sku} plan artwork should exist in the project.`
+  );
 }
+
+assert.equal(
+  new Set(DEFAULT_CATALOG_PRODUCTS.map((product) => product.artwork)).size,
+  DEFAULT_CATALOG_PRODUCTS.length,
+  'Every default plan should have a distinct artwork file.'
+);
 
 for (const sku of [
   'chatgpt-plus-1m',
@@ -117,6 +129,14 @@ const defaultBrands = new Set(DEFAULT_CATALOG_PRODUCTS.map((product) => product.
 for (const brand of ['Gmail', 'PayPal', 'Cursor', 'TikTok', 'Facebook', 'Figma']) {
   assert.ok(defaultBrands.has(brand), `Missing default catalog brand ${brand}`);
 }
+for (const brand of defaultBrands) {
+  const artwork = brandArtworkPath(brand);
+  assert.ok(artwork, `${brand} should have a brand-specific Telegram banner path.`);
+  assert.ok(
+    existsSync(resolve(process.cwd(), 'public', artwork.replace(/^\/+/, ''))),
+    `${brand} Telegram brand banner should exist in the project.`
+  );
+}
 
 for (const sku of ['chatgpt-plus-1m', 'cursor-pro-1m', 'gmail-aged-pack-10', 'tiktok-aged-pack-5']) {
   assert.equal(bySku.get(sku).hot, true, `Expected ${sku} to be marked hot.`);
@@ -188,10 +208,20 @@ assert.throws(() => normalizeProductEmoji('✨🚀', { strict: true }), /exactly
 assert.equal(normalizeProductArtwork('/brand/product-plans/gemini-advanced-1m.png'), '/brand/product-plans/gemini-advanced-1m.png');
 assert.equal(
   normalizePublicProduct({ sku: 'gemini-advanced-1m' }).artwork,
-  '/brand/product-plans/gemini-advanced-1m.png',
+  '/brand/product-plans/gemini-advanced-1m-v2.jpg',
   'Existing persisted Gemini products should inherit the generated artwork without a migration.'
 );
-assert.throws(() => normalizeProductArtwork('/etc/passwd', { strict: true }), /safe \/brand\/product-plans/);
+assert.equal(
+  normalizePublicProduct({ sku: 'chatgpt-business-seat-1m' }).artwork,
+  '/brand/product-plans/chatgpt-business-seat-1m-v2.jpg',
+  'Existing persisted plan records should inherit their SKU-specific artwork without a migration.'
+);
+assert.equal(
+  normalizePublicProduct({ sku: 'future-chatgpt-plan', brand: 'ChatGPT' }).artwork,
+  '/brand/catalog-artwork/brands/chatgpt.jpg',
+  'A future plan without dedicated artwork should fall back to its matching brand banner.'
+);
+assert.throws(() => normalizeProductArtwork('/etc/passwd', { strict: true }), /safe catalog image path/);
 assert.equal(normalizeDeliveryMode('TEXT'), 'text');
 assert.equal(normalizePublicProduct({ deliveryMode: 'invalid' }).deliveryMode, 'text');
 assert.throws(

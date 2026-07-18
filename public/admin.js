@@ -58,7 +58,7 @@ function brandLogo(brand, className = 'brand-logo') {
 
 function productArtwork(product = {}, className = 'product-artwork') {
   const artwork = String(product.artwork || '').trim();
-  if (!/^\/brand\/product-plans\/[a-z0-9][a-z0-9._-]*\.(?:png|jpe?g|webp)$/i.test(artwork)) return '';
+  if (!/^\/brand\/(?:product-plans|catalog-artwork\/brands)\/[a-z0-9][a-z0-9._-]*\.(?:png|jpe?g|webp)$/i.test(artwork)) return '';
   return `<img class="${escapeHtml(className)}" src="${escapeHtml(artwork)}" alt="" loading="lazy">`;
 }
 

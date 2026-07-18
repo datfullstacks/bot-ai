@@ -310,7 +310,9 @@ assert.ok(telegram.includes("data.startsWith('notify_pref:'"), 'Telegram should 
 assert.ok(telegram.includes("data.startsWith('notify_cta:'"), 'Telegram should track notification CTA callbacks.');
 assert.ok(telegram.includes('startNotificationCampaignAutomation'), 'Scheduled notification campaigns should have a background worker.');
 assert.ok(telegram.includes('presentProductDetailCard'), 'Telegram product details should include plan artwork when configured.');
-assert.ok(telegram.includes('sendTelegramPhotoFile(chatId, imagePath'), 'Telegram should send local plan artwork through the photo transport.');
+assert.ok(telegram.includes('presentBrandPackagesCard'), 'Telegram brand pages should include their matching generated banner.');
+assert.ok(telegram.includes('presentCatalogArtworkCard'), 'Telegram should use one shared media-card presentation flow for brand and plan artwork.');
+assert.ok(telegram.includes('editTelegramPhotoFile(chatId, messageId, imagePath'), 'Telegram should replace an existing media card while navigating between brand and plan views.');
 assert.ok(server.includes("routeParams('/api/discount-codes/:id'"), 'Server should expose discount activation mutations.');
 assert.ok(shop.includes('previewDiscountForUser'), 'The active shop store should expose discount previews to Telegram checkout.');
 assert.ok(discountCodes.includes('discountReservationIsLive'), 'Discount domain should model live one-order reservations.');

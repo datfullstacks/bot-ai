@@ -184,6 +184,40 @@ export async function sendTelegramPhotoFile(chatId, photoPath, options = {}) {
   }
 }
 
+export async function editTelegramPhotoFile(chatId, messageId, photoPath, options = {}) {
+  if (!config.telegram.token || !messageId || !photoPath) return { skipped: true };
+  const photoBytes = readFileSync(photoPath);
+  const sanitized = sanitizeTelegramOptions(options, 'caption');
+  let currentOptions = applyKnownCustomEmojiFallbacks(
+    sanitized,
+    'caption_entities',
+    (current) => fallbackPhotoOptions(current, options)
+  );
+
+  while (true) {
+    const form = buildTelegramEditPhotoForm(chatId, messageId, photoPath, photoBytes, currentOptions);
+    const response = await fetch(apiUrl('editMessageMedia'), {
+      method: 'POST',
+      body: form
+    });
+    if (response.ok) return response.json();
+
+    const body = await response.text();
+    if (/message is not modified/i.test(body)) return { ok: true, notModified: true };
+    const error = new Error(`Telegram editMessageMedia failed: ${response.status} ${body}`);
+    error.status = response.status;
+    error.body = body;
+    const fallback = nextCustomEmojiFallback(
+      error,
+      currentOptions,
+      'caption_entities',
+      (current) => fallbackPhotoOptions(current, options)
+    );
+    if (!fallback) throw error;
+    currentOptions = fallback;
+  }
+}
+
 export async function sendTelegramTextDocument(chatId, text, filename, options = {}) {
   if (!config.telegram.token) return { skipped: true };
 
@@ -225,13 +259,44 @@ export async function sendTelegramTextDocument(chatId, text, filename, options =
 function buildTelegramPhotoForm(chatId, photoPath, photoBytes, options = {}) {
   const form = new FormData();
   form.append('chat_id', String(chatId));
-  form.append('photo', new Blob([photoBytes], { type: 'image/png' }), basename(photoPath));
+  form.append('photo', new Blob([photoBytes], { type: photoContentType(photoPath) }), basename(photoPath));
   for (const [key, value] of Object.entries(options)) {
     if (key.startsWith('_')) continue;
     if (value === undefined || value === null || value === '') continue;
     form.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
   }
   return form;
+}
+
+function buildTelegramEditPhotoForm(chatId, messageId, photoPath, photoBytes, options = {}) {
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('message_id', String(messageId));
+  form.append('photo', new Blob([photoBytes], { type: photoContentType(photoPath) }), basename(photoPath));
+
+  const media = { type: 'photo', media: 'attach://photo' };
+  const mediaOptionKeys = new Set([
+    'caption',
+    'parse_mode',
+    'caption_entities',
+    'show_caption_above_media',
+    'has_spoiler'
+  ]);
+  for (const [key, value] of Object.entries(options)) {
+    if (key.startsWith('_')) continue;
+    if (value === undefined || value === null || value === '') continue;
+    if (mediaOptionKeys.has(key)) media[key] = value;
+    else form.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+  }
+  form.append('media', JSON.stringify(media));
+  return form;
+}
+
+function photoContentType(photoPath) {
+  const normalized = String(photoPath || '').toLowerCase();
+  if (normalized.endsWith('.jpg') || normalized.endsWith('.jpeg')) return 'image/jpeg';
+  if (normalized.endsWith('.webp')) return 'image/webp';
+  return 'image/png';
 }
 
 function buildTelegramTextDocumentForm(chatId, filename, documentBytes, options = {}) {

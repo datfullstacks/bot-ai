@@ -122,7 +122,11 @@ try {
       from: { id: 91001, username: 'callback-buyer', first_name: 'Callback' }
     }
   });
-  assert.ok(calls.some((call) => call.url.includes('/editMessageText') && call.body.text.includes('Loại tài khoản')));
+  assert.ok(calls.some((call) => (
+    call.url.includes('/sendPhoto')
+    && String(call.body.caption).includes('Loại tài khoản')
+    && call.body.photo?.name === 'chatgpt-plus-1m-v2.jpg'
+  )), 'Opening a package from a text menu should send its matching plan artwork.');
   assert.equal((await storage.readStore()).orders.length, 0, 'Viewing a package must not create an order.');
 
   calls.length = 0;
@@ -548,7 +552,11 @@ function parseTelegramBody(body) {
   if (body instanceof FormData) {
     const parsed = {};
     for (const [key, value] of body.entries()) {
-      parsed[key] = key === 'reply_markup' ? JSON.parse(value) : value;
+      parsed[key] = ['reply_markup', 'caption_entities', 'media'].includes(key) ? JSON.parse(value) : value;
+    }
+    if (parsed.media) {
+      parsed.caption = parsed.media.caption;
+      parsed.caption_entities = parsed.media.caption_entities;
     }
     return parsed;
   }

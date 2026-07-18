@@ -391,8 +391,13 @@ const shop = await import('../src/shop.js');
 const catalog = await import('../src/catalog.js');
 const telegram = await import('../src/telegram.js');
 assert.ok(
-  telegram.productArtworkFilePath({ artwork: '/brand/product-plans/gemini-advanced-1m.png' }).endsWith('gemini-advanced-1m.png'),
+  telegram.productArtworkFilePath({ artwork: '/brand/product-plans/gemini-advanced-1m-v2.jpg' }).endsWith('gemini-advanced-1m-v2.jpg'),
   'Gemini product detail should resolve its generated plan artwork.'
+);
+assert.ok(
+  telegram.brandArtworkFilePath('ChatGPT').endsWith('catalog-artwork\\brands\\chatgpt.jpg')
+    || telegram.brandArtworkFilePath('ChatGPT').endsWith('catalog-artwork/brands/chatgpt.jpg'),
+  'Each Telegram brand page should resolve its own generated banner.'
 );
 assert.equal(
   telegram.productArtworkFilePath({ artwork: '/etc/passwd' }),
@@ -1598,15 +1603,15 @@ try {
     }
   });
 
-  const brandCall = calls.find((call) => isTelegramTextCall(call));
+  const brandCall = calls.find((call) => isTelegramMediaCall(call));
   assert.ok(brandCall, 'Brand callback should present a package chooser.');
-  assert.match(brandCall.body.text, /AI Accounts \/ ChatGPT/);
+  assert.match(brandCall.body.caption, /AI Accounts \/ ChatGPT/);
   assert.ok(hasEntityType(brandCall, 'bold'));
   assert.ok(hasCustomEmojiId(brandCall, 'ce_chatgpt_file'));
   assert.ok(hasCustomEmojiId(brandCall, 'ce_chatgpt_file'));
   assertEveryEmojiAnimated(brandCall, 'brand package chooser message');
-  assert.match(brandCall.body.text, /Seat không cần tồn kho/i);
-  assert.equal(brandCall.body.text.includes('SKU:'), false, 'Brand chooser text should not expose SKU; buying should be button-first.');
+  assert.match(brandCall.body.caption, /Seat không cần tồn kho/i);
+  assert.equal(brandCall.body.caption.includes('SKU:'), false, 'Brand chooser text should not expose SKU; buying should be button-first.');
   assert.equal(calls.some((call) => call.url.includes('/sendSticker') || call.url.includes('/sendAnimation')), false);
   assert.equal(
     calls.some((call) => call.url.includes('/sendSticker') && call.body.sticker === 'sticker_chatgpt_motion'),
@@ -1631,13 +1636,13 @@ try {
     callback_query: {
       id: 'cb_product_detail_news',
       data: livePackageButton.callback_data,
-      message: { chat: { id: 9001 }, message_id: 45 },
+      message: { chat: { id: 9001 }, message_id: 45, photo: [{ file_id: 'brand-card-photo' }] },
       from: { id: 9001, username: 'buyer' }
     }
   });
   const productDetailCall = calls.find((call) => (
-    isTelegramTextCall(call)
-    && call.body.text?.includes('Mô tả:')
+    isTelegramMediaCall(call)
+    && call.body.caption?.includes('Mô tả:')
   ));
   assert.ok(productDetailCall, 'Package callback should present product details.');
   for (const id of [
@@ -1651,9 +1656,9 @@ try {
   ]) {
     assert.ok(hasCustomEmojiId(productDetailCall, id), `Product details should animate News ID ${id}.`);
   }
-  const productStockNewsId = productDetailCall.body.text.includes('Cách đặt:')
+  const productStockNewsId = productDetailCall.body.caption.includes('Cách đặt:')
     ? newsEmojiIds.tracking
-    : productDetailCall.body.text.includes('Tồn kho: Còn')
+    : productDetailCall.body.caption.includes('Tồn kho: Còn')
       ? newsEmojiIds.chart
       : newsEmojiIds.warning;
   assert.ok(
@@ -2066,11 +2071,16 @@ function parseTelegramBody(body) {
   if (body instanceof FormData) {
     const parsed = {};
     for (const [key, value] of body.entries()) {
-      if (key === 'reply_markup' || key === 'caption_entities' || key === 'entities') {
+      if (key === 'reply_markup' || key === 'caption_entities' || key === 'entities' || key === 'media') {
         parsed[key] = JSON.parse(value);
       } else {
         parsed[key] = value;
       }
+    }
+    if (parsed.media) {
+      parsed.caption = parsed.media.caption;
+      parsed.caption_entities = parsed.media.caption_entities;
+      parsed.parse_mode = parsed.media.parse_mode;
     }
     return parsed;
   }
@@ -2079,6 +2089,10 @@ function parseTelegramBody(body) {
 
 function isTelegramTextCall(call) {
   return call.url.includes('/sendMessage') || call.url.includes('/editMessageText');
+}
+
+function isTelegramMediaCall(call) {
+  return call.url.includes('/sendPhoto') || call.url.includes('/editMessageMedia');
 }
 
 function hasCustomEmojiId(call, customEmojiId) {

@@ -1,9 +1,33 @@
 const DELIVERY_MODES = new Set(['text', 'file']);
 const FULFILLMENT_MODES = new Set(['inventory', 'seat_email']);
 const PRODUCT_EMOJI_PATTERN = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3)/u;
-const PRODUCT_ARTWORK_PATTERN = /^\/brand\/product-plans\/[a-z0-9][a-z0-9._-]*\.(?:png|jpe?g|webp)$/i;
-const DEFAULT_PRODUCT_ARTWORK = new Map([
-  ['gemini-advanced-1m', '/brand/product-plans/gemini-advanced-1m.png']
+const PRODUCT_ARTWORK_PATTERN = /^\/brand\/(?:product-plans|catalog-artwork\/brands)\/[a-z0-9][a-z0-9._-]*\.(?:png|jpe?g|webp)$/i;
+const DEFAULT_PRODUCT_ARTWORK_SKUS = new Set([
+  'chatgpt-plus-1m',
+  'chatgpt-business-seat-1m',
+  'claude-pro-1m',
+  'claude-business-seat-1x-1m',
+  'claude-business-seat-6-5x-1m',
+  'gemini-advanced-1m',
+  'perplexity-pro-1m',
+  'cursor-pro-1m',
+  'canva-pro-1m',
+  'canva-pro-6m',
+  'capcut-pro-1m',
+  'figma-pro-1m',
+  'gmail-aged-pack-10',
+  'google-workspace-slot-1m',
+  'microsoft-365-1m',
+  'notion-plus-1m',
+  'paypal-business-verified-1',
+  'telegram-aged-pack-10',
+  'tiktok-aged-pack-5',
+  'facebook-aged-pack-5',
+  'discord-aged-pack-10'
+]);
+const BRAND_ARTWORK_KEYS = new Set([
+  'chatgpt', 'claude', 'gemini', 'perplexity', 'cursor', 'canva', 'capcut', 'figma',
+  'gmail', 'google', 'microsoft', 'notion', 'paypal', 'telegram', 'tiktok', 'facebook', 'discord'
 ]);
 const LEGACY_SEAT_EMAIL_SKUS = new Set([
   'chatgpt-business-seat-1m',
@@ -69,16 +93,29 @@ export function normalizeProductArtwork(value, { strict = false } = {}) {
   if (PRODUCT_ARTWORK_PATTERN.test(raw)) return raw;
   if (strict) {
     throw Object.assign(
-      new Error('Product artwork must be a safe /brand/product-plans image path'),
+      new Error('Product artwork must be a safe catalog image path'),
       { statusCode: 400 }
     );
   }
   return '';
 }
 
+function defaultProductArtwork(sku) {
+  const normalized = String(sku || '').trim().toLowerCase();
+  return DEFAULT_PRODUCT_ARTWORK_SKUS.has(normalized)
+    ? `/brand/product-plans/${normalized}-v2.jpg`
+    : '';
+}
+
+export function brandArtworkPath(brand) {
+  const key = String(brand || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return BRAND_ARTWORK_KEYS.has(key) ? `/brand/catalog-artwork/brands/${key}.jpg` : '';
+}
+
 export const DEFAULT_CATALOG_PRODUCTS = [
   {
     sku: 'chatgpt-plus-1m',
+    artwork: defaultProductArtwork('chatgpt-plus-1m'),
     category: 'AI Accounts',
     brand: 'ChatGPT',
     packageType: 'Plus 1M',
@@ -92,6 +129,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'chatgpt-business-seat-1m',
+    artwork: defaultProductArtwork('chatgpt-business-seat-1m'),
     category: 'AI Accounts',
     brand: 'ChatGPT',
     packageType: 'Business Seat 1M',
@@ -110,6 +148,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'claude-pro-1m',
+    artwork: defaultProductArtwork('claude-pro-1m'),
     category: 'AI Accounts',
     brand: 'Claude',
     packageType: 'Pro 1M',
@@ -122,6 +161,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'claude-business-seat-1x-1m',
+    artwork: defaultProductArtwork('claude-business-seat-1x-1m'),
     category: 'AI Accounts',
     brand: 'Claude',
     packageType: 'Business Seat 1x 1M',
@@ -140,6 +180,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'claude-business-seat-6-5x-1m',
+    artwork: defaultProductArtwork('claude-business-seat-6-5x-1m'),
     category: 'AI Accounts',
     brand: 'Claude',
     packageType: 'Business Seat 6.5x 1M',
@@ -161,7 +202,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     category: 'AI Accounts',
     brand: 'Gemini',
     emoji: '✨',
-    artwork: '/brand/product-plans/gemini-advanced-1m.png',
+    artwork: defaultProductArtwork('gemini-advanced-1m'),
     packageType: 'Advanced 1M',
     name: 'Gemini Advanced - 1 tháng',
     description: 'Gói Gemini Advanced 1 tháng cho nhu cầu AI đa nền tảng Google.',
@@ -172,6 +213,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'perplexity-pro-1m',
+    artwork: defaultProductArtwork('perplexity-pro-1m'),
     category: 'AI Accounts',
     brand: 'Perplexity',
     packageType: 'Pro 1M',
@@ -184,6 +226,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'cursor-pro-1m',
+    artwork: defaultProductArtwork('cursor-pro-1m'),
     category: 'AI Accounts',
     brand: 'Cursor',
     packageType: 'Pro 1M',
@@ -197,6 +240,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'canva-pro-1m',
+    artwork: defaultProductArtwork('canva-pro-1m'),
     category: 'Design Accounts',
     brand: 'Canva',
     packageType: 'Nonprofit Seat 1M',
@@ -214,6 +258,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'canva-pro-6m',
+    artwork: defaultProductArtwork('canva-pro-6m'),
     category: 'Design Accounts',
     brand: 'Canva',
     packageType: 'Nonprofit Seat 6M',
@@ -232,6 +277,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'capcut-pro-1m',
+    artwork: defaultProductArtwork('capcut-pro-1m'),
     category: 'Design Accounts',
     brand: 'CapCut',
     packageType: 'Pro 1M',
@@ -244,6 +290,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'figma-pro-1m',
+    artwork: defaultProductArtwork('figma-pro-1m'),
     category: 'Design Accounts',
     brand: 'Figma',
     packageType: 'Pro 1M',
@@ -256,6 +303,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'gmail-aged-pack-10',
+    artwork: defaultProductArtwork('gmail-aged-pack-10'),
     category: 'Work & Cloud Accounts',
     brand: 'Gmail',
     packageType: 'Gmail Aged Pack 10',
@@ -269,6 +317,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'google-workspace-slot-1m',
+    artwork: defaultProductArtwork('google-workspace-slot-1m'),
     category: 'Work & Cloud Accounts',
     brand: 'Google',
     packageType: 'Workspace Slot 1M',
@@ -281,6 +330,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'microsoft-365-1m',
+    artwork: defaultProductArtwork('microsoft-365-1m'),
     category: 'Work & Cloud Accounts',
     brand: 'Microsoft',
     packageType: '365 1M',
@@ -293,6 +343,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'notion-plus-1m',
+    artwork: defaultProductArtwork('notion-plus-1m'),
     category: 'Work & Cloud Accounts',
     brand: 'Notion',
     packageType: 'Plus 1M',
@@ -305,6 +356,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'paypal-business-verified-1',
+    artwork: defaultProductArtwork('paypal-business-verified-1'),
     category: 'Work & Cloud Accounts',
     brand: 'PayPal',
     packageType: 'Business Verified',
@@ -317,6 +369,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'telegram-aged-pack-10',
+    artwork: defaultProductArtwork('telegram-aged-pack-10'),
     category: 'Social/MMO Accounts',
     brand: 'Telegram',
     packageType: 'Aged Pack 10',
@@ -329,6 +382,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'tiktok-aged-pack-5',
+    artwork: defaultProductArtwork('tiktok-aged-pack-5'),
     category: 'Social/MMO Accounts',
     brand: 'TikTok',
     packageType: 'Aged Pack 5',
@@ -342,6 +396,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'facebook-aged-pack-5',
+    artwork: defaultProductArtwork('facebook-aged-pack-5'),
     category: 'Social/MMO Accounts',
     brand: 'Facebook',
     packageType: 'Aged Pack 5',
@@ -354,6 +409,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
   },
   {
     sku: 'discord-aged-pack-10',
+    artwork: defaultProductArtwork('discord-aged-pack-10'),
     category: 'Social/MMO Accounts',
     brand: 'Discord',
     packageType: 'Aged Pack 10',
@@ -430,7 +486,7 @@ export function normalizePublicProduct(product = {}) {
     category: String(product.category || '').trim() || 'Accounts',
     brand: String(product.brand || '').trim() || 'Other',
     emoji: normalizeProductEmoji(product.emoji),
-    artwork: normalizeProductArtwork(product.artwork) || DEFAULT_PRODUCT_ARTWORK.get(sku) || '',
+    artwork: normalizeProductArtwork(product.artwork) || defaultProductArtwork(sku) || brandArtworkPath(product.brand),
     packageType: String(product.packageType || '').trim(),
     sortOrder: Number(product.sortOrder || 1000),
     hot: product.hot === true || String(product.hot || '').toLowerCase() === 'true',
