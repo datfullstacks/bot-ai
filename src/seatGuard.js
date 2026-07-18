@@ -28,8 +28,21 @@ const activeOrderStatuses = new Set(['awaiting_fulfillment', 'delivered']);
 const actionRequestIdPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{15,127}$/;
 const seatTermDays = 30;
 const dayMs = 24 * 60 * 60_000;
-let expirySweepPromise = null;
-let entitlementBackfillPromise = null;
+const seatGuardProviders = new Set(['chatgpt', 'canva', 'claude']);
+const expirySweepPromises = new Map();
+const entitlementBackfillPromises = new Map();
+
+function normalizedProvider(value = 'chatgpt') {
+  const provider = String(value || 'chatgpt').trim().toLowerCase();
+  if (!seatGuardProviders.has(provider)) {
+    throw Object.assign(new Error('Seat Guard provider must be chatgpt, canva, or claude'), { statusCode: 400 });
+  }
+  return provider;
+}
+
+function providerLabel(provider) {
+  return provider === 'chatgpt' ? 'ChatGPT' : provider === 'canva' ? 'Canva' : 'Claude';
+}
 
 function normalizedEmail(value) {
   const email = String(value || '').trim().toLowerCase();
@@ -57,16 +70,17 @@ export function seatTermMonths(order = {}, fallback = 1) {
   return Math.min(120, Math.max(1, Number(fallback) || 1));
 }
 
-function chatGptSeatOrderScope(order, integration) {
+function seatOrderScope(order, integration, provider = 'chatgpt') {
+  provider = normalizedProvider(provider);
   if (!activeOrderStatuses.has(String(order?.status || '').trim())) return false;
-  const provider = String(
+  const orderProvider = String(
     order?.fulfillment?.automation?.provider
     || order?.automaticFulfillmentProvider
     || ''
   ).trim().toLowerCase();
-  if (provider && provider !== 'chatgpt') return false;
+  if (orderProvider && orderProvider !== provider) return false;
   const sku = String(order?.productSku || '').trim().toLowerCase();
-  if (!provider && !(Array.isArray(integration?.skus) && integration.skus.includes(sku))) return false;
+  if (!orderProvider && !(Array.isArray(integration?.skus) && integration.skus.includes(sku))) return false;
 
   const automation = order?.fulfillment?.automation || {};
   const entitlementFingerprint = String(automation.entitlementTargetFingerprint || '').trim();
@@ -74,8 +88,8 @@ function chatGptSeatOrderScope(order, integration) {
   if (!entitlementFingerprint && !storedFingerprint) return 'review';
   try {
     const currentFingerprint = entitlementFingerprint
-      ? memberIntegrationEntitlementFingerprint('chatgpt', integration)
-      : memberIntegrationTargetFingerprint('chatgpt', integration);
+      ? memberIntegrationEntitlementFingerprint(provider, integration)
+      : memberIntegrationTargetFingerprint(provider, integration);
     return (entitlementFingerprint || storedFingerprint) === currentFingerprint
       ? 'current'
       : 'review';
@@ -93,11 +107,12 @@ function recipientEmails(order = {}) {
 export function buildSeatEntitlements(orders = [], options = {}) {
   const nowMs = Number(options.nowMs ?? Date.now());
   const defaultTermMonths = Number(options.defaultTermMonths || 1);
-  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || config.memberFulfillment.integrations[provider];
   const grouped = new Map();
 
   for (const order of orders) {
-    const targetScope = chatGptSeatOrderScope(order, integration);
+    const targetScope = seatOrderScope(order, integration, provider);
     if (!targetScope) continue;
     for (const email of recipientEmails(order)) {
       const entry = grouped.get(email) || { email, delivered: [], pending: [], targetReview: [] };
@@ -162,6 +177,7 @@ function classificationFor(subject, context) {
   const role = String(subject?.role || '').trim().toLowerCase();
   if (
     (email && (email === context.ownerEmail || context.protectedEmails.has(email)))
+    || subject?.locked === true
     || protectedRoles.has(role)
     || /(^|[-_\s])(owner|admin)(?:$|[-_\s])/.test(role)
   ) {
@@ -183,16 +199,16 @@ function classificationFor(subject, context) {
 
 function decorateSubject(subject, context, actionKey, subjectKind) {
   const { classification, entitlement } = classificationFor(subject, { ...context, subjectKind });
-  const id = String(subject?.id || '').trim();
   const email = normalizedEmail(subject?.email) || null;
-  const actionRef = subjectKind === 'invitation' ? (id || email || '') : id;
+  const id = String(subject?.id || email || '').trim();
+  const actionRef = context.provider === 'chatgpt' ? id : (email || id);
   const lifecycleEvidence = String(subject?.createdAt || '').trim();
   const policyAllowsAction = removableClassifications.has(classification);
   return {
     id,
     actionRef,
     email,
-    name: String(subject?.name || '') || null,
+    name: String(subject?.name || subject?.displayName || subject?.fullName || '') || null,
     role: String(subject?.role || '') || null,
     status: String(subject?.status || '') || null,
     createdAt: subject?.createdAt || null,
@@ -204,13 +220,21 @@ function decorateSubject(subject, context, actionKey, subjectKind) {
   };
 }
 
-export function buildSeatGuardView({ identity = {}, remote = {}, entitlements = [], protectedEmails = [] } = {}) {
+export function buildSeatGuardView({
+  provider = 'chatgpt',
+  identity = {},
+  remote = {},
+  entitlements = [],
+  protectedEmails = []
+} = {}) {
+  provider = normalizedProvider(provider);
   const permissions = Array.isArray(identity.permissions) ? identity.permissions.map(String) : [];
   const canRead = permissions.includes('accounts:read') || permissions.includes('accounts:write');
   const canRemove = permissions.includes('members:remove') || permissions.includes('accounts:write');
   const account = remote.account || {};
   const context = {
-    ownerEmail: normalizedEmail(account.email),
+    provider,
+    ownerEmail: normalizedEmail(account.email || account.loginEmail),
     protectedEmails: new Set(protectedEmails.map(normalizedEmail).filter(Boolean)),
     allowedEmails: new Set((account.allowedMembers || []).map(normalizedEmail).filter(Boolean)),
     entitlements: new Map(entitlements.map((entry) => [entry.email, entry])),
@@ -225,6 +249,7 @@ export function buildSeatGuardView({ identity = {}, remote = {}, entitlements = 
   const memberCount = (classification) => members.filter((item) => item.classification === classification).length;
   const invitationCount = (classification) => invitations.filter((item) => item.classification === classification).length;
   return {
+    provider,
     configured: true,
     permissions,
     capabilities: { canRead, canRemove },
@@ -251,17 +276,35 @@ export function buildSeatGuardView({ identity = {}, remote = {}, entitlements = 
   };
 }
 
-function guardConfig() {
-  const integration = config.memberFulfillment.integrations.chatgpt;
+function guardConfig(provider = 'chatgpt') {
+  provider = normalizedProvider(provider);
+  const integration = config.memberFulfillment.integrations[provider];
   if (
     !integration.enabled
     || !integration.serviceUrl
     || !(integration.seatGuardApiKey || integration.apiKey)
     || !integration.accountRef
   ) {
-    throw Object.assign(new Error('ChatGPT Seat Guard is not fully configured'), { statusCode: 503 });
+    throw Object.assign(new Error(`${providerLabel(provider)} Seat Guard is not fully configured`), { statusCode: 503 });
   }
   return integration;
+}
+
+function unconfiguredSnapshot(provider) {
+  return {
+    provider,
+    configured: false,
+    permissions: [],
+    capabilities: { canRead: false, canRemove: false },
+    account: null,
+    observedAt: null,
+    summary: {},
+    members: [],
+    invitations: [],
+    entitlements: [],
+    missingAuthorized: [],
+    expiryAutomation: { enabled: false, storageReady: false, termDays: seatTermDays }
+  };
 }
 
 function defaultDependencies() {
@@ -309,14 +352,15 @@ function legacyEntitlementBackfillConfigured(integration = {}) {
 }
 
 export async function backfillLegacySeatEntitlementTargets(options = {}) {
-  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || config.memberFulfillment.integrations[provider];
   if (!legacyEntitlementBackfillConfigured(integration)) {
     return { skipped: true, reason: 'not_configured', checked: 0, updated: 0 };
   }
 
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
-  const expectedTargetFingerprint = memberIntegrationTargetFingerprint('chatgpt', integration);
-  const entitlementTargetFingerprint = memberIntegrationEntitlementFingerprint('chatgpt', integration);
+  const expectedTargetFingerprint = memberIntegrationTargetFingerprint(provider, integration);
+  const entitlementTargetFingerprint = memberIntegrationEntitlementFingerprint(provider, integration);
   const orders = options.orders || await listAllOrders(dependencies);
   const candidates = orders.filter((order) => {
     const automation = order?.fulfillment?.automation || {};
@@ -326,7 +370,7 @@ export async function backfillLegacySeatEntitlementTargets(options = {}) {
       && automation.status === 'succeeded'
       && !automation.entitlementTargetFingerprint
       && automation.targetFingerprint === expectedTargetFingerprint
-      && chatGptSeatOrderScope(order, integration) === 'current'
+      && seatOrderScope(order, integration, provider) === 'current'
     );
   });
 
@@ -343,25 +387,26 @@ export async function backfillLegacySeatEntitlementTargets(options = {}) {
 }
 
 export function startSeatEntitlementTargetBackfill(options = {}) {
-  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || config.memberFulfillment.integrations[provider];
   if (!legacyEntitlementBackfillConfigured(integration)) return null;
   const intervalMs = Math.max(60_000, Number(options.intervalMs || 24 * 60 * 60_000));
   const run = () => {
-    if (entitlementBackfillPromise) return entitlementBackfillPromise;
-    const tracked = backfillLegacySeatEntitlementTargets(options)
+    if (entitlementBackfillPromises.has(provider)) return entitlementBackfillPromises.get(provider);
+    const tracked = backfillLegacySeatEntitlementTargets({ ...options, provider })
       .then((result) => {
         if (result.updated) {
-          console.log(`[seat-guard] backfilled ${result.updated} legacy Seat entitlement target(s)`);
+          console.log(`[seat-guard:${provider}] backfilled ${result.updated} legacy Seat entitlement target(s)`);
         }
         return result;
       })
       .catch((error) => {
-        console.error('[seat-guard] entitlement backfill failed:', String(error?.message || error).slice(0, 300));
+        console.error(`[seat-guard:${provider}] entitlement backfill failed:`, String(error?.message || error).slice(0, 300));
       })
       .finally(() => {
-        if (entitlementBackfillPromise === tracked) entitlementBackfillPromise = null;
+        if (entitlementBackfillPromises.get(provider) === tracked) entitlementBackfillPromises.delete(provider);
       });
-    entitlementBackfillPromise = tracked;
+    entitlementBackfillPromises.set(provider, tracked);
     return tracked;
   };
   setImmediate(run);
@@ -370,9 +415,9 @@ export function startSeatEntitlementTargetBackfill(options = {}) {
   return timer;
 }
 
-function clientFor(integration, dependencies) {
+function clientFor(provider, integration, dependencies) {
   return dependencies.createClient({
-    provider: 'chatgpt',
+    provider,
     baseUrl: integration.serviceUrl,
     apiKey: integration.seatGuardApiKey || integration.apiKey,
     requestTimeoutMs: integration.requestTimeoutMs,
@@ -383,9 +428,10 @@ function clientFor(integration, dependencies) {
 }
 
 async function loadSeatGuardContext(options = {}) {
-  const integration = options.integration || guardConfig();
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || guardConfig(provider);
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
-  const client = clientFor(integration, dependencies);
+  const client = clientFor(provider, integration, dependencies);
   const entitlementEmails = (options.entitlementEmails || []).map(normalizedEmail).filter(Boolean);
   const [identity, remote, orders] = await Promise.all([
     client.getIdentity(),
@@ -395,11 +441,13 @@ async function loadSeatGuardContext(options = {}) {
       : listAllOrders(dependencies)
   ]);
   const entitlements = buildSeatEntitlements(orders, {
+    provider,
     integration,
     defaultTermMonths: integration.defaultSeatTermMonths,
     nowMs: options.nowMs
   });
   const view = buildSeatGuardView({
+    provider,
     identity,
     remote,
     entitlements,
@@ -417,11 +465,20 @@ async function loadSeatGuardContext(options = {}) {
     batchSize: Number(integration.expiryBatchSize || 10),
     graceMs: Number(integration.expiryGraceMs || 0)
   };
-  return { integration, client, view };
+  return { provider, integration, client, view };
 }
 
 export async function getSeatGuardSnapshot(options = {}) {
-  return (await loadSeatGuardContext(options)).view;
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  if (!options.integration) {
+    try {
+      guardConfig(provider);
+    } catch (error) {
+      if (error?.statusCode === 503) return unconfiguredSnapshot(provider);
+      throw error;
+    }
+  }
+  return (await loadSeatGuardContext({ ...options, provider })).view;
 }
 
 function mutationKey(action, accountRef, externalId, email, generationEvidence, actionRequestId) {
@@ -444,8 +501,8 @@ function expectedConfirmation(action, email) {
   return `${action} ${email}`;
 }
 
-function fenceScope(integration, email) {
-  return { provider: 'chatgpt', accountRef: integration.accountRef, email };
+function fenceScope(provider, integration, email) {
+  return { provider, accountRef: integration.accountRef, email };
 }
 
 function fenceDependencies(dependencies) {
@@ -457,9 +514,9 @@ function fenceDependencies(dependencies) {
   };
 }
 
-async function reconcileGuardFence(email, integration, dependencies, lockContext) {
+async function reconcileGuardFence(provider, email, integration, dependencies, lockContext) {
   return dependencies.reconcileSeatAccessFences({
-    provider: 'chatgpt',
+    provider,
     accountRef: integration.accountRef,
     emails: [email]
   }, {
@@ -506,17 +563,18 @@ async function submitFencedMutation(scope, fence, submit, dependencies, lockCont
 
 export async function removeSeatGuardMember(memberId, input = {}, options = {}) {
   const actionRequestId = requireActionRequestId(input.actionRequestId);
-  const integration = options.integration || guardConfig();
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || guardConfig(provider);
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
   const expectedEmail = normalizedEmail(input.expectedEmail);
   if (!expectedEmail) throw Object.assign(new Error('A valid member email is required'), { statusCode: 400 });
 
   const locked = await dependencies.withSeatAccessLocks({
-    provider: 'chatgpt',
+    provider,
     accountRef: integration.accountRef,
     emails: [expectedEmail]
   }, async (lockContext) => {
-    const reconciled = await reconcileGuardFence(expectedEmail, integration, dependencies, lockContext);
+    const reconciled = await reconcileGuardFence(provider, expectedEmail, integration, dependencies, lockContext);
     if (!reconciled.ok) {
       throw Object.assign(new Error('A previous Seat removal is still pending'), {
         statusCode: 409,
@@ -527,6 +585,7 @@ export async function removeSeatGuardMember(memberId, input = {}, options = {}) 
 
     const context = await loadSeatGuardContext({
       ...options,
+      provider,
       integration,
       dependencies,
       entitlementEmails: [expectedEmail]
@@ -535,7 +594,7 @@ export async function removeSeatGuardMember(memberId, input = {}, options = {}) 
       throw Object.assign(new Error('The member-service API key needs members:remove permission'), { statusCode: 403 });
     }
     const member = context.view.members.find((item) => item.actionRef === String(memberId || '').trim());
-    if (!member) throw Object.assign(new Error('The live ChatGPT member was not found'), { statusCode: 404 });
+    if (!member) throw Object.assign(new Error(`The live ${providerLabel(provider)} member was not found`), { statusCode: 404 });
     if (!member.removable || !member.email) {
       throw Object.assign(new Error('This member is protected or still has valid Seat authorization'), { statusCode: 409 });
     }
@@ -548,16 +607,16 @@ export async function removeSeatGuardMember(memberId, input = {}, options = {}) 
     const idempotencyKey = mutationKey(
       'remove',
       context.integration.accountRef,
-      member.id,
+      member.actionRef,
       member.email,
       member.createdAt,
       actionRequestId
     );
-    const scope = fenceScope(context.integration, member.email);
+    const scope = fenceScope(provider, context.integration, member.email);
     const fence = {
       source: 'manual',
       actionKind: 'member',
-      externalRef: member.id,
+      externalRef: member.actionRef,
       idempotencyKey,
       operationId: null,
       status: 'submitting',
@@ -567,7 +626,7 @@ export async function removeSeatGuardMember(memberId, input = {}, options = {}) 
     const operation = await submitFencedMutation(
       scope,
       fence,
-      () => context.client.removeAccountMember(context.integration.accountRef, member.id, { idempotencyKey }),
+      () => context.client.removeAccountMember(context.integration.accountRef, member.actionRef, { idempotencyKey }),
       dependencies,
       lockContext
     );
@@ -581,17 +640,18 @@ export async function removeSeatGuardMember(memberId, input = {}, options = {}) 
 
 export async function cancelSeatGuardInvitation(invitationId, input = {}, options = {}) {
   const actionRequestId = requireActionRequestId(input.actionRequestId);
-  const integration = options.integration || guardConfig();
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || guardConfig(provider);
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
   const expectedEmail = normalizedEmail(input.expectedEmail);
   if (!expectedEmail) throw Object.assign(new Error('A valid invitation email is required'), { statusCode: 400 });
 
   const locked = await dependencies.withSeatAccessLocks({
-    provider: 'chatgpt',
+    provider,
     accountRef: integration.accountRef,
     emails: [expectedEmail]
   }, async (lockContext) => {
-    const reconciled = await reconcileGuardFence(expectedEmail, integration, dependencies, lockContext);
+    const reconciled = await reconcileGuardFence(provider, expectedEmail, integration, dependencies, lockContext);
     if (!reconciled.ok) {
       throw Object.assign(new Error('A previous Seat removal is still pending'), {
         statusCode: 409,
@@ -602,6 +662,7 @@ export async function cancelSeatGuardInvitation(invitationId, input = {}, option
 
     const context = await loadSeatGuardContext({
       ...options,
+      provider,
       integration,
       dependencies,
       entitlementEmails: [expectedEmail]
@@ -610,7 +671,7 @@ export async function cancelSeatGuardInvitation(invitationId, input = {}, option
       throw Object.assign(new Error('The member-service API key needs members:remove permission'), { statusCode: 403 });
     }
     const invitation = context.view.invitations.find((item) => item.actionRef === String(invitationId || '').trim());
-    if (!invitation) throw Object.assign(new Error('The pending ChatGPT invitation was not found'), { statusCode: 404 });
+    if (!invitation) throw Object.assign(new Error(`The pending ${providerLabel(provider)} invitation was not found`), { statusCode: 404 });
     if (!invitation.cancelable || !invitation.email) {
       throw Object.assign(new Error('This invitation is protected or still has valid Seat authorization'), { statusCode: 409 });
     }
@@ -628,7 +689,7 @@ export async function cancelSeatGuardInvitation(invitationId, input = {}, option
       invitation.createdAt,
       actionRequestId
     );
-    const scope = fenceScope(context.integration, invitation.email);
+    const scope = fenceScope(provider, context.integration, invitation.email);
     const fence = {
       source: 'manual',
       actionKind: 'invitation',
@@ -670,7 +731,7 @@ function automaticExpiryCandidate(view, integration, email, nowMs) {
     || expiresAtMs + graceMs > nowMs
   ) return null;
 
-  const ownerEmail = normalizedEmail(view.account?.email);
+  const ownerEmail = normalizedEmail(view.account?.email || view.account?.loginEmail);
   const protectedEmails = new Set((integration.protectedEmails || []).map(normalizedEmail).filter(Boolean));
   if (normalized === ownerEmail || protectedEmails.has(normalized)) return null;
 
@@ -692,9 +753,9 @@ function automaticExpiryCandidate(view, integration, email, nowMs) {
     : null;
 }
 
-async function safeExpiryAudit(dependencies, action, email, details = {}) {
+async function safeExpiryAudit(provider, dependencies, action, email, details = {}) {
   try {
-    await dependencies.recordAudit('seat-expiry', action, 'chatgpt_seat', email, details);
+    await dependencies.recordAudit('seat-expiry', action, `${provider}_seat`, email, details);
   } catch (error) {
     console.error('[seat-expiry] audit failed:', String(error?.message || error).slice(0, 300));
   }
@@ -732,6 +793,7 @@ async function executeExpiryCandidate(candidate, context, options) {
   const {
     dependencies,
     integration,
+    provider,
     lockContext,
     normalized,
     nowMs,
@@ -746,7 +808,7 @@ async function executeExpiryCandidate(candidate, context, options) {
     candidate.entitlement.expiresAt,
     retryGeneration
   );
-  const scope = fenceScope(integration, normalized);
+  const scope = fenceScope(provider, integration, normalized);
   const fence = {
     source: 'expiry',
     actionKind: candidate.kind === 'member' ? 'member' : 'invitation',
@@ -816,18 +878,19 @@ async function executeExpiryCandidate(candidate, context, options) {
 }
 
 export async function cleanupExpiredSeatAccess(email, options = {}) {
-  const integration = options.integration || guardConfig();
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || guardConfig(provider);
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
   const nowMs = Number(options.nowMs ?? Date.now());
   const normalized = normalizedEmail(email);
   if (!normalized) throw Object.assign(new Error('A valid Seat email is required'), { statusCode: 400 });
 
   const locked = await dependencies.withSeatAccessLocks({
-    provider: 'chatgpt',
+    provider,
     accountRef: integration.accountRef,
     emails: [normalized]
   }, async (lockContext) => {
-    const reconciled = await reconcileGuardFence(normalized, integration, dependencies, lockContext);
+    const reconciled = await reconcileGuardFence(provider, normalized, integration, dependencies, lockContext);
     if (!reconciled.ok) {
       return {
         skipped: true,
@@ -838,6 +901,7 @@ export async function cleanupExpiredSeatAccess(email, options = {}) {
     }
 
     let context = await loadSeatGuardContext({
+      provider,
       integration,
       dependencies,
       nowMs,
@@ -864,6 +928,7 @@ export async function cleanupExpiredSeatAccess(email, options = {}) {
       completedResult = await executeExpiryCandidate(candidate, context, {
         dependencies,
         integration,
+        provider,
         lockContext,
         normalized,
         nowMs,
@@ -875,6 +940,7 @@ export async function cleanupExpiredSeatAccess(email, options = {}) {
       } catch (error) {
         if (error?.code !== 'SEAT_EXPIRY_VERIFICATION_PENDING' || pass === 2) throw error;
         context = await loadSeatGuardContext({
+          provider,
           integration,
           dependencies,
           nowMs,
@@ -894,13 +960,14 @@ export async function cleanupExpiredSeatAccess(email, options = {}) {
       orderIds: result.orderIds,
       operationId: result.operation?.operationId || result.submittedOperationId
     };
-    await safeExpiryAudit(dependencies, 'seat_guard.expiry_cleanup_succeeded', normalized, details);
+    await safeExpiryAudit(provider, dependencies, 'seat_guard.expiry_cleanup_succeeded', normalized, details);
   }
   return result;
 }
 
 async function runExpiredSeatSweep(options = {}) {
-  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || config.memberFulfillment.integrations[provider];
   if (!integration.expiryAutoRemove) return { skipped: true, reason: 'disabled', results: [] };
   const storage = seatExpiryStorageStatus();
   if (!storage.ready && options.allowNonPostgres !== true) {
@@ -914,7 +981,7 @@ async function runExpiredSeatSweep(options = {}) {
 
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
   const nowMs = Number(options.nowMs ?? Date.now());
-  const context = await loadSeatGuardContext({ integration, dependencies, nowMs });
+  const context = await loadSeatGuardContext({ provider, integration, dependencies, nowMs });
   if (!context.view.capabilities.canRemove) {
     return { skipped: true, reason: 'members_remove_permission_required', results: [] };
   }
@@ -930,12 +997,13 @@ async function runExpiredSeatSweep(options = {}) {
   for (const candidateEmail of emails) {
     try {
       results.push(await cleanupExpiredSeatAccess(candidateEmail, {
+        provider,
         integration,
         dependencies,
         nowMs
       }));
     } catch (error) {
-      await safeExpiryAudit(dependencies, 'seat_guard.expiry_cleanup_failed', candidateEmail, {
+      await safeExpiryAudit(provider, dependencies, 'seat_guard.expiry_cleanup_failed', candidateEmail, {
         code: String(error?.code || 'SEAT_EXPIRY_CLEANUP_FAILED').slice(0, 100),
         operationId: error?.operationId || null
       });
@@ -950,21 +1018,23 @@ async function runExpiredSeatSweep(options = {}) {
 }
 
 export function sweepExpiredSeatAccess(options = {}) {
-  if (expirySweepPromise) return expirySweepPromise;
-  const tracked = runExpiredSeatSweep(options).finally(() => {
-    if (expirySweepPromise === tracked) expirySweepPromise = null;
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  if (expirySweepPromises.has(provider)) return expirySweepPromises.get(provider);
+  const tracked = runExpiredSeatSweep({ ...options, provider }).finally(() => {
+    if (expirySweepPromises.get(provider) === tracked) expirySweepPromises.delete(provider);
   });
-  expirySweepPromise = tracked;
+  expirySweepPromises.set(provider, tracked);
   return tracked;
 }
 
 export function startSeatExpiryAutomation(options = {}) {
-  const integration = options.integration || config.memberFulfillment.integrations.chatgpt;
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || config.memberFulfillment.integrations[provider];
   if (!integration.expiryAutoRemove) return null;
   if (!seatExpiryStorageStatus().ready && options.allowNonPostgres !== true) return null;
   const intervalMs = Math.max(60_000, Number(integration.expirySweepMs || 15 * 60_000));
-  const run = () => sweepExpiredSeatAccess(options).catch((error) => {
-    console.error('[seat-expiry] sweep failed:', String(error?.message || error).slice(0, 300));
+  const run = () => sweepExpiredSeatAccess({ ...options, provider }).catch((error) => {
+    console.error(`[seat-expiry:${provider}] sweep failed:`, String(error?.message || error).slice(0, 300));
   });
   setImmediate(run);
   const timer = setInterval(run, intervalMs);
@@ -973,17 +1043,18 @@ export function startSeatExpiryAutomation(options = {}) {
 }
 
 export async function getSeatGuardOperation(operationId, options = {}) {
-  const integration = options.integration || guardConfig();
+  const provider = normalizedProvider(options.provider || 'chatgpt');
+  const integration = options.integration || guardConfig(provider);
   const dependencies = { ...defaultDependencies(), ...(options.dependencies || {}) };
-  const operation = await clientFor(integration, dependencies).getOperation(operationId);
+  const operation = await clientFor(provider, integration, dependencies).getOperation(operationId);
   if (operation?.terminal) {
     try {
       await dependencies.deleteSeatAccessFencesByOperationId(operation.operationId, {
-        provider: 'chatgpt',
+        provider,
         accountRef: integration.accountRef
       });
     } catch (error) {
-      console.error('[seat-guard] terminal fence cleanup failed:', String(error?.message || error).slice(0, 300));
+      console.error(`[seat-guard:${provider}] terminal fence cleanup failed:`, String(error?.message || error).slice(0, 300));
     }
   }
   return operation;

@@ -129,9 +129,9 @@ export async function deleteSeatAccessFencesByOperationId(operationIdInput, opti
   });
 }
 
-function clientForFence(integration, dependencies) {
+function clientForFence(provider, integration, dependencies) {
   return dependencies.createClient({
-    provider: 'chatgpt',
+    provider,
     baseUrl: integration.serviceUrl,
     apiKey: integration.seatGuardApiKey || integration.apiKey,
     requestTimeoutMs: integration.requestTimeoutMs,
@@ -177,7 +177,7 @@ export async function reconcileSeatAccessFences(scopeInput, options = {}) {
     const fenceScope = { provider, accountRef, email };
     let fence = await dependencies.getFence(fenceScope, { lockContext: options.lockContext });
     if (!fence) continue;
-    client ||= clientForFence(options.integration || {}, dependencies);
+    client ||= clientForFence(provider, options.integration || {}, dependencies);
 
     try {
       let operation;

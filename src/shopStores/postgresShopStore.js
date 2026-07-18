@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { config, nowIso } from '../config.js';
+import { buildDashboardAnalytics } from '../dashboardAnalytics.js';
 import {
   isSeatEmailFulfillment,
   normalizeDeliveryMode,
@@ -16,6 +17,14 @@ import {
   inventorySecretPreview
 } from '../inventorySecrets.js';
 import { publicPaymentCheckout } from '../paymentView.js';
+import {
+  calculateDiscount,
+  clearExpiredDiscountReservation,
+  discountReservationIsLive,
+  normalizeDiscountCode,
+  normalizeDiscountInput,
+  publicDiscountCode
+} from '../discountCodes.js';
 import { paymentProvider } from '../payments.js';
 import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
 import { parseSeatEmailLines } from '../seatFulfillment.js';
@@ -51,20 +60,22 @@ function automaticSeatProvider(order = {}) {
     .find(([, integration]) => integration.skus.includes(sku))?.[0] || '';
 }
 
-function chatGptSeatLockScope(order = {}) {
-  if (automaticSeatProvider(order) !== 'chatgpt') return null;
-  const integration = config.memberFulfillment.integrations.chatgpt || {};
+function seatPaymentLockScope(order = {}) {
+  const provider = automaticSeatProvider(order);
+  if (!provider) return null;
+  const integration = config.memberFulfillment.integrations[provider] || {};
   const emails = [...new Set((order.fulfillment?.recipients || [])
     .map((recipient) => String(recipient?.email || '').trim().toLowerCase())
     .filter(Boolean))];
-  const accountRef = String(integration.accountRef || '').trim();
+  const sku = String(order.productSku || '').trim().toLowerCase();
+  const accountRef = String(integration.accountRefsBySku?.[sku] || integration.accountRef || '').trim();
   return accountRef && emails.length
-    ? { provider: 'chatgpt', accountRef, emails }
+    ? { provider, accountRef, emails }
     : null;
 }
 
-async function lockChatGptSeatPaymentTransition(client, order) {
-  const scope = chatGptSeatLockScope(order);
+async function lockSeatPaymentTransition(client, order) {
+  const scope = seatPaymentLockScope(order);
   if (scope) await lockSeatAccessTransaction(client, scope);
 }
 
@@ -162,6 +173,68 @@ async function addAuditDoc(client, actorId, action, entityType, entityId, detail
         OFFSET 1000
       )
   `);
+}
+
+async function findDiscountCodeDoc(client, rawCode, { forUpdate = false } = {}) {
+  const code = normalizeDiscountCode(rawCode, { strict: true });
+  const result = await client.query(
+    `SELECT id, doc
+     FROM app_documents
+     WHERE collection = 'discountCodes' AND doc->>'code' = $1
+     LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
+    [code]
+  );
+  return result.rows[0] || null;
+}
+
+async function releaseDiscountReservation(client, order) {
+  const code = order?.discount?.code;
+  if (!code) return false;
+  const row = await findDiscountCodeDoc(client, code, { forUpdate: true });
+  const discount = row?.doc;
+  if (!discount || discount.usedByOrderId || discount.reservedByOrderId !== order.id) return false;
+  discount.reservedByOrderId = null;
+  discount.reservedByUserId = null;
+  discount.reservedAt = null;
+  discount.reservedUntil = null;
+  discount.updatedAt = nowIso();
+  await upsertDoc(client, 'discountCodes', discount);
+  return true;
+}
+
+async function consumeDiscountReservation(client, order, actorId) {
+  const code = order?.discount?.code;
+  if (!code) return null;
+  const row = await findDiscountCodeDoc(client, code, { forUpdate: true });
+  const discount = row?.doc;
+  if (!discount) {
+    throw Object.assign(new Error('Reserved discount code no longer exists'), {
+      code: 'discount_reservation_lost',
+      statusCode: 409
+    });
+  }
+  if (discount.usedByOrderId === order.id) return discount;
+  if (discount.usedByOrderId || discount.reservedByOrderId !== order.id) {
+    throw Object.assign(new Error('Discount reservation no longer belongs to this order'), {
+      code: 'discount_reservation_lost',
+      statusCode: 409
+    });
+  }
+  discount.usedByOrderId = order.id;
+  discount.usedByUserId = order.userId;
+  discount.usedAt = nowIso();
+  discount.reservedByOrderId = null;
+  discount.reservedByUserId = null;
+  discount.reservedAt = null;
+  discount.reservedUntil = null;
+  discount.updatedAt = nowIso();
+  await upsertDoc(client, 'discountCodes', discount);
+  await addAuditDoc(client, actorId, 'discount.consume', 'discount_code', discount.id, {
+    code: discount.code,
+    orderId: order.id,
+    amount: order.discount.amount
+  });
+  return discount;
 }
 
 async function setOrderStatus(client, order, status, actorId, reason, details = {}) {
@@ -262,7 +335,7 @@ export async function getDashboardSummary() {
     const counts = await client.query(`
       SELECT collection, doc->>'status' AS status, count(*)::int AS count
       FROM app_documents
-      WHERE collection IN ('products', 'inventory', 'orders')
+      WHERE collection IN ('products', 'inventory', 'orders', 'payments')
       GROUP BY collection, doc->>'status'
     `);
     const receivedRevenue = await client.query(`
@@ -278,6 +351,17 @@ export async function getDashboardSummary() {
       ORDER BY doc->>'createdAt' DESC
       LIMIT 8
     `);
+    const analyticsStart = new Date();
+    analyticsStart.setUTCHours(0, 0, 0, 0);
+    analyticsStart.setUTCDate(analyticsStart.getUTCDate() - 29);
+    const analyticsOrders = await client.query(
+      `SELECT doc
+       FROM app_documents
+       WHERE collection = 'orders'
+         AND doc->>'createdAt' >= $1
+       ORDER BY doc->>'createdAt' ASC`,
+      [analyticsStart.toISOString()]
+    );
     const products = await listProducts({ includeInactive: true });
 
     const count = (collection, status = null) => {
@@ -285,6 +369,11 @@ export async function getDashboardSummary() {
       if (status !== null) return row?.count || 0;
       return counts.rows.filter((item) => item.collection === collection).reduce((sum, item) => sum + item.count, 0);
     };
+    const breakdown = (collection) => Object.fromEntries(
+      counts.rows
+        .filter((item) => item.collection === collection && item.status)
+        .map((item) => [item.status, item.count])
+    );
 
     return {
       products: count('products'),
@@ -294,6 +383,13 @@ export async function getDashboardSummary() {
       deliveredOrders: count('orders', 'delivered'),
       reviewOrders: count('orders', 'payment_review'),
       revenue: receivedRevenue.rows[0]?.revenue || 0,
+      analytics: buildDashboardAnalytics({
+        products,
+        orders: analyticsOrders.rows.map((row) => row.doc),
+        inventoryBreakdown: breakdown('inventory'),
+        orderStatusBreakdown: breakdown('orders'),
+        paymentStatusBreakdown: breakdown('payments')
+      }),
       recentOrders: recentOrders.rows.map((row) => publicOrder(row.doc)),
       lowStock: products.filter((product) => (
         product.active && !isSeatEmailFulfillment(product) && product.stock.available <= 2
@@ -476,6 +572,130 @@ export async function setCatalogPriceList(actorId, input = {}) {
   });
 }
 
+export async function listDiscountCodes() {
+  return withPostgresClient(async (client) => {
+    const result = await client.query(`
+      SELECT doc
+      FROM app_documents
+      WHERE collection = 'discountCodes'
+      ORDER BY doc->>'createdAt' DESC
+    `);
+    return result.rows.map((row) => publicDiscountCode(row.doc));
+  });
+}
+
+export async function createDiscountCode(actorId, input = {}) {
+  return withPostgresTransaction(async (client) => {
+    const normalized = normalizeDiscountInput(input);
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, [`discount:${normalized.code}`]);
+    if (await findDiscountCodeDoc(client, normalized.code, { forUpdate: true })) {
+      throw Object.assign(new Error('Discount code already exists'), {
+        code: 'discount_code_exists',
+        statusCode: 409
+      });
+    }
+    const discount = {
+      id: makeId('dsc'),
+      ...normalized,
+      usageLimit: 1,
+      reservedByOrderId: null,
+      reservedByUserId: null,
+      reservedAt: null,
+      reservedUntil: null,
+      usedByOrderId: null,
+      usedByUserId: null,
+      usedAt: null,
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+    await insertDoc(client, 'discountCodes', discount);
+    await addAuditDoc(client, actorId, 'discount.create', 'discount_code', discount.id, {
+      code: discount.code,
+      type: discount.type,
+      value: discount.value
+    });
+    return publicDiscountCode(discount);
+  });
+}
+
+export async function updateDiscountCode(actorId, discountId, input = {}) {
+  return withPostgresTransaction(async (client) => {
+    const row = await getDoc(client, 'discountCodes', discountId, { forUpdate: true });
+    if (!row) throw Object.assign(new Error('Discount code not found'), { statusCode: 404 });
+    if (input.active === undefined) {
+      throw Object.assign(new Error('Discount active state is required'), { statusCode: 400 });
+    }
+    const discount = row.doc;
+    discount.active = input.active === true;
+    discount.updatedAt = nowIso();
+    await upsertDoc(client, 'discountCodes', discount);
+    await addAuditDoc(
+      client,
+      actorId,
+      discount.active ? 'discount.activate' : 'discount.deactivate',
+      'discount_code',
+      discount.id,
+      { code: discount.code }
+    );
+    return publicDiscountCode(discount);
+  });
+}
+
+export async function previewDiscountForUser(user, productSkuOrId, quantity = 1, options = {}) {
+  return withPostgresClient(async (client) => {
+    const sku = String(productSkuOrId || '').toLowerCase();
+    const [productResult, telegramPriceLists, basePriceLists] = await Promise.all([
+      client.query(
+        `SELECT doc FROM app_documents
+         WHERE collection = 'products' AND (id = $1 OR doc->>'sku' = $2)
+         LIMIT 1`,
+        [String(productSkuOrId), sku]
+      ),
+      telegramPriceListsForUser(client, user),
+      catalogBasePriceLists(client)
+    ]);
+    const product = productResult.rows[0]?.doc;
+    if (!product || !product.active) throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
+    assertSalesOrderAllowed(product, user);
+    const pricing = resolveTelegramProductPricing(product, user, telegramPriceLists, basePriceLists);
+    const seatEmailOrder = isSeatEmailFulfillment(product);
+    const qty = seatEmailOrder && options.recipientEmails
+      ? normalizeOrderQuantity(seatOrderRecipients(options.recipientEmails).length)
+      : normalizeOrderQuantity(quantity);
+    const row = await findDiscountCodeDoc(client, options.discountCode);
+    if (!row) {
+      throw Object.assign(new Error('Discount code was not found'), {
+        code: 'discount_not_found',
+        statusCode: 404
+      });
+    }
+    const discount = row.doc;
+    clearExpiredDiscountReservation(discount);
+    if (discountReservationIsLive(discount)) {
+      throw Object.assign(new Error('Discount code is reserved by another order'), {
+        code: 'discount_reserved',
+        statusCode: 409
+      });
+    }
+    const breakdown = calculateDiscount(discount, pricing.price * qty);
+    return {
+      productId: product.id,
+      productSku: product.sku,
+      quantity: qty,
+      unitPrice: pricing.price,
+      currency: product.currency,
+      subtotal: breakdown.subtotal,
+      total: breakdown.total,
+      discount: {
+        code: breakdown.code,
+        type: breakdown.type,
+        value: breakdown.value,
+        amount: breakdown.amount
+      }
+    };
+  });
+}
+
 export async function createProduct(actorId, input) {
   return withPostgresTransaction(async (client) => {
     const normalized = normalizeProductInput(input);
@@ -652,6 +872,7 @@ async function expirePendingOrdersInClient(client, actorId, limit = 500) {
   for (const row of expired.rows) {
     const order = row.doc;
     await releaseReservedInventory(client, order.id);
+    await releaseDiscountReservation(client, order);
     await setOrderStatus(client, order, 'expired', actorId, 'payment_timeout', { expiresAt: order.expiresAt });
     await upsertDoc(client, 'orders', order);
   }
@@ -736,6 +957,36 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       throw Object.assign(new Error('Too many pending orders. Pay or cancel an existing order first.'), { statusCode: 429 });
     }
 
+    const subtotal = pricing.price * qty;
+    let discount = null;
+    let discountRecord = null;
+    if (options.discountCode) {
+      const code = normalizeDiscountCode(options.discountCode, { strict: true });
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, [`discount:${code}`]);
+      const row = await findDiscountCodeDoc(client, code, { forUpdate: true });
+      if (!row) {
+        throw Object.assign(new Error('Discount code was not found'), {
+          code: 'discount_not_found',
+          statusCode: 404
+        });
+      }
+      discountRecord = row.doc;
+      clearExpiredDiscountReservation(discountRecord);
+      if (discountReservationIsLive(discountRecord)) {
+        throw Object.assign(new Error('Discount code is reserved by another order'), {
+          code: 'discount_reserved',
+          statusCode: 409
+        });
+      }
+      const breakdown = calculateDiscount(discountRecord, subtotal);
+      discount = {
+        code: breakdown.code,
+        type: breakdown.type,
+        value: breakdown.value,
+        amount: breakdown.amount
+      };
+    }
+
     let inventoryRows = [];
     if (!seatEmailOrder) {
       const inventoryResult = await client.query(
@@ -765,7 +1016,9 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       productName: product.name,
       quantity: qty,
       unitPrice: pricing.price,
-      total: pricing.price * qty,
+      subtotal,
+      discount,
+      total: subtotal - Number(discount?.amount || 0),
       currency: product.currency,
       checkoutKey: checkoutKey || null,
       productSnapshot: {
@@ -818,6 +1071,15 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       }]
     };
 
+    if (discountRecord) {
+      discountRecord.reservedByOrderId = order.id;
+      discountRecord.reservedByUserId = user.id;
+      discountRecord.reservedAt = nowIso();
+      discountRecord.reservedUntil = order.expiresAt;
+      discountRecord.updatedAt = nowIso();
+      await upsertDoc(client, 'discountCodes', discountRecord);
+    }
+
     for (const row of inventoryRows) {
       const item = row.doc;
       item.status = 'reserved';
@@ -846,7 +1108,11 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
     order.paymentId = payment.id;
     await insertDoc(client, 'orders', order);
     await insertDoc(client, 'payments', payment);
-    await addAuditDoc(client, user.id, 'order.create', 'order', order.id, { sku: product.sku, quantity: qty });
+    await addAuditDoc(client, user.id, 'order.create', 'order', order.id, {
+      sku: product.sku,
+      quantity: qty,
+      ...(discount ? { discountCode: discount.code, discountAmount: discount.amount } : {})
+    });
 
     return { order: publicOrder(order), payment };
   });
@@ -1050,6 +1316,7 @@ export async function cancelOrderForUser(userId, orderId) {
     }
 
     await releaseReservedInventory(client, order.id);
+    await releaseDiscountReservation(client, order);
     const expired = new Date(order.expiresAt).getTime() < Date.now();
     await setOrderStatus(
       client,
@@ -1335,7 +1602,8 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
     }
 
     if (isSeatOrder(order)) {
-      await lockChatGptSeatPaymentTransition(client, order);
+      await lockSeatPaymentTransition(client, order);
+      await consumeDiscountReservation(client, order, actorId);
       payment.status = 'paid';
       payment.bankReference = event.bankReference || payment.bankReference || '';
       order.paidAt = nowIso();
@@ -1369,6 +1637,7 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       return { order: publicOrder(order), payment };
     }
 
+    await consumeDiscountReservation(client, order, actorId);
     payment.status = 'paid';
     payment.bankReference = event.bankReference || payment.bankReference || '';
     order.paidAt = nowIso();
@@ -1421,6 +1690,7 @@ export async function cancelOrder(actorId, orderId) {
       throw Object.assign(new Error('This order cannot be cancelled from the normal flow'), { statusCode: 409 });
     }
     await releaseReservedInventory(client, order.id);
+    await releaseDiscountReservation(client, order);
     await setOrderStatus(client, order, 'cancelled', actorId, 'admin_cancelled');
     await upsertDoc(client, 'orders', order);
     return publicOrder(order);
@@ -1447,6 +1717,7 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
       at: nowIso()
     };
 
+    await consumeDiscountReservation(client, order, actorId);
     order.reviewResolution = resolution;
     if (payment) {
       if (seatEmailOrder || payment.status === 'paid_needs_review') payment.status = 'paid';
@@ -1456,7 +1727,7 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
     }
 
     if (seatEmailOrder) {
-      await lockChatGptSeatPaymentTransition(client, order);
+      await lockSeatPaymentTransition(client, order);
       order.paidAt ||= nowIso();
       await setOrderStatus(client, order, 'awaiting_fulfillment', actorId, 'manual_review_approved', {
         note,
@@ -1663,6 +1934,7 @@ export async function markOrderRefunded(actorId, orderId, input = {}) {
     };
 
     await releaseReservedInventory(client, order.id);
+    await releaseDiscountReservation(client, order);
     order.reviewResolution = resolution;
     if (payment) {
       payment.status = 'refunded';

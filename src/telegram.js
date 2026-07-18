@@ -15,6 +15,7 @@ import {
   getOrderCheckoutForUser,
   listOrdersForUser,
   listProducts,
+  previewDiscountForUser,
   recordAudit,
   upsertTelegramUser
 } from './shop.js';
@@ -23,6 +24,7 @@ import { consumeRateLimit } from './rateLimit.js';
 import { normalizeOrderQuantity } from './salesGuard.js';
 import { parseSeatEmailLines } from './seatFulfillment.js';
 import {
+  createDiscountDraft,
   createSeatEmailDraft,
   deleteSeatEmailDraft,
   getSeatEmailDraft,
@@ -1957,15 +1959,21 @@ export function buildSeatEmailPromptKeyboard(product, draft) {
   };
 }
 
-export function seatEmailReviewMessage(product, emails) {
+export function seatEmailReviewMessage(product, emails, pricing = null) {
   const normalized = normalizePublicProduct(product);
   const quantity = emails.length;
+  const subtotal = pricing?.subtotal ?? normalized.price * quantity;
+  const total = pricing?.total ?? subtotal;
   return [
     `${newsEmoji('check')} <b>Xác nhận email mua Seat</b>`,
     `${newsEmoji('shopping-bag')} Sản phẩm: ${escapeHtml(normalized.name)}`,
     `${newsEmoji('chart')} Số lượng: ${quantity}`,
     `${newsEmoji('dollar')} Đơn giá: ${escapeHtml(money(normalized.price, normalized.currency))}`,
-    `${newsEmoji('dollar')} Tổng tiền: <b>${escapeHtml(money(normalized.price * quantity, normalized.currency))}</b>`,
+    ...(pricing?.discount ? [
+      `${newsEmoji('dollar')} Tạm tính: ${escapeHtml(money(subtotal, normalized.currency))}`,
+      `${uiTextEmoji('promotions')} Mã ${code(pricing.discount.code)}: -${escapeHtml(money(pricing.discount.amount, normalized.currency))}`
+    ] : []),
+    `${newsEmoji('dollar')} Tổng tiền: <b>${escapeHtml(money(total, normalized.currency))}</b>`,
     '',
     `${newsEmoji('tracking')} Email nhận Seat:`,
     ...emails.map((email, index) => `${index + 1}. ${code(email)}`),
@@ -1979,6 +1987,10 @@ export function buildSeatEmailReviewKeyboard(draft) {
   return {
     inline_keyboard: [
       [animatedKeyboardButton({ text: 'Xác nhận & thanh toán', callback_data: `seat_confirm:${draft.id}:${revision}` }, 'confirm')],
+      [animatedKeyboardButton({
+        text: draft.discountCode ? 'Đổi mã giảm giá' : 'Nhập mã giảm giá',
+        callback_data: `seat_discount:${draft.id}:${revision}`
+      }, 'promotions')],
       [
         animatedKeyboardButton({ text: 'Nhập lại email', callback_data: `seat_edit:${draft.id}:${revision}` }, 'refresh'),
         animatedKeyboardButton({ text: 'Hủy', callback_data: `seat_cancel:${draft.id}` }, 'cancel')
@@ -2006,11 +2018,62 @@ export function buildConfirmationKeyboard(product, quantity = 1) {
     ]);
   }
   rows.push([animatedKeyboardButton({ text: 'Xác nhận mua', callback_data: `confirm:${key}:${qty}` }, 'confirm')]);
+  rows.push([animatedKeyboardButton({ text: 'Nhập mã giảm giá', callback_data: `discount_start:${key}:${qty}` }, 'promotions')]);
   const support = supportUrl(`Mình cần hỗ trợ trước khi mua ${normalized.name}`);
   const actions = [animatedKeyboardButton({ text: 'Xem lại gói', callback_data: `pkg:${key}` }, 'back')];
   if (support) actions.push(animatedKeyboardButton({ text: 'Hỗ trợ', url: support }, 'admin-contact'));
   rows.push(actions);
   return { inline_keyboard: rows };
+}
+
+export function discountPromptMessage(product) {
+  const normalized = normalizePublicProduct(product);
+  return [
+    `${uiTextEmoji('promotions')} <b>Nhập mã giảm giá</b>`,
+    `${newsEmoji('shopping-bag')} Sản phẩm: ${escapeHtml(normalized.name)}`,
+    '',
+    'Gửi mã trong một tin nhắn. Mã không phân biệt chữ hoa, chữ thường.',
+    'Mỗi mã chỉ dùng được cho đúng một đơn đã thanh toán.'
+  ].join('\n');
+}
+
+export function discountReviewMessage(product, preview) {
+  const normalized = normalizePublicProduct(product);
+  return [
+    `${newsEmoji('check')} <b>Mã giảm giá hợp lệ</b>`,
+    `${newsEmoji('shopping-bag')} Sản phẩm: ${escapeHtml(normalized.name)}`,
+    `${newsEmoji('chart')} Số lượng: ${escapeHtml(preview.quantity)}`,
+    `${newsEmoji('dollar')} Tạm tính: ${escapeHtml(money(preview.subtotal, preview.currency))}`,
+    `${uiTextEmoji('promotions')} Mã ${code(preview.discount.code)}: -${escapeHtml(money(preview.discount.amount, preview.currency))}`,
+    `${newsEmoji('dollar')} Cần thanh toán: <b>${escapeHtml(money(preview.total, preview.currency))}</b>`,
+    '',
+    `${newsEmoji('lock')} Mã chỉ được giữ khi bạn xác nhận tạo đơn.`
+  ].join('\n');
+}
+
+export function buildDiscountReviewKeyboard(draft) {
+  const revision = Number(draft.revision || 0);
+  return {
+    inline_keyboard: [
+      [animatedKeyboardButton({ text: 'Xác nhận & thanh toán', callback_data: `discount_confirm:${draft.id}:${revision}` }, 'confirm')],
+      [
+        animatedKeyboardButton({ text: 'Nhập mã khác', callback_data: `discount_edit:${draft.id}:${revision}` }, 'refresh'),
+        animatedKeyboardButton({ text: 'Bỏ mã', callback_data: `discount_cancel:${draft.id}` }, 'cancel')
+      ]
+    ]
+  };
+}
+
+export function buildDiscountPromptKeyboard(draft, { seat = false } = {}) {
+  const revision = Number(draft.revision || 0);
+  return {
+    inline_keyboard: [[animatedKeyboardButton({
+      text: 'Quay lại không dùng mã',
+      callback_data: seat
+        ? `seat_discount_cancel:${draft.id}:${revision}`
+        : `discount_cancel:${draft.id}`
+    }, 'back')]]
+  };
 }
 
 export function buildPaymentKeyboard(order, _payment) {
@@ -2056,6 +2119,10 @@ export function orderMessage(order, payment) {
     `${bannerTextEmoji('guide')} Mã đơn: ${code(order.id)}`,
     `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
     `${bannerTextEmoji('stock')} Số lượng: ${escapeHtml(order.quantity)}`,
+    ...(order.discount ? [
+      `${sloganTextEmoji('payment')} Tạm tính: ${escapeHtml(money(order.subtotal, order.currency))}`,
+      `${uiTextEmoji('promotions')} Mã ${code(order.discount.code)}: -${escapeHtml(money(order.discount.amount, order.currency))}`
+    ] : []),
     `${roboEmoji('money', '🤑')} ${sloganTextEmoji('payment')} Tổng: ${escapeHtml(money(order.total, order.currency))}`,
     `${sloganTextEmoji('delivery')} Giao hàng: ${fulfillmentDeliveryLabel(order.productSnapshot)}`,
     ...(seatEmail ? [
@@ -2245,6 +2312,10 @@ function orderDetailMessage(order, payment) {
     `Mã đơn: ${code(order.id)}`,
     `${bannerTextEmoji('stock')} Sản phẩm: ${escapeHtml(order.productName)}`,
     `${bannerTextEmoji('stock')} Số lượng: ${escapeHtml(order.quantity)}`,
+    ...(order.discount ? [
+      `${sloganTextEmoji('payment')} Tạm tính: ${escapeHtml(money(order.subtotal, order.currency))}`,
+      `${uiTextEmoji('promotions')} Mã ${code(order.discount.code)}: -${escapeHtml(money(order.discount.amount, order.currency))}`
+    ] : []),
     `${sloganTextEmoji('payment')} Tổng: ${escapeHtml(money(order.total, order.currency))}`,
     `${sloganTextEmoji('delivery')} Giao hàng: ${fulfillmentDeliveryLabel(order.productSnapshot)}`,
     ...(seatEmail ? [
@@ -2291,11 +2362,28 @@ async function userOrdersView(user) {
 
 function customerFacingOrderError(error) {
   const message = String(error?.message || '');
+  if (String(error?.code || '').startsWith('discount_')) return discountInputError(error);
   if (/not enough stock/i.test(message)) return 'Gói này vừa hết hàng. Vui lòng chọn gói khác hoặc liên hệ hỗ trợ.';
   if (/too many pending orders/i.test(message)) return 'Bạn đang có quá nhiều đơn chờ thanh toán. Hãy thanh toán hoặc hủy một đơn cũ trước.';
   if (/shop chưa mở bán|sales/i.test(message)) return 'Shop chưa mở nhận đơn. Vui lòng quay lại sau hoặc liên hệ hỗ trợ.';
   if (/product is not available/i.test(message)) return 'Gói này hiện không còn mở bán.';
   return 'Không thể tạo đơn lúc này. Vui lòng thử lại hoặc liên hệ hỗ trợ.';
+}
+
+function discountInputError(error) {
+  const messages = {
+    discount_code_required: 'Hãy nhập mã giảm giá.',
+    discount_code_invalid: 'Mã chỉ gồm 4–32 ký tự A–Z, 0–9, dấu gạch ngang hoặc gạch dưới.',
+    discount_not_found: 'Không tìm thấy mã giảm giá này.',
+    discount_not_active: 'Mã giảm giá hiện đã bị khóa.',
+    discount_already_used: 'Mã giảm giá đã được sử dụng.',
+    discount_expired: 'Mã giảm giá đã hết hạn.',
+    discount_reserved: 'Mã đang được giữ cho một đơn hàng khác.',
+    discount_minimum_not_met: 'Đơn hàng chưa đạt giá trị tối thiểu của mã.',
+    discount_exceeds_subtotal: 'Mức giảm phải nhỏ hơn tổng giá trị đơn hàng.',
+    discount_reservation_lost: 'Mã không còn được giữ cho đơn hàng này.'
+  };
+  return messages[error?.code] || 'Mã giảm giá không thể áp dụng cho đơn hàng này.';
 }
 
 function seatEmailInputError(error) {
@@ -2396,6 +2484,48 @@ async function beginSeatEmailFlow(chatId, user, product, { messageId } = {}) {
   }
 }
 
+async function handleDiscountText(chatId, user, text) {
+  const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+  if (!draft || draft.kind !== 'discount' || draft.stage !== 'awaiting_discount' || text.startsWith('/')) {
+    return false;
+  }
+  const products = await listProducts({ user });
+  const product = findProduct(products, draft.productId || draft.productSku);
+  if (!product || isSeatEmailFulfillment(product)) {
+    await discardSeatEmailDraft(user.id, chatId);
+    await sendAnimatedTelegramMessage(chatId, `${sloganTextEmoji('soldout')} Gói này không còn mở bán.`, {
+      reply_markup: buildCategoryKeyboard(products)
+    });
+    return true;
+  }
+
+  try {
+    const preview = await previewDiscountForUser(user, product.id || product.sku, draft.quantity, {
+      discountCode: text
+    });
+    const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
+      stage: 'confirming',
+      discountCode: preview.discount.code,
+      discountPreview: preview
+    });
+    if (!updated) throw Object.assign(new Error('Discount draft expired'), { code: 'discount_draft_expired' });
+    await sendCustomTelegramMessage(
+      chatId,
+      discountReviewMessage(product, preview),
+      confirmationCustomEmojiCandidates(),
+      { reply_markup: buildDiscountReviewKeyboard(updated) }
+    );
+  } catch (error) {
+    await sendCustomTelegramMessage(
+      chatId,
+      `${newsEmoji('warning')} ${escapeHtml(discountInputError(error))}\n\n${discountPromptMessage(product)}`,
+      [newsEmojiCandidate('warning'), ...confirmationCustomEmojiCandidates()],
+      { reply_markup: buildDiscountPromptKeyboard(draft) }
+    );
+  }
+  return true;
+}
+
 async function handleSeatEmailText(chatId, user, text) {
   let draft;
   try {
@@ -2407,7 +2537,7 @@ async function handleSeatEmailText(chatId, user, text) {
     );
     return true;
   }
-  if (!draft || text.startsWith('/')) return false;
+  if (!draft || draft.kind === 'discount' || text.startsWith('/')) return false;
 
   const products = await listProducts({ user });
   const product = findProduct(products, draft.productId || draft.productSku);
@@ -2420,10 +2550,31 @@ async function handleSeatEmailText(chatId, user, text) {
   }
 
   try {
+    if (draft.stage === 'awaiting_discount') {
+      const preview = await previewDiscountForUser(user, product.id || product.sku, draft.emails.length, {
+        recipientEmails: draft.emails,
+        discountCode: text
+      });
+      const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
+        stage: 'confirming',
+        discountCode: preview.discount.code,
+        discountPreview: preview
+      });
+      if (!updated) throw Object.assign(new Error('Seat draft expired'), { code: 'seat_draft_expired' });
+      await sendCustomTelegramMessage(
+        chatId,
+        seatEmailReviewMessage(product, draft.emails, preview),
+        confirmationCustomEmojiCandidates(),
+        { reply_markup: buildSeatEmailReviewKeyboard(updated) }
+      );
+      return true;
+    }
     const emails = parseSeatEmailLines(text, { maxQuantity: config.orders.maxQuantity });
     const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
       stage: 'confirming',
-      emails
+      emails,
+      discountCode: null,
+      discountPreview: null
     });
     if (!updated) throw Object.assign(new Error('Seat draft expired'), { code: 'seat_draft_expired' });
     await sendCustomTelegramMessage(
@@ -2437,6 +2588,15 @@ async function handleSeatEmailText(chatId, user, text) {
       await sendAnimatedTelegramMessage(chatId, `${sloganTextEmoji('soldout')} Phiên nhập email đã hết hạn. Hãy bấm mua lại.`, {
         reply_markup: buildProductDetailKeyboard(product)
       });
+      return true;
+    }
+    if (draft.stage === 'awaiting_discount') {
+      await sendCustomTelegramMessage(
+        chatId,
+        `${newsEmoji('warning')} ${escapeHtml(discountInputError(error))}\n\n${discountPromptMessage(product)}`,
+        [newsEmojiCandidate('warning'), ...confirmationCustomEmojiCandidates()],
+        { reply_markup: buildDiscountPromptKeyboard(draft, { seat: true }) }
+      );
       return true;
     }
     await sendCustomTelegramMessage(
@@ -2528,13 +2688,14 @@ async function handleTextMessage(message) {
     const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
     if (draft) {
       await discardSeatEmailDraft(user.id, chatId);
-      await sendAnimatedTelegramMessage(chatId, `${newsEmoji('check')} Đã hủy nhập email Seat.`, {
+      await sendAnimatedTelegramMessage(chatId, `${newsEmoji('check')} ${draft.kind === 'discount' ? 'Đã hủy nhập mã giảm giá.' : 'Đã hủy nhập email Seat.'}`, {
         reply_markup: buildMainMenuKeyboard()
       });
       return;
     }
   }
 
+  if (await handleDiscountText(chatId, user, text)) return;
   if (await handleSeatEmailText(chatId, user, text)) return;
 
   await sendAnimatedTelegramMessage(chatId, unknownCommandMessage(), { reply_markup: buildMainMenuKeyboard() });
@@ -2550,8 +2711,8 @@ async function handleCallbackQuery(callbackQuery) {
   const products = await listProducts({ user });
   const categories = uniqueSorted(products.map((product) => normalizePublicProduct(product).category));
 
-  if (data.startsWith('seat_') && !privateTelegramChat(callbackQuery.message?.chat)) {
-    await answerCallbackQuery(callbackQuery.id, 'Hãy nhập email trong cuộc trò chuyện riêng với bot.');
+  if ((data.startsWith('seat_') || data.startsWith('discount_')) && !privateTelegramChat(callbackQuery.message?.chat)) {
+    await answerCallbackQuery(callbackQuery.id, 'Hãy nhập thông tin checkout trong cuộc trò chuyện riêng với bot.');
     await presentCustomTelegramMessage(
       chatId,
       messageId,
@@ -2562,8 +2723,133 @@ async function handleCallbackQuery(callbackQuery) {
     return;
   }
 
-  if (!data.startsWith('seat_') && !data.startsWith('buy:')) {
+  if (!data.startsWith('seat_') && !data.startsWith('discount_') && !data.startsWith('buy:')) {
     discardSeatEmailDraftSoon(user.id, chatId);
+  }
+
+  if (data.startsWith('discount_start:')) {
+    const [, productId, qtyRaw] = data.split(':');
+    const product = findProduct(products, productId);
+    if (!product || isSeatEmailFulfillment(product)) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Gói này không còn hỗ trợ checkout hiện tại.`, {
+        reply_markup: product ? buildProductDetailKeyboard(product) : buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    const quantity = normalizeOrderQuantity(qtyRaw || 1);
+    try {
+      const draft = await createDiscountDraft({
+        userId: user.id,
+        telegramId: user.telegramId || '',
+        chatId,
+        productId: product.id || '',
+        productSku: product.sku,
+        quantity
+      });
+      await presentCustomTelegramMessage(
+        chatId,
+        messageId,
+        discountPromptMessage(product),
+        confirmationCustomEmojiCandidates(),
+        { reply_markup: buildDiscountPromptKeyboard(draft) }
+      );
+    } catch {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Không thể bắt đầu nhập mã lúc này. Vui lòng thử lại.`, {
+        reply_markup: buildConfirmationKeyboard(product, quantity)
+      });
+    }
+    return;
+  }
+
+  if (data.startsWith('discount_edit:')) {
+    const callback = seatDraftCallback(data, 'discount_edit:');
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    const product = seatDraftMatches(draft, callback) && draft.kind === 'discount'
+      ? findProduct(products, draft.productId || draft.productSku)
+      : null;
+    if (!product) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên nhập mã đã hết hạn.`, {
+        reply_markup: buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
+      stage: 'awaiting_discount',
+      discountCode: null,
+      discountPreview: null
+    });
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      discountPromptMessage(product),
+      confirmationCustomEmojiCandidates(),
+      { reply_markup: buildDiscountPromptKeyboard(updated || draft) }
+    );
+    return;
+  }
+
+  if (data.startsWith('discount_cancel:')) {
+    const draftId = data.slice('discount_cancel:'.length).split(':')[0];
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    const product = draft?.id === draftId && draft.kind === 'discount'
+      ? findProduct(products, draft.productId || draft.productSku)
+      : null;
+    if (draft?.id === draftId) await discardSeatEmailDraft(user.id, chatId);
+    if (!product) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên nhập mã đã hết hạn.`, {
+        reply_markup: buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      confirmationMessage(product, draft.quantity),
+      confirmationCustomEmojiCandidates(),
+      { reply_markup: buildConfirmationKeyboard(product, draft.quantity) }
+    );
+    return;
+  }
+
+  if (data.startsWith('discount_confirm:')) {
+    const callback = seatDraftCallback(data, 'discount_confirm:');
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    const product = seatDraftMatches(draft, callback) && draft.kind === 'discount' && draft.stage === 'confirming'
+      ? findProduct(products, draft.productId || draft.productSku)
+      : null;
+    if (!product || !draft.discountCode) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên xác nhận mã đã hết hạn.`, {
+        reply_markup: product ? buildProductDetailKeyboard(product) : buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    const buyLimit = await consumeRateLimit(`tg:buy:${user.telegramId}`, config.traffic.telegramBuyPerMinute);
+    if (!buyLimit.allowed) {
+      await presentTelegramMessage(chatId, messageId, `${uiTextEmoji('automation-247')} Tạo đơn quá nhanh. Thử lại sau ${buyLimit.retryAfterSeconds}s.`, {
+        reply_markup: buildDiscountReviewKeyboard(draft)
+      });
+      return;
+    }
+    try {
+      const checkout = await createOrderForUser(user, product.id || product.sku, draft.quantity, {
+        discountCode: draft.discountCode,
+        idempotencyKey: `telegram-discount:${user.id}:${chatId}:${draft.id}`
+      });
+      await discardSeatEmailDraft(user.id, chatId);
+      await presentCustomTelegramMessage(
+        chatId,
+        messageId,
+        orderMessage(checkout.order, checkout.payment),
+        orderCustomEmojiCandidates(),
+        { reply_markup: buildPaymentKeyboard(checkout.order, checkout.payment) }
+      );
+      await sendPaymentQrImage(chatId, checkout.order, checkout.payment);
+    } catch (error) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} ${escapeHtml(customerFacingOrderError(error))}`, {
+        reply_markup: buildDiscountReviewKeyboard(draft)
+      });
+    }
+    return;
   }
 
   if (data.startsWith('soldout:')) {
@@ -2746,7 +3032,9 @@ async function handleCallbackQuery(callbackQuery) {
     }
     const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
       stage: 'awaiting_emails',
-      emails: []
+      emails: [],
+      discountCode: null,
+      discountPreview: null
     });
     if (!updated) {
       await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên nhập email đã hết hạn. Hãy bấm mua lại.`, {
@@ -2760,6 +3048,58 @@ async function handleCallbackQuery(callbackQuery) {
       seatEmailPromptMessage(product),
       confirmationCustomEmojiCandidates(),
       { reply_markup: buildSeatEmailPromptKeyboard(product, updated) }
+    );
+    return;
+  }
+
+  if (data.startsWith('seat_discount_cancel:')) {
+    const callback = seatDraftCallback(data, 'seat_discount_cancel:');
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    const product = seatDraftMatches(draft, callback)
+      ? findProduct(products, draft.productId || draft.productSku)
+      : null;
+    if (!product || !isSeatEmailFulfillment(product)) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên Seat đã hết hạn.`, {
+        reply_markup: product ? buildProductDetailKeyboard(product) : buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
+      stage: 'confirming',
+      discountCode: null,
+      discountPreview: null
+    });
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      seatEmailReviewMessage(product, draft.emails),
+      confirmationCustomEmojiCandidates(),
+      { reply_markup: buildSeatEmailReviewKeyboard(updated || draft) }
+    );
+    return;
+  }
+
+  if (data.startsWith('seat_discount:')) {
+    const callback = seatDraftCallback(data, 'seat_discount:');
+    const draft = await getSeatEmailDraft(user.id, chatId).catch(() => null);
+    const product = seatDraftMatches(draft, callback) && draft.stage === 'confirming'
+      ? findProduct(products, draft.productId || draft.productSku)
+      : null;
+    if (!product || !isSeatEmailFulfillment(product)) {
+      await presentTelegramMessage(chatId, messageId, `${sloganTextEmoji('soldout')} Phiên Seat đã hết hạn.`, {
+        reply_markup: product ? buildProductDetailKeyboard(product) : buildCategoryKeyboard(products)
+      });
+      return;
+    }
+    const updated = await updateSeatEmailDraft(user.id, chatId, draft.id, {
+      stage: 'awaiting_discount'
+    });
+    await presentCustomTelegramMessage(
+      chatId,
+      messageId,
+      discountPromptMessage(product),
+      confirmationCustomEmojiCandidates(),
+      { reply_markup: buildDiscountPromptKeyboard(updated || draft, { seat: true }) }
     );
     return;
   }
@@ -2793,6 +3133,7 @@ async function handleCallbackQuery(callbackQuery) {
       await trackTelegramClick(user, 'seat_email_confirm', { sku: product.sku, quantity: emails.length });
       const checkout = await createOrderForUser(user, product.id || product.sku, emails.length, {
         recipientEmails: emails,
+        discountCode: draft.discountCode,
         idempotencyKey: `telegram-seat:${user.id}:${chatId}:${draft.id}`
       });
       await discardSeatEmailDraft(user.id, chatId);

@@ -10,6 +10,7 @@ import {
   approveReviewDelivery,
   cancelOrder,
   completeSeatFulfillment,
+  createDiscountCode,
   createOrderForUser,
   createProduct,
   deleteTelegramPriceList,
@@ -20,6 +21,7 @@ import {
   getTelegramPricingOverview,
   importInventory,
   listAuditLogs,
+  listDiscountCodes,
   listInventory,
   listOrders,
   listPayments,
@@ -29,6 +31,7 @@ import {
   recordAudit,
   setCatalogPriceList,
   setTelegramPriceList,
+  updateDiscountCode,
   updateProduct,
   upsertTelegramUser
 } from './shop.js';
@@ -147,6 +150,14 @@ function routeParams(pattern, pathname) {
     }
   }
   return params;
+}
+
+function seatGuardProvider(searchParams) {
+  const provider = String(searchParams.get('provider') || 'chatgpt').trim().toLowerCase();
+  if (!['chatgpt', 'canva', 'claude'].includes(provider)) {
+    throw Object.assign(new Error('Seat Guard provider must be chatgpt, canva, or claude'), { statusCode: 400 });
+  }
+  return provider;
 }
 
 async function requireAdminForRequest(req, res) {
@@ -291,19 +302,23 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === 'GET' && pathname === '/api/seat-guard') {
-    return sendJson(res, 200, await getSeatGuardSnapshot(), { 'cache-control': 'no-store' });
+    const provider = seatGuardProvider(searchParams);
+    return sendJson(res, 200, await getSeatGuardSnapshot({ provider }), { 'cache-control': 'no-store' });
   }
 
   let params = routeParams('/api/seat-guard/operations/:operationId', pathname);
   if (params && req.method === 'GET') {
-    return sendJson(res, 200, await getSeatGuardOperation(params.operationId), { 'cache-control': 'no-store' });
+    const provider = seatGuardProvider(searchParams);
+    return sendJson(res, 200, await getSeatGuardOperation(params.operationId, { provider }), { 'cache-control': 'no-store' });
   }
 
   params = routeParams('/api/seat-guard/members/:memberId/remove', pathname);
   if (params && req.method === 'POST') {
+    const provider = seatGuardProvider(searchParams);
     const { body } = await readJson(req);
-    const result = await removeSeatGuardMember(params.memberId, body);
-    await recordAudit(admin.id, 'seat_guard.member.remove_queued', 'chatgpt_member', params.memberId, {
+    const result = await removeSeatGuardMember(params.memberId, body, { provider });
+    await recordAudit(admin.id, 'seat_guard.member.remove_queued', `${provider}_member`, params.memberId, {
+      provider,
       email: result.member.email,
       classification: result.member.classification,
       operationId: result.operationId,
@@ -314,9 +329,11 @@ async function handleApi(req, res, url) {
 
   params = routeParams('/api/seat-guard/invitations/:invitationId/cancel', pathname);
   if (params && req.method === 'POST') {
+    const provider = seatGuardProvider(searchParams);
     const { body } = await readJson(req);
-    const result = await cancelSeatGuardInvitation(params.invitationId, body);
-    await recordAudit(admin.id, 'seat_guard.invitation.cancel_queued', 'chatgpt_invitation', params.invitationId, {
+    const result = await cancelSeatGuardInvitation(params.invitationId, body, { provider });
+    await recordAudit(admin.id, 'seat_guard.invitation.cancel_queued', `${provider}_invitation`, params.invitationId, {
+      provider,
       email: result.invitation.email,
       classification: result.invitation.classification,
       operationId: result.operationId,
@@ -331,6 +348,21 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'GET' && pathname === '/api/telegram-pricing') {
     return sendJson(res, 200, await getTelegramPricingOverview(), { 'cache-control': 'no-store' });
+  }
+
+  if (req.method === 'GET' && pathname === '/api/discount-codes') {
+    return sendJson(res, 200, await listDiscountCodes(), { 'cache-control': 'no-store' });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/discount-codes') {
+    const { body } = await readJson(req);
+    return sendJson(res, 201, await createDiscountCode(admin.id, body));
+  }
+
+  params = routeParams('/api/discount-codes/:id', pathname);
+  if (params && req.method === 'PATCH') {
+    const { body } = await readJson(req);
+    return sendJson(res, 200, await updateDiscountCode(admin.id, params.id, body));
   }
 
   if (req.method === 'PUT' && pathname === '/api/catalog-pricing') {
@@ -490,7 +522,8 @@ async function handleApi(req, res, url) {
       .length;
     const quantity = body.quantity ?? (recipientEmailCount || 1);
     return sendJson(res, 201, await createOrderForUser(user, body.sku, quantity, {
-      recipientEmails: body.recipientEmails
+      recipientEmails: body.recipientEmails,
+      discountCode: body.discountCode
     }));
   }
 
@@ -633,8 +666,10 @@ await initStore();
 configureTelegramMenu().catch((error) => console.error('[telegram] menu setup failed:', error.message));
 setInterval(() => expireOrders().catch((error) => console.error('[orders] expire failed:', error.message)), 60_000);
 startSeatFulfillmentAutomation({ onDelivered: notifyAutomaticSeatDelivery });
-startSeatEntitlementTargetBackfill();
-startSeatExpiryAutomation();
+for (const provider of ['chatgpt', 'canva', 'claude']) {
+  startSeatEntitlementTargetBackfill({ provider });
+  startSeatExpiryAutomation({ provider });
+}
 startTelegramPolling();
 
 createServer(requestHandler).listen(config.port, '0.0.0.0', () => {

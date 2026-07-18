@@ -1,4 +1,5 @@
 import { config, nowIso } from '../config.js';
+import { buildDashboardAnalytics } from '../dashboardAnalytics.js';
 import {
   isSeatEmailFulfillment,
   normalizeDeliveryMode,
@@ -14,6 +15,14 @@ import {
   inventorySecretPreview
 } from '../inventorySecrets.js';
 import { publicPaymentCheckout } from '../paymentView.js';
+import {
+  calculateDiscount,
+  clearExpiredDiscountReservation,
+  discountReservationIsLive,
+  normalizeDiscountCode,
+  normalizeDiscountInput,
+  publicDiscountCode
+} from '../discountCodes.js';
 import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
 import { parseSeatEmailLines } from '../seatFulfillment.js';
 import { addAudit, makeId, publicProduct, readStore, withWrite } from '../storage.js';
@@ -29,6 +38,57 @@ import {
 const orderTtlMs = config.orders.ttlMinutes * 60 * 1000;
 const finalOrderStatuses = new Set(['delivered', 'refunded']);
 const closedPaymentStatuses = new Set(['paid', 'amount_mismatch', 'paid_needs_review', 'refunded']);
+
+function findDiscountCode(db, rawCode) {
+  const code = normalizeDiscountCode(rawCode, { strict: true });
+  return (db.discountCodes || []).find((item) => item.code === code) || null;
+}
+
+function releaseDiscountReservation(db, order) {
+  const code = order?.discount?.code;
+  if (!code) return false;
+  const discount = (db.discountCodes || []).find((item) => item.code === code);
+  if (!discount || discount.usedByOrderId || discount.reservedByOrderId !== order.id) return false;
+  discount.reservedByOrderId = null;
+  discount.reservedByUserId = null;
+  discount.reservedAt = null;
+  discount.reservedUntil = null;
+  discount.updatedAt = nowIso();
+  return true;
+}
+
+function consumeDiscountReservation(db, order, actorId) {
+  const code = order?.discount?.code;
+  if (!code) return null;
+  const discount = (db.discountCodes || []).find((item) => item.code === code);
+  if (!discount) {
+    throw Object.assign(new Error('Reserved discount code no longer exists'), {
+      code: 'discount_reservation_lost',
+      statusCode: 409
+    });
+  }
+  if (discount.usedByOrderId === order.id) return discount;
+  if (discount.usedByOrderId || discount.reservedByOrderId !== order.id) {
+    throw Object.assign(new Error('Discount reservation no longer belongs to this order'), {
+      code: 'discount_reservation_lost',
+      statusCode: 409
+    });
+  }
+  discount.usedByOrderId = order.id;
+  discount.usedByUserId = order.userId;
+  discount.usedAt = nowIso();
+  discount.reservedByOrderId = null;
+  discount.reservedByUserId = null;
+  discount.reservedAt = null;
+  discount.reservedUntil = null;
+  discount.updatedAt = nowIso();
+  addAudit(db, actorId, 'discount.consume', 'discount_code', discount.id, {
+    code: discount.code,
+    orderId: order.id,
+    amount: order.discount.amount
+  });
+  return discount;
+}
 
 function seatOrderRecipients(input) {
   const emails = parseSeatEmailLines(input, { maxQuantity: config.orders.maxQuantity });
@@ -132,6 +192,12 @@ export async function getDashboardSummary() {
     deliveredOrders: db.orders.filter((order) => order.status === 'delivered').length,
     reviewOrders: db.orders.filter((order) => order.status === 'payment_review').length,
     revenue,
+    analytics: buildDashboardAnalytics({
+      products: db.products,
+      inventory: db.inventory,
+      orders: db.orders,
+      payments: db.payments
+    }),
     recentOrders: db.orders.slice(-8).reverse().map(publicOrder),
     lowStock: db.products
       .map((product) => publicProduct(product, db))
@@ -257,6 +323,111 @@ export async function setCatalogPriceList(actorId, input = {}) {
     });
     return priceList;
   });
+}
+
+export async function listDiscountCodes() {
+  const db = await readStore();
+  return (db.discountCodes || [])
+    .slice()
+    .sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')))
+    .map(publicDiscountCode);
+}
+
+export async function createDiscountCode(actorId, input = {}) {
+  return withWrite(async (db) => {
+    const normalized = normalizeDiscountInput(input);
+    db.discountCodes ||= [];
+    if (db.discountCodes.some((item) => item.code === normalized.code)) {
+      throw Object.assign(new Error('Discount code already exists'), {
+        code: 'discount_code_exists',
+        statusCode: 409
+      });
+    }
+    const discount = {
+      id: makeId('dsc'),
+      ...normalized,
+      usageLimit: 1,
+      reservedByOrderId: null,
+      reservedByUserId: null,
+      reservedAt: null,
+      reservedUntil: null,
+      usedByOrderId: null,
+      usedByUserId: null,
+      usedAt: null,
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+    db.discountCodes.push(discount);
+    addAudit(db, actorId, 'discount.create', 'discount_code', discount.id, {
+      code: discount.code,
+      type: discount.type,
+      value: discount.value
+    });
+    return publicDiscountCode(discount);
+  });
+}
+
+export async function updateDiscountCode(actorId, discountId, input = {}) {
+  return withWrite(async (db) => {
+    const discount = (db.discountCodes || []).find((item) => item.id === discountId);
+    if (!discount) throw Object.assign(new Error('Discount code not found'), { statusCode: 404 });
+    if (input.active === undefined) {
+      throw Object.assign(new Error('Discount active state is required'), { statusCode: 400 });
+    }
+    discount.active = input.active === true;
+    discount.updatedAt = nowIso();
+    addAudit(db, actorId, discount.active ? 'discount.activate' : 'discount.deactivate', 'discount_code', discount.id, {
+      code: discount.code
+    });
+    return publicDiscountCode(discount);
+  });
+}
+
+export async function previewDiscountForUser(user, productSkuOrId, quantity = 1, options = {}) {
+  const db = await readStore();
+  const product = db.products.find((item) => item.id === productSkuOrId || item.sku === String(productSkuOrId).toLowerCase());
+  if (!product || !product.active) throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
+  assertSalesOrderAllowed(product, user);
+  const pricing = resolveTelegramProductPricing(
+    product,
+    user,
+    db.telegramPriceLists || [],
+    db.catalogPriceLists || []
+  );
+  const seatEmailOrder = isSeatEmailFulfillment(product);
+  const qty = seatEmailOrder && options.recipientEmails
+    ? normalizeOrderQuantity(seatOrderRecipients(options.recipientEmails).length)
+    : normalizeOrderQuantity(quantity);
+  const discount = findDiscountCode(db, options.discountCode);
+  if (!discount) {
+    throw Object.assign(new Error('Discount code was not found'), {
+      code: 'discount_not_found',
+      statusCode: 404
+    });
+  }
+  clearExpiredDiscountReservation(discount);
+  if (discountReservationIsLive(discount)) {
+    throw Object.assign(new Error('Discount code is reserved by another order'), {
+      code: 'discount_reserved',
+      statusCode: 409
+    });
+  }
+  const breakdown = calculateDiscount(discount, pricing.price * qty);
+  return {
+    productId: product.id,
+    productSku: product.sku,
+    quantity: qty,
+    unitPrice: pricing.price,
+    currency: product.currency,
+    subtotal: breakdown.subtotal,
+    total: breakdown.total,
+    discount: {
+      code: breakdown.code,
+      type: breakdown.type,
+      value: breakdown.value,
+      amount: breakdown.amount
+    }
+  };
 }
 
 export async function createProduct(actorId, input) {
@@ -444,6 +615,33 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       throw Object.assign(new Error('Too many pending orders. Pay or cancel an existing order first.'), { statusCode: 429 });
     }
 
+    const subtotal = pricing.price * qty;
+    let discount = null;
+    let discountRecord = null;
+    if (options.discountCode) {
+      discountRecord = findDiscountCode(db, options.discountCode);
+      if (!discountRecord) {
+        throw Object.assign(new Error('Discount code was not found'), {
+          code: 'discount_not_found',
+          statusCode: 404
+        });
+      }
+      clearExpiredDiscountReservation(discountRecord);
+      if (discountReservationIsLive(discountRecord)) {
+        throw Object.assign(new Error('Discount code is reserved by another order'), {
+          code: 'discount_reserved',
+          statusCode: 409
+        });
+      }
+      const breakdown = calculateDiscount(discountRecord, subtotal);
+      discount = {
+        code: breakdown.code,
+        type: breakdown.type,
+        value: breakdown.value,
+        amount: breakdown.amount
+      };
+    }
+
     let availableItems = [];
     if (!seatEmailOrder) {
       availableItems = db.inventory
@@ -465,7 +663,9 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       productName: product.name,
       quantity: qty,
       unitPrice: pricing.price,
-      total: pricing.price * qty,
+      subtotal,
+      discount,
+      total: subtotal - Number(discount?.amount || 0),
       currency: product.currency,
       checkoutKey: checkoutKey || null,
       productSnapshot: {
@@ -518,6 +718,14 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       }]
     };
 
+    if (discountRecord) {
+      discountRecord.reservedByOrderId = order.id;
+      discountRecord.reservedByUserId = user.id;
+      discountRecord.reservedAt = nowIso();
+      discountRecord.reservedUntil = order.expiresAt;
+      discountRecord.updatedAt = nowIso();
+    }
+
     for (const item of availableItems) {
       item.status = 'reserved';
       item.orderId = order.id;
@@ -544,7 +752,11 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
     order.paymentId = payment.id;
     db.orders.push(order);
     db.payments.push(payment);
-    addAudit(db, user.id, 'order.create', 'order', order.id, { sku: product.sku, quantity: qty });
+    addAudit(db, user.id, 'order.create', 'order', order.id, {
+      sku: product.sku,
+      quantity: qty,
+      ...(discount ? { discountCode: discount.code, discountAmount: discount.amount } : {})
+    });
 
     return { order: publicOrder(order), payment };
   });
@@ -644,6 +856,7 @@ export async function cancelOrderForUser(userId, orderId) {
     }
 
     releaseReservedInventory(db, order.id);
+    releaseDiscountReservation(db, order);
     const expired = new Date(order.expiresAt).getTime() < Date.now();
     setOrderStatus(
       db,
@@ -757,6 +970,7 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
     }
 
     if (isSeatOrder(order)) {
+      consumeDiscountReservation(db, order, actorId);
       payment.status = 'paid';
       payment.bankReference = event.bankReference || payment.bankReference || '';
       order.paidAt = nowIso();
@@ -786,6 +1000,7 @@ export async function applyPaymentEvent(event, actorId = 'payment-webhook') {
       return { order: publicOrder(order), payment };
     }
 
+    consumeDiscountReservation(db, order, actorId);
     payment.status = 'paid';
     payment.bankReference = event.bankReference || payment.bankReference || '';
     order.paidAt = nowIso();
@@ -924,6 +1139,7 @@ export async function cancelOrder(actorId, orderId) {
       throw Object.assign(new Error('This order cannot be cancelled from the normal flow'), { statusCode: 409 });
     }
     releaseReservedInventory(db, order.id);
+    releaseDiscountReservation(db, order);
     setOrderStatus(db, order, 'cancelled', actorId, 'admin_cancelled');
     return publicOrder(order);
   });
@@ -948,6 +1164,7 @@ export async function approveReviewDelivery(actorId, orderId, input = {}) {
       at: nowIso()
     };
 
+    consumeDiscountReservation(db, order, actorId);
     order.reviewResolution = resolution;
     if (payment) {
       if (seatEmailOrder || payment.status === 'paid_needs_review') payment.status = 'paid';
@@ -1154,6 +1371,7 @@ export async function markOrderRefunded(actorId, orderId, input = {}) {
     };
 
     releaseReservedInventory(db, order.id);
+    releaseDiscountReservation(db, order);
     order.reviewResolution = resolution;
     if (payment) {
       payment.status = 'refunded';
@@ -1190,6 +1408,7 @@ function expirePendingOrdersInDb(db, actorId) {
   for (const order of db.orders) {
     if (order.status === 'pending_payment' && new Date(order.expiresAt).getTime() < now) {
       releaseReservedInventory(db, order.id);
+      releaseDiscountReservation(db, order);
       setOrderStatus(db, order, 'expired', actorId, 'payment_timeout', { expiresAt: order.expiresAt });
       expired += 1;
     }

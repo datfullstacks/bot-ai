@@ -15,6 +15,10 @@ export const getTelegramPricingOverview = (...args) => activeShopStore().getTele
 export const setTelegramPriceList = (...args) => activeShopStore().setTelegramPriceList(...args);
 export const deleteTelegramPriceList = (...args) => activeShopStore().deleteTelegramPriceList(...args);
 export const setCatalogPriceList = (...args) => activeShopStore().setCatalogPriceList(...args);
+export const listDiscountCodes = (...args) => activeShopStore().listDiscountCodes(...args);
+export const createDiscountCode = (...args) => activeShopStore().createDiscountCode(...args);
+export const updateDiscountCode = (...args) => activeShopStore().updateDiscountCode(...args);
+export const previewDiscountForUser = (...args) => activeShopStore().previewDiscountForUser(...args);
 export const createProduct = (...args) => activeShopStore().createProduct(...args);
 export const updateProduct = (...args) => activeShopStore().updateProduct(...args);
 export const importInventory = (...args) => activeShopStore().importInventory(...args);

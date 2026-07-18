@@ -268,6 +268,101 @@ const missingLifecycleView = buildSeatGuardView({
 assert.equal(missingLifecycleView.members[0].classification, 'unauthorized');
 assert.equal(missingLifecycleView.members[0].removable, true);
 
+for (const provider of ['canva', 'claude']) {
+  const providerIntegration = {
+    ...integration,
+    serviceUrl: `http://localhost:${provider === 'canva' ? 3012 : 3022}/api/v1`,
+    apiKey: `${provider}-fulfillment-key`,
+    seatGuardApiKey: `${provider}-guard-key`,
+    accountRef: `${provider}-account`,
+    skus: [`${provider}-seat-1m`],
+    protectedEmails: [`staff@${provider}.example`],
+    expiryAutoRemove: false
+  };
+  const providerOrder = {
+    id: `ord_${provider}_active`,
+    status: 'delivered',
+    productSku: `${provider}-seat-1m`,
+    productName: `${provider} Seat`,
+    productSnapshot: { fulfillmentMode: 'seat_email', seatTermMonths: 1 },
+    deliveredAt: '2026-07-01T00:00:00.000Z',
+    fulfillment: {
+      mode: 'seat_email',
+      automation: {
+        provider,
+        entitlementTargetFingerprint: memberIntegrationEntitlementFingerprint(provider, providerIntegration)
+      },
+      recipients: [{ email: `active@${provider}.example`, status: 'invited' }]
+    }
+  };
+  const providerEntitlements = buildSeatEntitlements([providerOrder], {
+    provider,
+    integration: providerIntegration,
+    nowMs
+  });
+  assert.equal(providerEntitlements[0].state, 'active');
+
+  const memberEmail = `rogue@${provider}.example`;
+  const memberRefCalls = [];
+  const clientOptions = [];
+  const providerDependencies = {
+    async listOrders() { return { items: [providerOrder], hasMore: false }; },
+    async listSeatOrdersForEmails() { return [providerOrder]; },
+    createClient(options) {
+      clientOptions.push(options);
+      return {
+        async getIdentity() { return { permissions: ['accounts:read', 'members:remove'] }; },
+        async getAccountMembers() {
+          return {
+            account: { id: providerIntegration.accountRef, loginEmail: `owner@${provider}.example` },
+            members: [{
+              id: provider === 'claude' ? 'remote-member-id' : undefined,
+              email: memberEmail,
+              displayName: provider === 'canva' ? 'Canva Rogue' : undefined,
+              fullName: provider === 'claude' ? 'Claude Rogue' : undefined,
+              role: 'member',
+              createdAt: observedCreatedAt
+            }],
+            invitations: [],
+            observedAt: '2026-07-18T02:00:00.000Z'
+          };
+        },
+        async removeAccountMember(accountRef, memberRef, input) {
+          memberRefCalls.push({ accountRef, memberRef, input });
+          return { operationId: `op_${provider}_remove_0001`, status: 'queued', terminal: false };
+        },
+        async pollOperation(operationId) {
+          return { operationId, status: 'succeeded', terminal: true, succeeded: true };
+        }
+      };
+    }
+  };
+  const providerSnapshot = await getSeatGuardSnapshot({
+    provider,
+    integration: providerIntegration,
+    dependencies: providerDependencies,
+    nowMs
+  });
+  assert.equal(providerSnapshot.provider, provider);
+  assert.equal(providerSnapshot.members[0].actionRef, memberEmail, `${provider} removals must use email references.`);
+  assert.equal(providerSnapshot.members[0].name, provider === 'canva' ? 'Canva Rogue' : 'Claude Rogue');
+
+  const removal = await removeSeatGuardMember(memberEmail, {
+    expectedEmail: memberEmail,
+    confirmation: `REMOVE ${memberEmail}`,
+    actionRequestId: `action-${provider}-remove-0001`
+  }, {
+    provider,
+    integration: providerIntegration,
+    dependencies: providerDependencies,
+    nowMs
+  });
+  assert.equal(removal.operationId, `op_${provider}_remove_0001`);
+  assert.equal(memberRefCalls[0].memberRef, memberEmail);
+  assert.ok(clientOptions.every((options) => options.provider === provider));
+  assert.ok(clientOptions.every((options) => options.apiKey === providerIntegration.seatGuardApiKey));
+}
+
 const calls = [];
 const listOrderCalls = [];
 const clientOptions = [];
@@ -955,9 +1050,10 @@ function createExpiryHarness({
     'utf8'
   );
   assert.ok(
-    (postgresStoreSource.match(/await lockChatGptSeatPaymentTransition\(client, order\)/g) || []).length >= 2,
-    'Both webhook payment and manual review approval must lock the Seat email before authorization becomes active.'
+    (postgresStoreSource.match(/await lockSeatPaymentTransition\(client, order\)/g) || []).length >= 2,
+    'Both webhook payment and manual review approval must lock every provider Seat email before authorization becomes active.'
   );
+  assert.ok(postgresStoreSource.includes('integration.accountRefsBySku?.[sku] || integration.accountRef'));
 }
 
 console.log(JSON.stringify({

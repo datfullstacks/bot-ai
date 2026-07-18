@@ -306,6 +306,19 @@ function parseChatGptDataEnvelope(payload) {
   return payload.data;
 }
 
+function parseDirectDataEnvelope(provider, payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw malformedResponse(provider);
+  }
+  return payload;
+}
+
+function seatGuardAccountPrefix(provider) {
+  if (provider === MEMBER_FULFILLMENT_PROVIDERS.CHATGPT) return '/admin-accounts';
+  if (provider === MEMBER_FULFILLMENT_PROVIDERS.CANVA) return '/canva-accounts';
+  return '/claude-accounts';
+}
+
 function operationIdFromEnvelope(provider, payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
   const operation = provider === MEMBER_FULFILLMENT_PROVIDERS.CHATGPT
@@ -573,38 +586,46 @@ export function createMemberFulfillmentClient(options = {}) {
     return parseMemberOperationEnvelope(provider, payload);
   }
 
-  function requireChatGptSeatGuard() {
-    if (provider !== MEMBER_FULFILLMENT_PROVIDERS.CHATGPT) {
-      throw new TypeError('ChatGPT Seat Guard methods require the chatgpt provider');
-    }
-  }
-
   async function getIdentity({ signal } = {}) {
-    requireChatGptSeatGuard();
     const { payload } = await request('GET', '/me', { signal });
-    return parseChatGptDataEnvelope(payload);
+    return provider === MEMBER_FULFILLMENT_PROVIDERS.CHATGPT
+      ? parseChatGptDataEnvelope(payload)
+      : parseDirectDataEnvelope(provider, payload);
   }
 
   async function getAccountMembers(accountRef, { signal } = {}) {
-    requireChatGptSeatGuard();
     const normalizedAccountRef = normalizeSeatGuardReference(accountRef, 'accountRef');
-    const { payload } = await request(
-      'GET',
-      `/admin-accounts/${encodeURIComponent(normalizedAccountRef)}/members`,
-      { signal }
-    );
-    return parseChatGptDataEnvelope(payload);
+    const accountPath = `${seatGuardAccountPrefix(provider)}/${encodeURIComponent(normalizedAccountRef)}`;
+    if (provider === MEMBER_FULFILLMENT_PROVIDERS.CHATGPT) {
+      const { payload } = await request('GET', `${accountPath}/members`, { signal });
+      return parseChatGptDataEnvelope(payload);
+    }
+
+    const [memberResponse, invitationResponse] = await Promise.all([
+      request('GET', `${accountPath}/members`, { signal }),
+      request('GET', `${accountPath}/invitations`, { signal })
+    ]);
+    const members = parseDirectDataEnvelope(provider, memberResponse.payload);
+    const invitations = parseDirectDataEnvelope(provider, invitationResponse.payload);
+    const observedTimes = [members.snapshotCapturedAt, invitations.snapshotCapturedAt]
+      .map((value) => Date.parse(String(value || '')))
+      .filter(Number.isFinite);
+    return {
+      account: members.account || invitations.account || {},
+      members: Array.isArray(members.members) ? members.members : [],
+      invitations: Array.isArray(invitations.invitations) ? invitations.invitations : [],
+      observedAt: observedTimes.length ? new Date(Math.max(...observedTimes)).toISOString() : null
+    };
   }
 
   async function submitSeatGuardMutation(method, path, input = {}) {
-    requireChatGptSeatGuard();
     const idempotencyKey = normalizeExplicitIdempotencyKey(input.idempotencyKey);
     const { response, payload } = await request(method, path, {
       idempotencyKey,
       signal: input.signal
     });
     const operationId = operationIdFromEnvelope(provider, payload);
-    if (response.status !== 202) {
+    if (![200, 202].includes(response.status)) {
       throw new MemberFulfillmentClientError('Member service did not accept the operation', {
         code: 'MEMBER_SERVICE_OPERATION_NOT_ACCEPTED',
         statusCode: response.status,
@@ -633,7 +654,7 @@ export function createMemberFulfillmentClient(options = {}) {
     const normalizedMemberId = normalizeSeatGuardReference(memberId, 'memberId');
     return submitSeatGuardMutation(
       'DELETE',
-      `/admin-accounts/${encodeURIComponent(normalizedAccountRef)}/members/${encodeURIComponent(normalizedMemberId)}`,
+      `${seatGuardAccountPrefix(provider)}/${encodeURIComponent(normalizedAccountRef)}/members/${encodeURIComponent(normalizedMemberId)}`,
       input
     );
   }
@@ -643,7 +664,7 @@ export function createMemberFulfillmentClient(options = {}) {
     const normalizedInvitationRef = normalizeSeatGuardReference(invitationRef, 'invitationRef');
     return submitSeatGuardMutation(
       'DELETE',
-      `/admin-accounts/${encodeURIComponent(normalizedAccountRef)}/invitations/${encodeURIComponent(normalizedInvitationRef)}`,
+      `${seatGuardAccountPrefix(provider)}/${encodeURIComponent(normalizedAccountRef)}/invitations/${encodeURIComponent(normalizedInvitationRef)}`,
       input
     );
   }

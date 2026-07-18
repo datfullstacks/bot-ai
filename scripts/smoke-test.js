@@ -583,6 +583,10 @@ try {
   const summary = await shop.getDashboardSummary();
   assert.ok(summary.deliveredOrders >= 2, 'summary should count delivered smoke orders');
   assert.ok(summary.revenue >= 30000, 'summary should include delivered smoke revenue');
+  assert.equal(summary.analytics.daily.length, 30, 'dashboard should expose a 30-day trend series');
+  assert.ok(summary.analytics.topProducts.length >= 1, 'dashboard should rank products with recent revenue');
+  assert.equal(summary.analytics.products.total, summary.products, 'dashboard product detail should match the headline count');
+  assert.equal(summary.analytics.inventory.available, summary.availableInventory, 'dashboard inventory detail should match the headline count');
 
   console.log(JSON.stringify({
     ok: true,

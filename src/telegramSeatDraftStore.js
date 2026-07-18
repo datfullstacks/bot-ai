@@ -105,6 +105,17 @@ export async function createSeatEmailDraft(input) {
   });
 }
 
+export async function createDiscountDraft(input) {
+  return saveSeatEmailDraft({
+    id: randomBytes(9).toString('base64url'),
+    kind: 'discount',
+    stage: 'awaiting_discount',
+    revision: 1,
+    createdAt: new Date().toISOString(),
+    ...input
+  });
+}
+
 export async function getSeatEmailDraft(userId, chatId) {
   const key = draftKey(userId, chatId);
   const discardedUntil = Number(discardedDrafts.get(key) || 0);

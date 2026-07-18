@@ -6,10 +6,15 @@ const state = {
   productSearch: '',
   productBrand: 'all',
   productStatus: 'all',
+  productSort: 'priority',
+  dashboardAnalytics: null,
+  dashboardRangeDays: 14,
+  discountCodes: [],
   telegramPricing: { basePriceList: { id: 'base', prices: {} }, priceLists: [], users: [] },
   telegramPricingUsername: '',
   orderStatus: 'all',
   seatGuard: null,
+  seatGuardProvider: 'chatgpt',
   seatGuardMemberSearch: '',
   seatGuardInvitationSearch: ''
 };
@@ -148,6 +153,7 @@ function setTab(tab) {
     overview: ['Tổng quan', 'Ảnh chụp vận hành · Operational snapshot'],
     products: ['Sản phẩm', 'Tạo và quản lý mặt hàng đang bán'],
     pricing: ['Bảng giá Telegram', 'Giá gốc và giá riêng theo username'],
+    discounts: ['Mã giảm giá', 'Voucher dùng một lần và trạng thái sử dụng'],
     inventory: ['Kho hàng', 'Nhập tài khoản và mã giao hàng'],
     seatGuard: ['Seat Guard', 'Đối chiếu Seat đã thanh toán với workspace'],
     orders: ['Đơn hàng', 'Theo dõi thanh toán và giao hàng'],
@@ -324,8 +330,11 @@ function seatGuardAccountLabel(account) {
   const values = [
     account.name,
     account.email,
+    account.loginEmail,
     account.workspaceName,
     account.workspaceId,
+    account.brandId,
+    account.organizationId,
     account.accountRef,
     account.id
   ].map((value) => String(value || '').trim()).filter(Boolean);
@@ -549,9 +558,28 @@ function renderSeatGuardConnection(data = {}) {
   `;
 }
 
-async function renderSeatGuard() {
-  const data = await api('/api/seat-guard');
+const seatGuardProviderLabels = Object.freeze({ chatgpt: 'ChatGPT', canva: 'Canva', claude: 'Claude' });
+
+function seatGuardUrl(path, provider = state.seatGuardProvider) {
+  const joiner = path.includes('?') ? '&' : '?';
+  return `${path}${joiner}provider=${encodeURIComponent(provider)}`;
+}
+
+function syncSeatGuardProviderControls() {
+  const provider = state.seatGuardProvider;
+  $$('#seatGuardProviderSwitcher [data-seat-guard-provider]').forEach((button) => {
+    const active = button.dataset.seatGuardProvider === provider;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  $('#seatGuardProviderLabel').textContent = seatGuardProviderLabels[provider] || provider;
+}
+
+async function renderSeatGuard(provider = state.seatGuardProvider) {
+  const data = await api(seatGuardUrl('/api/seat-guard', provider));
+  if (provider !== state.seatGuardProvider) return data;
   state.seatGuard = data;
+  syncSeatGuardProviderControls();
   renderSeatGuardConnection(data);
   renderSeatGuardSummary(data.summary || {});
   renderSeatGuardTables();
@@ -571,23 +599,27 @@ function seatGuardOperationEnvelope(payload = {}) {
   return payload.operation || payload.data || payload;
 }
 
-async function pollSeatGuardOperation(operationId, { timeoutMs = 180_000, intervalMs = 1_500 } = {}) {
+async function pollSeatGuardOperation(operationId, {
+  provider = state.seatGuardProvider,
+  timeoutMs = 180_000,
+  intervalMs = 1_500
+} = {}) {
   const deadline = Date.now() + timeoutMs;
   const terminalStatuses = new Set(['succeeded', 'failed', 'partially_succeeded', 'cancelled', 'completed']);
   while (Date.now() < deadline) {
-    const payload = await api(`/api/seat-guard/operations/${encodeURIComponent(operationId)}`);
+    const payload = await api(seatGuardUrl(`/api/seat-guard/operations/${encodeURIComponent(operationId)}`, provider));
     const operation = seatGuardOperationEnvelope(payload);
     const status = String(operation.status || '').trim().toLowerCase();
     const terminal = operation.terminal === true || terminalStatuses.has(status);
     if (terminal) {
       if (!['succeeded', 'completed'].includes(status)) {
-        await renderSeatGuard().catch(() => {});
+        await renderSeatGuard(provider).catch(() => {});
         const error = new Error(operation.error?.message || `Seat Guard operation ${status || 'failed'}`);
         error.seatGuardTerminal = true;
         error.operationId = operationId;
         throw error;
       }
-      await renderSeatGuard();
+      await renderSeatGuard(provider);
       return operation;
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -601,6 +633,7 @@ function newSeatGuardActionRequestId() {
 }
 
 async function runSeatGuardAction(button, { action, id, email }) {
+  const provider = state.seatGuardProvider;
   const verb = action === 'seat-guard-remove-member' ? 'REMOVE' : 'CANCEL';
   const label = action === 'seat-guard-remove-member' ? 'remove this workspace member' : 'cancel this invitation';
   const confirmation = `${verb} ${email}`;
@@ -617,13 +650,13 @@ async function runSeatGuardAction(button, { action, id, email }) {
   button.dataset.seatGuardActionRequestId = actionRequestId;
   button.disabled = true;
   try {
-    const result = await api(`/api/seat-guard/${resource}/${encodeURIComponent(id)}/${endpointAction}`, {
+    const result = await api(seatGuardUrl(`/api/seat-guard/${resource}/${encodeURIComponent(id)}/${endpointAction}`, provider), {
       method: 'POST',
       body: JSON.stringify({ expectedEmail: email, confirmation, actionRequestId })
     });
     if (!result.operationId) throw new Error('Seat Guard did not return an operation id');
     toast(`Seat Guard operation ${result.operationId} started`);
-    await pollSeatGuardOperation(result.operationId);
+    await pollSeatGuardOperation(result.operationId, { provider });
     toast(action === 'seat-guard-remove-member' ? 'Workspace member removed' : 'Invitation cancelled');
   } catch (error) {
     if (error.seatGuardTerminal || (Number.isInteger(error.status) && error.status < 500)) {
@@ -647,16 +680,21 @@ function renderProductFilters(products) {
   ].join('');
   brandFilter.value = brands.includes(current) ? current : 'all';
   state.productBrand = brandFilter.value;
+  const sort = $('#productSort');
+  if (sort) sort.value = state.productSort;
   const reset = $('#productFilterReset');
   if (reset) {
-    const hasFilters = Boolean(state.productSearch.trim()) || state.productBrand !== 'all' || state.productStatus !== 'all';
+    const hasFilters = Boolean(state.productSearch.trim())
+      || state.productBrand !== 'all'
+      || state.productStatus !== 'all'
+      || state.productSort !== 'priority';
     reset.disabled = !hasFilters;
   }
 }
 
 function filteredProducts() {
   const query = state.productSearch.trim().toLowerCase();
-  return sortedProducts().filter((product) => {
+  const products = sortedProducts().filter((product) => {
     const active = product.active !== false;
     const stock = Number(product.stock?.available || 0);
     const searchable = [
@@ -678,9 +716,62 @@ function filteredProducts() {
     if (state.productBrand !== 'all' && (product.brand || 'Other') !== state.productBrand) return false;
     if (state.productStatus === 'active' && !active) return false;
     if (state.productStatus === 'inactive' && active) return false;
+    if (state.productStatus === 'inventory' && isSeatEmailProduct(product)) return false;
+    if (state.productStatus === 'seat' && !isSeatEmailProduct(product)) return false;
     if (state.productStatus === 'low-stock' && (isSeatEmailProduct(product) || !active || stock > 2)) return false;
     return true;
   });
+
+  if (state.productSort === 'name') {
+    products.sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'vi'));
+  } else if (state.productSort === 'price-asc') {
+    products.sort((left, right) => Number(left.price || 0) - Number(right.price || 0));
+  } else if (state.productSort === 'price-desc') {
+    products.sort((left, right) => Number(right.price || 0) - Number(left.price || 0));
+  } else if (state.productSort === 'stock-asc') {
+    products.sort((left, right) => {
+      if (isSeatEmailProduct(left) !== isSeatEmailProduct(right)) return isSeatEmailProduct(left) ? 1 : -1;
+      return Number(left.stock?.available || 0) - Number(right.stock?.available || 0);
+    });
+  }
+  return products;
+}
+
+function renderProductCatalogMetrics(products, filtered) {
+  const inventoryProducts = products.filter((product) => !isSeatEmailProduct(product));
+  const active = products.filter((product) => product.active !== false).length;
+  const inactive = products.length - active;
+  const seat = products.filter((product) => isSeatEmailProduct(product)).length;
+  const available = inventoryProducts.reduce((total, product) => total + Number(product.stock?.available || 0), 0);
+  const lowStock = inventoryProducts.filter((product) => (
+    product.active !== false && Number(product.stock?.available || 0) <= 2
+  )).length;
+
+  $('#productMetricActive').textContent = active.toLocaleString('vi-VN');
+  $('#productMetricActiveMeta').textContent = `${inactive} đã tắt · ${products.length} tổng`;
+  $('#productMetricStock').textContent = available.toLocaleString('vi-VN');
+  $('#productMetricStockMeta').textContent = `${inventoryProducts.length} SKU quản lý kho`;
+  $('#productMetricLowStock').textContent = lowStock.toLocaleString('vi-VN');
+  $('#productMetricLowStockMeta').textContent = lowStock ? 'Cần xử lý sớm' : 'Tồn kho đang an toàn';
+  $('#productMetricSeat').textContent = seat.toLocaleString('vi-VN');
+  $('#productMetricSeatMeta').textContent = 'Giao qua email khách hàng';
+
+  $$('[data-product-health-filter]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.productHealthFilter === state.productStatus));
+  });
+
+  const statusLabels = {
+    active: 'đang bán',
+    inactive: 'đã tắt',
+    inventory: 'quản lý bằng kho',
+    seat: 'Seat qua email',
+    'low-stock': 'cần nhập kho'
+  };
+  const parts = [`Hiển thị ${filtered.length}/${products.length} sản phẩm`];
+  if (state.productSearch.trim()) parts.push(`từ khóa “${state.productSearch.trim()}”`);
+  if (state.productBrand !== 'all') parts.push(state.productBrand);
+  if (state.productStatus !== 'all') parts.push(statusLabels[state.productStatus] || state.productStatus);
+  $('#productFilterSummary').textContent = parts.join(' · ');
 }
 
 function productEditorDomId(productId) {
@@ -692,42 +783,59 @@ function renderProductEditor(product) {
   const editorId = productEditorDomId(product.id);
   return `
     <form id="${escapeHtml(editorId)}" class="product-editor hidden" data-product-editor data-id="${escapeHtml(product.id)}">
-      <div class="editor-grid">
-        <label>Danh mục · Category<input name="category" value="${escapeHtml(product.category || 'Accounts')}" required></label>
-        <label>Thương hiệu · Brand<input name="brand" value="${escapeHtml(product.brand || 'Other')}" required></label>
-        <label>Gói · Package<input name="packageType" value="${escapeHtml(product.packageType || '')}"></label>
-        <label>Tên sản phẩm<input name="name" value="${escapeHtml(product.name || '')}" required></label>
-        <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3">${escapeHtml(product.description || '')}</textarea></label>
-        <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="3">${escapeHtml(product.accountType || '')}</textarea></label>
-        <label class="editor-span-2">Chính sách bảo hành<textarea name="warrantyPolicy" rows="3">${escapeHtml(product.warrantyPolicy || '')}</textarea></label>
-        <label class="editor-span-2">Chính sách đổi mới<textarea name="replacementPolicy" rows="3">${escapeHtml(product.replacementPolicy || '')}</textarea></label>
-        <label>Hình thức giao
-          <select name="deliveryMode">
-            <option value="text" ${(product.deliveryMode || 'text') === 'text' ? 'selected' : ''}>Tin nhắn văn bản</option>
-            <option value="file" ${product.deliveryMode === 'file' ? 'selected' : ''}>Tệp TXT</option>
-          </select>
-        </label>
-        <label>Fulfillment
-          <select name="fulfillmentMode">
-            <option value="inventory" ${isSeatEmailProduct(product) ? '' : 'selected'}>Từ kho · Inventory</option>
-            <option value="seat_email" ${isSeatEmailProduct(product) ? 'selected' : ''}>Seat qua email khách hàng</option>
-          </select>
-        </label>
-        <label>Thời hạn Seat (tháng)<input name="seatTermMonths" type="number" min="1" max="120" value="${escapeHtml(product.seatTermMonths || 1)}"></label>
-        <label>Giá hãng tham khảo<input name="officialPriceNote" value="${escapeHtml(product.officialPriceNote || '')}"></label>
-        <label>Giá bán<input name="price" type="number" min="1" value="${escapeHtml(product.price)}" required></label>
-        <label>Tiền tệ · Currency<input name="currency" value="${escapeHtml(product.currency || 'VND')}" required></label>
-        <label>Thứ tự<input name="sortOrder" type="number" min="1" value="${escapeHtml(product.sortOrder || 1000)}"></label>
-        <label class="checkbox-label"><input name="hot" type="checkbox" value="true" ${product.hot ? 'checked' : ''}> Nổi bật · Hot</label>
-        <label>Trạng thái
-          <select name="active">
-            <option value="true" ${active ? 'selected' : ''}>Đang bán</option>
-            <option value="false" ${active ? '' : 'selected'}>Đã tắt</option>
-          </select>
-        </label>
+      <div class="product-editor-head">
+        <span><strong>Chỉnh sửa sản phẩm</strong><small>${escapeHtml(product.sku)}</small></span>
+        <span>Mọi thay đổi chỉ được áp dụng sau khi bấm lưu.</span>
       </div>
-      <div class="actions">
-        <button class="small" type="submit">${icon('save')}<span>Lưu sản phẩm</span></button>
+      <fieldset class="editor-section">
+        <legend>${icon('scan-line')}Nhận diện</legend>
+        <div class="editor-grid">
+          <label>Danh mục · Category<input name="category" value="${escapeHtml(product.category || 'Accounts')}" required></label>
+          <label>Thương hiệu · Brand<input name="brand" value="${escapeHtml(product.brand || 'Other')}" required></label>
+          <label>Gói · Package<input name="packageType" value="${escapeHtml(product.packageType || '')}"></label>
+          <label>Tên sản phẩm<input name="name" value="${escapeHtml(product.name || '')}" required></label>
+          <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3">${escapeHtml(product.description || '')}</textarea></label>
+        </div>
+      </fieldset>
+      <fieldset class="editor-section">
+        <legend>${icon('badge-dollar-sign')}Bán hàng &amp; vận hành</legend>
+        <div class="editor-grid">
+          <label>Giá bán<input name="price" type="number" min="1" value="${escapeHtml(product.price)}" required></label>
+          <label>Tiền tệ · Currency<input name="currency" value="${escapeHtml(product.currency || 'VND')}" required></label>
+          <label>Giá hãng tham khảo<input name="officialPriceNote" value="${escapeHtml(product.officialPriceNote || '')}"></label>
+          <label>Thứ tự catalog<input name="sortOrder" type="number" min="1" value="${escapeHtml(product.sortOrder || 1000)}"></label>
+          <label>Hình thức giao
+            <select name="deliveryMode">
+              <option value="text" ${(product.deliveryMode || 'text') === 'text' ? 'selected' : ''}>Tin nhắn văn bản</option>
+              <option value="file" ${product.deliveryMode === 'file' ? 'selected' : ''}>Tệp TXT</option>
+            </select>
+          </label>
+          <label>Fulfillment
+            <select name="fulfillmentMode">
+              <option value="inventory" ${isSeatEmailProduct(product) ? '' : 'selected'}>Từ kho · Inventory</option>
+              <option value="seat_email" ${isSeatEmailProduct(product) ? 'selected' : ''}>Seat qua email khách hàng</option>
+            </select>
+          </label>
+          <label>Thời hạn Seat (tháng)<input name="seatTermMonths" type="number" min="1" max="120" value="${escapeHtml(product.seatTermMonths || 1)}"></label>
+          <label>Trạng thái
+            <select name="active">
+              <option value="true" ${active ? 'selected' : ''}>Đang bán</option>
+              <option value="false" ${active ? '' : 'selected'}>Đã tắt</option>
+            </select>
+          </label>
+          <label class="checkbox-label"><input name="hot" type="checkbox" value="true" ${product.hot ? 'checked' : ''}> Nổi bật · Hot</label>
+        </div>
+      </fieldset>
+      <fieldset class="editor-section editor-section-policy">
+        <legend>${icon('shield-check')}Thông tin &amp; chính sách</legend>
+        <div class="editor-grid">
+          <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="3">${escapeHtml(product.accountType || '')}</textarea></label>
+          <label class="editor-span-2">Chính sách bảo hành<textarea name="warrantyPolicy" rows="3">${escapeHtml(product.warrantyPolicy || '')}</textarea></label>
+          <label class="editor-span-2">Chính sách đổi mới<textarea name="replacementPolicy" rows="3">${escapeHtml(product.replacementPolicy || '')}</textarea></label>
+        </div>
+      </fieldset>
+      <div class="actions product-editor-actions">
+        <button class="small" type="submit">${icon('save')}<span>Lưu thay đổi</span></button>
       </div>
     </form>
   `;
@@ -740,39 +848,56 @@ function renderProductCard(product) {
   const reserved = Number(product.stock?.reserved || 0);
   const sold = Number(product.stock?.sold || 0);
   const editorId = productEditorDomId(product.id);
+  const stockTone = available === 0 ? 'empty' : available <= 2 ? 'low' : 'healthy';
   return `
     <article class="product-card">
-      <div class="product-main">
-        <div>
-          <div class="eyebrow">${icon('package')}<span>${escapeHtml(product.packageType || 'Package')}</span></div>
-          <h3>${escapeHtml(product.name)}</h3>
-          <p>${escapeHtml(product.description || 'Chưa có mô tả')}</p>
-          ${product.accountType ? `<p><strong>Loại tài khoản:</strong> ${escapeHtml(product.accountType)}</p>` : ''}
-          ${product.warrantyPolicy ? `<p><strong>Bảo hành:</strong> ${escapeHtml(product.warrantyPolicy)}</p>` : ''}
-          ${product.replacementPolicy ? `<p><strong>Đổi mới:</strong> ${escapeHtml(product.replacementPolicy)}</p>` : ''}
-          <p><strong>Giao hàng:</strong> ${product.deliveryMode === 'file' ? 'Tệp TXT' : 'Tin nhắn văn bản'}</p>
-          <p><strong>Fulfillment:</strong> ${escapeHtml(fulfillmentModeLabel(product))}</p>
-          ${seatEmail ? `<p><strong>Thời hạn Seat:</strong> ${escapeHtml(product.seatTermMonths || 1)} tháng</p>` : ''}
-          ${product.officialPriceNote ? `<p>${escapeHtml(product.officialPriceNote)}</p>` : ''}
+      <div class="product-card-summary">
+        <div class="product-identity">
+          <span class="product-brand-mark">${brandLogo(product.brand)}</span>
+          <div>
+            <div class="product-title-line">
+              <h3>${escapeHtml(product.name)}</h3>
+              ${product.hot ? '<span class="product-hot-badge">Hot</span>' : ''}
+            </div>
+            <span class="product-sku">${icon('barcode')}${escapeHtml(product.sku)}</span>
+            <p class="product-description">${escapeHtml(product.description || 'Chưa có mô tả')}</p>
+            <div class="product-identity-tags">
+              <span>${icon('tag')}${escapeHtml(product.category || 'Accounts')}</span>
+              <span>${icon('package')}${escapeHtml(product.packageType || 'Package')}</span>
+            </div>
+          </div>
         </div>
-        ${renderStatusPill(active ? 'available' : 'cancelled', active ? 'đang bán' : 'đã tắt')}
+        <div class="product-price-cell">
+          <small>Giá bán</small>
+          <strong>${escapeHtml(money(product.price, product.currency))}</strong>
+          <span>${escapeHtml(product.officialPriceNote || 'Chưa có giá hãng')}</span>
+        </div>
+        <div class="product-fulfillment-cell">
+          <small>Fulfillment</small>
+          <strong>${icon(seatEmail ? 'mail-check' : 'warehouse')}${escapeHtml(seatEmail ? 'Seat qua email' : 'Từ kho')}</strong>
+          <span>${escapeHtml(seatEmail ? `${product.seatTermMonths || 1} tháng` : (product.deliveryMode === 'file' ? 'Tệp TXT' : 'Tin nhắn'))}</span>
+        </div>
+        ${seatEmail
+          ? `<div class="product-stock-cell seat"><small>Tồn kho</small><strong>Không áp dụng</strong><span>Giao theo email</span></div>`
+          : `<div class="product-stock-cell ${stockTone}">
+              <small>Tồn kho</small>
+              <strong>${escapeHtml(available)} khả dụng</strong>
+              <span>${escapeHtml(reserved)} giữ · ${escapeHtml(sold)} đã bán</span>
+            </div>`}
+        <div class="product-operation-cell">
+          ${renderStatusPill(active ? 'available' : 'cancelled', active ? 'đang bán' : 'đã tắt')}
+          <div class="actions product-row-actions">
+            <button class="small secondary" data-action="toggle-product-editor" data-id="${escapeHtml(product.id)}" aria-expanded="false" aria-controls="${escapeHtml(editorId)}">${icon('pencil')}<span>Chỉnh sửa</span></button>
+            <button class="small secondary" data-action="toggle-product" data-id="${escapeHtml(product.id)}" data-active="${active}">${icon(active ? 'pause-circle' : 'play-circle')}<span>${active ? 'Tắt bán' : 'Bật bán'}</span></button>
+            ${seatEmail ? '' : actionButton('import-stock', product.id, 'Nhập kho', 'small secondary', icon('boxes'))}
+          </div>
+        </div>
       </div>
-      <div class="product-meta">
+      <div class="product-card-context">
         <span>${brandLogo(product.brand)}${escapeHtml(product.brand || 'Other')}</span>
-        <span>${icon('barcode')}SKU <strong>${escapeHtml(product.sku)}</strong></span>
-        <span>${icon('wallet')}${escapeHtml(money(product.price, product.currency))}</span>
-      </div>
-      ${seatEmail
-        ? `<div class="stock-strip seat-fulfillment-strip"><span>${icon('mail-check')}<strong>Seat</strong> qua email khách hàng</span></div>`
-        : `<div class="stock-strip">
-            <span>${icon('circle-check')}<strong>${escapeHtml(available)}</strong> khả dụng</span>
-            <span>${icon('clock-3')}<strong>${escapeHtml(reserved)}</strong> đã giữ</span>
-            <span>${icon('archive')}<strong>${escapeHtml(sold)}</strong> đã bán</span>
-          </div>`}
-      <div class="actions">
-        <button class="small secondary" data-action="toggle-product-editor" data-id="${escapeHtml(product.id)}" aria-expanded="false" aria-controls="${escapeHtml(editorId)}">${icon('pencil')}<span>Chỉnh sửa</span></button>
-        <button class="small secondary" data-action="toggle-product" data-id="${escapeHtml(product.id)}" data-active="${active}">${icon(active ? 'pause-circle' : 'play-circle')}<span>${active ? 'Tắt bán' : 'Bật bán'}</span></button>
-        ${seatEmail ? '' : actionButton('import-stock', product.id, 'Nhập kho', 'small secondary', icon('boxes'))}
+        ${product.accountType ? `<span title="${escapeHtml(product.accountType)}">${icon('user-round-check')}Loại tài khoản</span>` : ''}
+        ${product.warrantyPolicy ? `<span title="${escapeHtml(product.warrantyPolicy)}">${icon('shield-check')}Có bảo hành</span>` : ''}
+        ${product.replacementPolicy ? `<span title="${escapeHtml(product.replacementPolicy)}">${icon('refresh-cw')}Có đổi mới</span>` : ''}
       </div>
       ${renderProductEditor(product)}
     </article>
@@ -786,30 +911,45 @@ function renderProducts(products) {
   list.innerHTML = '';
   const filtered = filteredProducts();
   $('#productCountBadge').textContent = `${filtered.length} sản phẩm`;
+  renderProductCatalogMetrics(products, filtered);
 
-  let currentGroup = '';
+  const groups = new Map();
   for (const product of filtered) {
     const category = product.category || 'Accounts';
     const brand = product.brand || 'Other';
-    const group = `${category}\u0000${brand}`;
-    if (group !== currentGroup) {
-      currentGroup = group;
-      const header = document.createElement('section');
-      header.className = 'brand-section';
-      header.innerHTML = `
-        <div>
-          <span>${icon('tag')}${escapeHtml(category)}</span>
-          <strong>${brandLogo(brand)}${escapeHtml(brand)}</strong>
-        </div>
-      `;
-      list.appendChild(header);
+    const key = `${category}\u0000${brand}`;
+    if (!groups.has(key)) groups.set(key, { category, brand, products: [] });
+    groups.get(key).products.push(product);
+  }
+  $('#productGroupSummary').textContent = `${groups.size} nhóm catalog`;
+
+  for (const group of groups.values()) {
+    const header = document.createElement('section');
+    header.className = 'brand-section';
+    const activeCount = group.products.filter((product) => product.active !== false).length;
+    header.innerHTML = `
+      <div class="brand-section-identity">
+        <span>${icon('tag')}${escapeHtml(group.category)}</span>
+        <strong>${brandLogo(group.brand)}${escapeHtml(group.brand)}</strong>
+      </div>
+      <span class="brand-section-count">${group.products.length} sản phẩm · ${activeCount} đang bán</span>
+    `;
+    list.appendChild(header);
+    for (const product of group.products) {
+      const item = document.createElement('div');
+      item.className = 'product-list-item';
+      item.innerHTML = renderProductCard(product);
+      list.appendChild(item);
     }
-    const item = document.createElement('div');
-    item.innerHTML = renderProductCard(product);
-    list.appendChild(item);
   }
   if (!filtered.length) {
-    list.innerHTML = '<p class="meta empty-state">Không có sản phẩm phù hợp bộ lọc hiện tại.</p>';
+    list.innerHTML = `
+      <div class="product-empty-state empty-state">
+        ${icon('search-x')}
+        <strong>Không tìm thấy sản phẩm</strong>
+        <span>Thử đổi từ khóa hoặc đặt lại bộ lọc hiện tại.</span>
+      </div>
+    `;
   }
 
   const select = $('#inventoryForm select[name="productId"]');
@@ -984,6 +1124,293 @@ function selectTelegramPricingUsername(value) {
   renderTelegramPricingProducts();
 }
 
+function discountDisplayState(discount) {
+  if (discount.usedAt || discount.usedByOrderId) return { key: 'used', label: 'Đã sử dụng', badge: 'delivered' };
+  if (discount.reservedByOrderId && Number(new Date(discount.reservedUntil)) > Date.now()) {
+    return { key: 'reserved', label: 'Đang giữ', badge: 'reserved' };
+  }
+  if (discount.expiresAt && Number(new Date(discount.expiresAt)) <= Date.now()) {
+    return { key: 'expired', label: 'Hết hạn', badge: 'expired' };
+  }
+  if (discount.active === false) return { key: 'inactive', label: 'Đã khóa', badge: 'cancelled' };
+  return { key: 'active', label: 'Khả dụng', badge: 'available' };
+}
+
+function discountValueLabel(discount) {
+  return discount.type === 'percent'
+    ? `${Number(discount.value || 0).toLocaleString('vi-VN')}%`
+    : money(discount.value, 'VND');
+}
+
+function renderDiscountCodes(discounts = state.discountCodes) {
+  state.discountCodes = Array.isArray(discounts) ? discounts : [];
+  $('#discountCodeCount').textContent = `${state.discountCodes.length} mã`;
+  $('#discountCodesList').innerHTML = state.discountCodes.length ? `
+    <div class="table-wrap">
+      <table class="data-table responsive-table discount-table">
+        <thead>
+          <tr><th>Mã</th><th>Mức giảm</th><th>Điều kiện</th><th>Trạng thái</th><th>Sử dụng</th><th>Hành động</th></tr>
+        </thead>
+        <tbody>
+          ${state.discountCodes.map((discount) => {
+            const status = discountDisplayState(discount);
+            const expiry = discount.expiresAt
+              ? new Date(discount.expiresAt).toLocaleString('vi-VN')
+              : 'Không giới hạn';
+            return `
+              <tr class="discount-row status-${escapeHtml(status.key)}">
+                <td data-label="Mã"><code class="discount-code-token">${escapeHtml(discount.code)}</code><span>Tạo ${escapeHtml(new Date(discount.createdAt).toLocaleString('vi-VN'))}</span></td>
+                <td data-label="Mức giảm"><strong>${escapeHtml(discountValueLabel(discount))}</strong><span>Dùng 1 lần</span></td>
+                <td data-label="Điều kiện"><strong>${escapeHtml(discount.minOrderTotal ? `Từ ${money(discount.minOrderTotal)}` : 'Không tối thiểu')}</strong><span>Hết hạn: ${escapeHtml(expiry)}</span></td>
+                <td data-label="Trạng thái">${renderStatusPill(status.badge, status.label)}</td>
+                <td data-label="Sử dụng">${status.key === 'used'
+                  ? `<strong>${escapeHtml(discount.usedByOrderId)}</strong><span>${escapeHtml(new Date(discount.usedAt).toLocaleString('vi-VN'))}</span>`
+                  : status.key === 'reserved'
+                    ? `<strong>${escapeHtml(discount.reservedByOrderId)}</strong><span>Giữ đến ${escapeHtml(new Date(discount.reservedUntil).toLocaleString('vi-VN'))}</span>`
+                    : '<span>Chưa sử dụng</span>'}</td>
+                <td data-label="Hành động">${status.key === 'used'
+                  ? '<span class="meta">Đã hoàn tất</span>'
+                  : `<button class="small secondary" data-action="toggle-discount-code" data-id="${escapeHtml(discount.id)}" data-active="${discount.active !== false}">${icon(discount.active !== false ? 'lock-keyhole' : 'lock-keyhole-open')}<span>${discount.active !== false ? 'Khóa mã' : 'Mở mã'}</span></button>`}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '<p class="meta empty-state">Chưa có mã giảm giá. Tạo mã đầu tiên để dùng trong Telegram checkout.</p>';
+  refreshIcons();
+}
+
+function compactNumber(value) {
+  return new Intl.NumberFormat('vi-VN', {
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(Number(value || 0));
+}
+
+function compactMoney(value) {
+  return `${compactNumber(value)} ₫`;
+}
+
+function dashboardDeltaLabel(value) {
+  if (value === null || value === undefined) return 'mới so với 7 ngày trước';
+  const numeric = Number(value || 0);
+  return `${numeric > 0 ? '+' : ''}${numeric}% so với 7 ngày trước`;
+}
+
+function dashboardDateLabel(value) {
+  const timestamp = Date.parse(String(value || ''));
+  if (!Number.isFinite(timestamp)) return '-';
+  return new Date(timestamp).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+
+function setStatMeta(id, text, tone = 'neutral') {
+  const element = $(`#${id}`);
+  if (!element) return;
+  element.textContent = text;
+  element.dataset.tone = tone;
+}
+
+function renderRevenueTrendChart(analytics = state.dashboardAnalytics) {
+  const target = $('#revenueTrendChart');
+  if (!target) return;
+  const days = Math.min(Number(state.dashboardRangeDays || 14), Number(analytics?.windowDays || 30));
+  const daily = (analytics?.daily || []).slice(-days);
+  const totals = daily.reduce((sum, day) => ({
+    orders: sum.orders + Number(day.orders || 0),
+    revenue: sum.revenue + Number(day.revenue || 0)
+  }), { orders: 0, revenue: 0 });
+  $('#trendChartSummary').textContent = `${days} ngày · ${totals.orders.toLocaleString('vi-VN')} đơn · ${money(totals.revenue)}`;
+  if (!daily.length || (!totals.orders && !totals.revenue)) {
+    target.innerHTML = '<p class="meta empty-state">Chưa có giao dịch trong khoảng thời gian này.</p>';
+    return;
+  }
+
+  const width = 760;
+  const height = 260;
+  const padding = { top: 18, right: 24, bottom: 38, left: 58 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const maxRevenue = Math.max(...daily.map((day) => Number(day.revenue || 0)), 1);
+  const maxOrders = Math.max(...daily.map((day) => Number(day.orders || 0)), 1);
+  const pointX = (index) => padding.left + (daily.length === 1 ? chartWidth / 2 : (index / (daily.length - 1)) * chartWidth);
+  const revenueY = (value) => padding.top + chartHeight - (Number(value || 0) / maxRevenue) * chartHeight;
+  const barWidth = Math.max(5, Math.min(18, chartWidth / Math.max(daily.length * 1.8, 1)));
+  const points = daily.map((day, index) => `${pointX(index)},${revenueY(day.revenue)}`).join(' ');
+  const areaPath = daily.length
+    ? `M ${pointX(0)} ${padding.top + chartHeight} L ${daily.map((day, index) => `${pointX(index)} ${revenueY(day.revenue)}`).join(' L ')} L ${pointX(daily.length - 1)} ${padding.top + chartHeight} Z`
+    : '';
+  const labelStep = Math.max(1, Math.ceil(daily.length / 6));
+  const grid = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+    const y = padding.top + chartHeight - chartHeight * ratio;
+    return `
+      <line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" class="chart-grid-line"></line>
+      <text x="${padding.left - 10}" y="${y + 4}" class="chart-axis-label" text-anchor="end">${escapeHtml(compactMoney(maxRevenue * ratio))}</text>
+    `;
+  }).join('');
+  const bars = daily.map((day, index) => {
+    const barHeight = (Number(day.orders || 0) / maxOrders) * chartHeight;
+    const x = pointX(index) - barWidth / 2;
+    const y = padding.top + chartHeight - barHeight;
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="4" class="orders-bar"><title>${escapeHtml(`${dashboardDateLabel(day.date)}: ${day.orders} đơn`)}</title></rect>`;
+  }).join('');
+  const dots = daily.map((day, index) => `
+    <circle cx="${pointX(index)}" cy="${revenueY(day.revenue)}" r="${daily.length > 20 ? 2.5 : 3.5}" class="revenue-dot">
+      <title>${escapeHtml(`${dashboardDateLabel(day.date)}: ${money(day.revenue)} · ${day.orders} đơn`)}</title>
+    </circle>
+  `).join('');
+  const xLabels = daily.map((day, index) => (
+    index % labelStep === 0 || index === daily.length - 1
+      ? `<text x="${pointX(index)}" y="${height - 12}" class="chart-axis-label" text-anchor="middle">${escapeHtml(dashboardDateLabel(day.date))}</text>`
+      : ''
+  )).join('');
+
+  target.innerHTML = `
+    <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`Biểu đồ ${days} ngày: ${totals.orders} đơn, doanh thu ${money(totals.revenue)}`)}">
+      <defs>
+        <linearGradient id="revenueAreaGradient" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#14b8a6" stop-opacity="0.24"></stop>
+          <stop offset="100%" stop-color="#14b8a6" stop-opacity="0.02"></stop>
+        </linearGradient>
+      </defs>
+      ${grid}
+      ${bars}
+      <path d="${areaPath}" class="revenue-area"></path>
+      <polyline points="${points}" class="revenue-line"></polyline>
+      ${dots}
+      ${xLabels}
+    </svg>
+  `;
+}
+
+function renderOrderStatusChart(analytics = state.dashboardAnalytics) {
+  const target = $('#orderStatusChart');
+  if (!target) return;
+  const definitions = [
+    ['delivered', 'Đã giao', '#079455'],
+    ['awaiting_fulfillment', 'Chờ giao Seat', '#1570ef'],
+    ['pending_payment', 'Chờ thanh toán', '#f79009'],
+    ['payment_review', 'Cần kiểm tra', '#f04438'],
+    ['refunded', 'Hoàn tiền', '#7f56d9'],
+    ['cancelled', 'Đã hủy', '#667085'],
+    ['expired', 'Hết hạn', '#98a2b3']
+  ];
+  const statuses = analytics?.orderStatuses || {};
+  const entries = definitions
+    .map(([key, label, color]) => ({ key, label, color, value: Number(statuses[key] || 0) }))
+    .filter((entry) => entry.value > 0);
+  const total = entries.reduce((sum, entry) => sum + entry.value, 0);
+  if (!total) {
+    target.innerHTML = '<p class="meta empty-state">Chưa có đơn hàng để phân tích.</p>';
+    return;
+  }
+  let cursor = 0;
+  const segments = entries.map((entry) => {
+    const start = cursor;
+    cursor += (entry.value / total) * 100;
+    return `${entry.color} ${start}% ${cursor}%`;
+  }).join(', ');
+  target.innerHTML = `
+    <div class="donut-layout">
+      <div class="status-donut" style="background: conic-gradient(${escapeHtml(segments)})" role="img" aria-label="${escapeHtml(`Phân bổ ${total} đơn hàng theo trạng thái`)}">
+        <div><strong>${escapeHtml(total.toLocaleString('vi-VN'))}</strong><span>Tổng đơn</span></div>
+      </div>
+      <div class="status-legend">
+        ${entries.map((entry) => `
+          <div class="status-legend-item" style="--status-color: ${entry.color}">
+            <span>${escapeHtml(entry.label)}</span>
+            <strong>${escapeHtml(entry.value.toLocaleString('vi-VN'))}</strong>
+            <small>${escapeHtml(`${Math.round((entry.value / total) * 1000) / 10}%`)}</small>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderTopProductsChart(analytics = state.dashboardAnalytics) {
+  const target = $('#topProductsChart');
+  if (!target) return;
+  const products = analytics?.topProducts || [];
+  if (!products.length) {
+    target.innerHTML = '<p class="meta empty-state">Chưa có sản phẩm phát sinh doanh thu trong 30 ngày.</p>';
+    return;
+  }
+  const maxRevenue = Math.max(...products.map((product) => Number(product.revenue || 0)), 1);
+  target.innerHTML = products.map((product, index) => `
+    <div class="top-product-row">
+      <span class="top-product-rank">${index + 1}</span>
+      <div class="top-product-main">
+        <div class="top-product-head">
+          <span><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.sku)}</small></span>
+          <span><strong>${escapeHtml(money(product.revenue))}</strong><small>${escapeHtml(`${product.units} lượt giao`)}</small></span>
+        </div>
+        <div class="horizontal-bar" aria-hidden="true"><span style="width: ${Math.max(4, (Number(product.revenue || 0) / maxRevenue) * 100)}%"></span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderOperationsFunnel(analytics = state.dashboardAnalytics) {
+  const target = $('#operationsFunnel');
+  if (!target) return;
+  const period = analytics?.period30d || {};
+  const orders = Number(period.orders || 0);
+  const steps = [
+    { label: 'Đơn được tạo', value: orders, color: '#818cf8' },
+    { label: 'Đã thanh toán', value: Number(period.paidOrders || 0), color: '#22c55e' },
+    { label: 'Đã giao', value: Number(period.deliveredOrders || 0), color: '#0f766e' }
+  ];
+  if (!orders) {
+    target.innerHTML = '<p class="meta empty-state">Chưa có đơn hàng trong 30 ngày để dựng funnel.</p>';
+    return;
+  }
+  const payment = analytics?.payments || {};
+  target.innerHTML = `
+    <div class="funnel-steps">
+      ${steps.map((step) => {
+        const percentage = orders ? Math.round((step.value / orders) * 1000) / 10 : 0;
+        return `
+          <div class="funnel-step">
+            <div><span>${escapeHtml(step.label)}</span><strong>${escapeHtml(step.value.toLocaleString('vi-VN'))}</strong><small>${escapeHtml(`${percentage}%`)}</small></div>
+            <div class="funnel-track"><span style="width: ${Math.max(step.value ? 4 : 0, percentage)}%; background: ${step.color}"></span></div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <div class="funnel-metrics">
+      <div><span>Tỷ lệ thanh toán</span><strong>${escapeHtml(`${period.paymentConversionRate || 0}%`)}</strong></div>
+      <div><span>AOV 30 ngày</span><strong>${escapeHtml(money(period.averageOrderValue || 0))}</strong></div>
+      <div><span>Payment thành công</span><strong>${escapeHtml(`${payment.paid || 0}/${payment.total || 0}`)}</strong></div>
+    </div>
+  `;
+}
+
+function renderDashboardAnalytics(analytics = {}) {
+  state.dashboardAnalytics = analytics;
+  const productStats = analytics.products || {};
+  const inventory = analytics.inventory || {};
+  const statuses = analytics.orderStatuses || {};
+  const current7d = analytics.current7d || {};
+  const fulfillment = analytics.fulfillment || {};
+  const revenueDelta = current7d.revenueDeltaPercent;
+  const orderDelta = current7d.orderDeltaPercent;
+  setStatMeta('statProductsMeta', `${productStats.active || 0} đang bán · ${productStats.inactive || 0} đã tắt`);
+  setStatMeta('statStockMeta', `${inventory.reserved || 0} giữ · ${inventory.sold || 0} đã bán`);
+  setStatMeta('statPendingMeta', `7 ngày: ${current7d.orders || 0} đơn · ${dashboardDeltaLabel(orderDelta)}`, Number(orderDelta || 0) >= 0 ? 'positive' : 'negative');
+  setStatMeta('statAwaitingSeatMeta', `Tỷ lệ giao ${fulfillment.deliveryRate || 0}%`);
+  setStatMeta('statDeliveredMeta', `${fulfillment.paid || 0} đơn đã thanh toán`);
+  setStatMeta('statReviewMeta', `${statuses.refunded || 0} hoàn tiền · ${statuses.expired || 0} hết hạn`, Number(statuses.payment_review || 0) ? 'negative' : 'neutral');
+  setStatMeta('statRevenueMeta', `7 ngày: ${compactMoney(current7d.revenue || 0)} · ${dashboardDeltaLabel(revenueDelta)}`, Number(revenueDelta || 0) >= 0 ? 'positive' : 'negative');
+  $('#analyticsGeneratedAt').textContent = analytics.generatedAt
+    ? `Cập nhật ${new Date(analytics.generatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+    : '—';
+  renderRevenueTrendChart(analytics);
+  renderOrderStatusChart(analytics);
+  renderTopProductsChart(analytics);
+  renderOperationsFunnel(analytics);
+}
+
 function renderSummary(summary) {
   $('#statProducts').textContent = summary.products;
   $('#statStock').textContent = summary.availableInventory;
@@ -992,6 +1419,7 @@ function renderSummary(summary) {
   $('#statDelivered').textContent = summary.deliveredOrders;
   $('#statReview').textContent = summary.reviewOrders;
   $('#statRevenue').textContent = money(summary.revenue);
+  renderDashboardAnalytics(summary.analytics || {});
 
   $('#recentOrders').innerHTML = summary.recentOrders.length
     ? summary.recentOrders.map((order) => `
@@ -1125,7 +1553,7 @@ function renderOrderTable(orders) {
               <td data-label="Sản phẩm"><strong>${escapeHtml(order.productName)}</strong><span>${escapeHtml(order.productSku || order.productId)}</span></td>
               <td data-label="Người dùng">${escapeHtml(order.telegramId || order.userId)}</td>
               <td data-label="Email nhận Seat">${renderOrderRecipients(order)}</td>
-              <td data-label="Tổng tiền">${escapeHtml(money(order.total, order.currency))}<span>SL ${escapeHtml(order.quantity)}</span></td>
+              <td data-label="Tổng tiền">${escapeHtml(money(order.total, order.currency))}<span>SL ${escapeHtml(order.quantity)}${order.discount ? ` · Mã ${escapeHtml(order.discount.code)} · giảm ${escapeHtml(money(order.discount.amount, order.currency))}` : ''}</span></td>
               <td data-label="Trạng thái">${renderStatusPill(order.status)}${renderFulfillmentAutomation(order)}</td>
               <td data-label="Hành động">${renderOrderActions(order) || '<span class="meta">Không có hành động</span>'}</td>
             </tr>
@@ -1260,15 +1688,17 @@ async function renderSystem(system = null) {
 }
 
 async function refresh() {
-  const [summary, products, system, telegramPricing] = await Promise.all([
+  const [summary, products, system, telegramPricing, discountCodes] = await Promise.all([
     api('/api/dashboard/summary'),
     api('/api/products'),
     api('/api/system/status'),
-    api('/api/telegram-pricing')
+    api('/api/telegram-pricing'),
+    api('/api/discount-codes')
   ]);
   renderQuickStatus(system);
   renderProducts(products);
   renderTelegramPricing(telegramPricing);
+  renderDiscountCodes(discountCodes);
   renderSummary(summary);
   if (state.tab === 'inventory') await renderInventory();
   if (state.tab === 'seatGuard') await renderSeatGuard();
@@ -1339,6 +1769,18 @@ $('#productCreateToggle').addEventListener('click', (event) => {
   setProductCreateOpen(event.currentTarget.getAttribute('aria-expanded') !== 'true');
 });
 
+$$('[data-dashboard-range]').forEach((button) => {
+  button.addEventListener('click', () => {
+    state.dashboardRangeDays = Number(button.dataset.dashboardRange || 14);
+    $$('[data-dashboard-range]').forEach((item) => {
+      const active = item === button;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-pressed', String(active));
+    });
+    renderRevenueTrendChart();
+  });
+});
+
 $('#productSearch').addEventListener('input', (event) => {
   state.productSearch = event.target.value;
   renderProducts(state.products);
@@ -1354,13 +1796,29 @@ $('#productStatusFilter').addEventListener('change', (event) => {
   renderProducts(state.products);
 });
 
+$('#productSort').addEventListener('change', (event) => {
+  state.productSort = event.target.value;
+  renderProducts(state.products);
+});
+
+$$('[data-product-health-filter]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const nextFilter = button.dataset.productHealthFilter;
+    state.productStatus = state.productStatus === nextFilter ? 'all' : nextFilter;
+    $('#productStatusFilter').value = state.productStatus;
+    renderProducts(state.products);
+  });
+});
+
 $('#productFilterReset').addEventListener('click', () => {
   state.productSearch = '';
   state.productBrand = 'all';
   state.productStatus = 'all';
+  state.productSort = 'priority';
   $('#productSearch').value = '';
   $('#productBrandFilter').value = 'all';
   $('#productStatusFilter').value = 'all';
+  $('#productSort').value = 'priority';
   renderProducts(state.products);
   $('#productSearch').focus();
 });
@@ -1383,6 +1841,48 @@ $('#catalogPricingProducts').addEventListener('input', (event) => {
   row?.classList.toggle('has-base-price', hasBasePrice);
   const note = row?.querySelector('.pricing-inheritance');
   if (note) note.textContent = hasBasePrice ? 'Giá gốc đã cấu hình' : 'Chưa cấu hình · tạm dùng giá hiện tại';
+});
+
+$('#discountGenerateBtn').addEventListener('click', () => {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  const suffix = Array.from(bytes, (value) => alphabet[value % alphabet.length]).join('');
+  $('#discountCodeInput').value = `KAITO-${suffix}`;
+  $('#discountCodeInput').focus();
+});
+
+$('#discountForm select[name="type"]').addEventListener('change', (event) => {
+  const valueInput = $('#discountForm input[name="value"]');
+  const percent = event.currentTarget.value === 'percent';
+  if (percent) valueInput.setAttribute('max', '99');
+  else valueInput.removeAttribute('max');
+  valueInput.placeholder = percent ? '10' : '50000';
+});
+
+$('#discountForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
+  const data = Object.fromEntries(new FormData(form).entries());
+  data.code = String(data.code || '').trim().toUpperCase();
+  data.value = Number(data.value);
+  data.minOrderTotal = Number(data.minOrderTotal || 0);
+  data.expiresAt = data.expiresAt ? new Date(data.expiresAt).toISOString() : null;
+  data.active = true;
+  setButtonBusy(submit, true);
+  try {
+    await api('/api/discount-codes', { method: 'POST', body: JSON.stringify(data) });
+    form.reset();
+    form.elements.value.removeAttribute('max');
+    form.elements.value.placeholder = '50000';
+    await refresh();
+    toast(`Đã tạo mã ${data.code}`);
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonBusy(submit, false);
+  }
 });
 
 $('#telegramPricingUsername').addEventListener('change', (event) => {
@@ -1515,6 +2015,28 @@ $('#seatGuardInvitationSearch').addEventListener('input', (event) => {
   renderSeatGuardTables();
 });
 
+$('#seatGuardProviderSwitcher').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-seat-guard-provider]');
+  if (!button || button.dataset.seatGuardProvider === state.seatGuardProvider) return;
+  const provider = button.dataset.seatGuardProvider;
+  if (!seatGuardProviderLabels[provider]) return;
+  state.seatGuardProvider = provider;
+  state.seatGuard = null;
+  syncSeatGuardProviderControls();
+  renderSeatGuardSummary({});
+  renderSeatGuardTables();
+  $('#seatGuardConnection').innerHTML = `<p class="meta">Đang tải Seat Guard ${escapeHtml(seatGuardProviderLabels[provider])}...</p>`;
+  const buttons = $$('#seatGuardProviderSwitcher [data-seat-guard-provider]');
+  buttons.forEach((item) => { item.disabled = true; });
+  try {
+    await renderSeatGuard(provider);
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    buttons.forEach((item) => { item.disabled = false; });
+  }
+});
+
 $('#devOrderForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1571,6 +2093,19 @@ document.addEventListener('click', async (event) => {
     return;
   }
   try {
+    if (action === 'toggle-discount-code') {
+      setButtonBusy(target, true);
+      try {
+        await api(`/api/discount-codes/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ active: target.dataset.active !== 'true' })
+        });
+        toast(target.dataset.active === 'true' ? 'Đã khóa mã giảm giá' : 'Đã mở mã giảm giá');
+      } finally {
+        setButtonBusy(target, false);
+      }
+    }
+
     if (action === 'edit-telegram-pricing') {
       setTab('pricing');
       selectTelegramPricingUsername(target.dataset.username);
@@ -1591,8 +2126,13 @@ document.addEventListener('click', async (event) => {
     }
 
     if (action === 'refresh-seat-guard') {
-      await renderSeatGuard();
-      toast('Seat Guard refreshed');
+      setButtonBusy(target, true);
+      try {
+        await renderSeatGuard();
+        toast(`Đã làm mới Seat Guard ${seatGuardProviderLabels[state.seatGuardProvider]}`);
+      } finally {
+        setButtonBusy(target, false);
+      }
       return;
     }
 

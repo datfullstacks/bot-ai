@@ -62,6 +62,7 @@
           <button class="nav active" data-tab="overview"><span class="nav-icon" data-lucide="layout-dashboard" aria-hidden="true"></span><span>Tổng quan</span></button>
           <button class="nav" data-tab="products"><span class="nav-icon" data-lucide="package" aria-hidden="true"></span><span>Sản phẩm</span></button>
           <button class="nav" data-tab="pricing"><span class="nav-icon" data-lucide="badge-dollar-sign" aria-hidden="true"></span><span>Bảng giá Telegram</span></button>
+          <button class="nav" data-tab="discounts"><span class="nav-icon" data-lucide="ticket-percent" aria-hidden="true"></span><span>Mã giảm giá</span></button>
           <button class="nav" data-tab="inventory"><span class="nav-icon" data-lucide="boxes" aria-hidden="true"></span><span>Kho hàng</span></button>
           <button class="nav" data-tab="seatGuard"><span class="nav-icon" data-lucide="shield-check" aria-hidden="true"></span><span>Seat Guard</span></button>
           <button class="nav" data-tab="orders"><span class="nav-icon" data-lucide="shopping-cart" aria-hidden="true"></span><span>Đơn hàng</span></button>
@@ -102,13 +103,61 @@
 
         <section id="overviewTab" class="tab active-tab">
           <div class="stats">
-            <div class="stat stat-products"><span class="stat-icon" data-lucide="package"></span><div class="stat-copy"><span>Sản phẩm · Products</span><strong id="statProducts">0</strong></div></div>
-            <div class="stat stat-stock"><span class="stat-icon" data-lucide="boxes"></span><div class="stat-copy"><span>Tồn kho khả dụng</span><strong id="statStock">0</strong></div></div>
-            <div class="stat stat-pending"><span class="stat-icon" data-lucide="clock-3"></span><div class="stat-copy"><span>Đơn chờ thanh toán</span><strong id="statPending">0</strong></div></div>
-            <div class="stat stat-seat"><span class="stat-icon" data-lucide="users"></span><div class="stat-copy"><span>Seat chờ xử lý</span><strong id="statAwaitingSeat">0</strong></div></div>
-            <div class="stat stat-delivered"><span class="stat-icon" data-lucide="circle-check-big"></span><div class="stat-copy"><span>Đã giao · Delivered</span><strong id="statDelivered">0</strong></div></div>
-            <div class="stat stat-review"><span class="stat-icon" data-lucide="shield-alert"></span><div class="stat-copy"><span>Cần kiểm tra</span><strong id="statReview">0</strong></div></div>
-            <div class="stat stat-revenue"><span class="stat-icon" data-lucide="chart-no-axes-combined"></span><div class="stat-copy"><span>Doanh thu · Revenue</span><strong id="statRevenue">0 VND</strong></div></div>
+            <div class="stat stat-products"><span class="stat-icon" data-lucide="package"></span><div class="stat-copy"><span>Sản phẩm · Products</span><strong id="statProducts">0</strong><small id="statProductsMeta">0 đang bán</small></div></div>
+            <div class="stat stat-stock"><span class="stat-icon" data-lucide="boxes"></span><div class="stat-copy"><span>Tồn kho khả dụng</span><strong id="statStock">0</strong><small id="statStockMeta">0 giữ · 0 đã bán</small></div></div>
+            <div class="stat stat-pending"><span class="stat-icon" data-lucide="clock-3"></span><div class="stat-copy"><span>Đơn chờ thanh toán</span><strong id="statPending">0</strong><small id="statPendingMeta">7 ngày: 0 đơn</small></div></div>
+            <div class="stat stat-seat"><span class="stat-icon" data-lucide="users"></span><div class="stat-copy"><span>Seat chờ xử lý</span><strong id="statAwaitingSeat">0</strong><small id="statAwaitingSeatMeta">Tỷ lệ giao 0%</small></div></div>
+            <div class="stat stat-delivered"><span class="stat-icon" data-lucide="circle-check-big"></span><div class="stat-copy"><span>Đã giao · Delivered</span><strong id="statDelivered">0</strong><small id="statDeliveredMeta">0 đơn đã thanh toán</small></div></div>
+            <div class="stat stat-review"><span class="stat-icon" data-lucide="shield-alert"></span><div class="stat-copy"><span>Cần kiểm tra</span><strong id="statReview">0</strong><small id="statReviewMeta">0 hoàn tiền</small></div></div>
+            <div class="stat stat-revenue"><span class="stat-icon" data-lucide="chart-no-axes-combined"></span><div class="stat-copy"><span>Doanh thu · Revenue</span><strong id="statRevenue">0 VND</strong><small id="statRevenueMeta">AOV 30 ngày: 0 VND</small></div></div>
+          </div>
+          <div class="analytics-grid analytics-grid-primary">
+            <section class="panel chart-panel trend-panel">
+              <div class="panel-head chart-panel-head">
+                <div>
+                  <span class="chart-kicker">Hiệu suất bán hàng</span>
+                  <h2>Doanh thu và đơn hàng</h2>
+                  <p class="panel-subtitle" id="trendChartSummary">Theo dõi xu hướng vận hành theo ngày</p>
+                </div>
+                <div class="chart-range" aria-label="Chọn khoảng thời gian">
+                  <button class="chart-range-button" type="button" data-dashboard-range="7" aria-pressed="false">7N</button>
+                  <button class="chart-range-button active" type="button" data-dashboard-range="14" aria-pressed="true">14N</button>
+                  <button class="chart-range-button" type="button" data-dashboard-range="30" aria-pressed="false">30N</button>
+                </div>
+              </div>
+              <div class="chart-legend" aria-hidden="true"><span class="legend-revenue">Doanh thu</span><span class="legend-orders">Đơn hàng</span></div>
+              <div id="revenueTrendChart" class="chart-stage trend-chart" aria-live="polite"></div>
+            </section>
+            <section class="panel chart-panel">
+              <div class="panel-head chart-panel-head">
+                <div>
+                  <span class="chart-kicker">Phân bổ hiện tại</span>
+                  <h2>Trạng thái đơn hàng</h2>
+                </div>
+              </div>
+              <div id="orderStatusChart" class="chart-stage status-chart" aria-live="polite"></div>
+            </section>
+          </div>
+          <div class="analytics-grid analytics-grid-secondary">
+            <section class="panel chart-panel">
+              <div class="panel-head chart-panel-head">
+                <div>
+                  <span class="chart-kicker">30 ngày gần nhất</span>
+                  <h2>Top sản phẩm theo doanh thu</h2>
+                </div>
+              </div>
+              <div id="topProductsChart" class="chart-stage top-products-chart" aria-live="polite"></div>
+            </section>
+            <section class="panel chart-panel">
+              <div class="panel-head chart-panel-head">
+                <div>
+                  <span class="chart-kicker">Sức khỏe quy trình</span>
+                  <h2>Funnel vận hành</h2>
+                </div>
+                <span id="analyticsGeneratedAt" class="chart-updated">—</span>
+              </div>
+              <div id="operationsFunnel" class="chart-stage operations-funnel" aria-live="polite"></div>
+            </section>
           </div>
           <div class="grid two">
             <section class="panel">
@@ -123,78 +172,133 @@
         </section>
 
         <section id="productsTab" class="tab">
-          <div class="grid two">
+          <div class="product-page">
+            <section class="product-health-grid" aria-label="Tình trạng danh mục sản phẩm">
+              <button class="product-health-card health-active" type="button" data-product-health-filter="active" aria-pressed="false">
+                <span class="product-health-icon" data-lucide="circle-check-big" aria-hidden="true"></span>
+                <span><small>Đang bán</small><strong id="productMetricActive">0</strong><em id="productMetricActiveMeta">0 sản phẩm</em></span>
+              </button>
+              <button class="product-health-card health-inventory" type="button" data-product-health-filter="inventory" aria-pressed="false">
+                <span class="product-health-icon" data-lucide="boxes" aria-hidden="true"></span>
+                <span><small>Tồn khả dụng</small><strong id="productMetricStock">0</strong><em id="productMetricStockMeta">0 SKU quản lý kho</em></span>
+              </button>
+              <button class="product-health-card health-warning" type="button" data-product-health-filter="low-stock" aria-pressed="false">
+                <span class="product-health-icon" data-lucide="triangle-alert" aria-hidden="true"></span>
+                <span><small>Cần nhập kho</small><strong id="productMetricLowStock">0</strong><em id="productMetricLowStockMeta">Tồn kho từ 0–2</em></span>
+              </button>
+              <button class="product-health-card health-seat" type="button" data-product-health-filter="seat" aria-pressed="false">
+                <span class="product-health-icon" data-lucide="mail-check" aria-hidden="true"></span>
+                <span><small>Seat qua email</small><strong id="productMetricSeat">0</strong><em id="productMetricSeatMeta">Không dùng kho mã</em></span>
+              </button>
+            </section>
+
             <form id="productForm" class="panel accordion-panel product-create-panel">
               <button id="productCreateToggle" class="accordion-toggle" type="button" aria-expanded="false" aria-controls="productCreateContent">
                 <span class="accordion-icon" data-lucide="package-plus" aria-hidden="true"></span>
-                <span class="accordion-heading"><strong>Thêm sản phẩm</strong><small>Create product</small></span>
+                <span class="accordion-heading"><strong>Tạo sản phẩm mới</strong><small>Thêm SKU, giá bán và quy trình giao hàng</small></span>
                 <span class="accordion-chevron" data-lucide="chevron-down" aria-hidden="true"></span>
               </button>
               <div id="productCreateContent" class="accordion-content hidden">
-                <div class="editor-grid create-editor-grid">
-                  <label>Danh mục · Category<input name="category" placeholder="AI Accounts" value="AI Accounts" required></label>
-                  <label>Thương hiệu · Brand<input name="brand" placeholder="ChatGPT" required></label>
-                  <label>Gói · Package<input name="packageType" placeholder="Plus 1M"></label>
-                  <label>SKU<input name="sku" placeholder="chatgpt-plus-1m" required></label>
-                  <label class="editor-span-2">Tên sản phẩm<input name="name" placeholder="ChatGPT Plus - 1 tháng" required></label>
-                  <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3"></textarea></label>
-                  <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="2" placeholder="Tài khoản riêng, slot dùng chung, kích hoạt hoặc gói tài khoản"></textarea></label>
-                  <label class="editor-span-2">Chính sách bảo hành<textarea name="warrantyPolicy" rows="3" placeholder="Ghi rõ thời hạn và phạm vi bảo hành"></textarea></label>
-                  <label class="editor-span-2">Chính sách đổi mới<textarea name="replacementPolicy" rows="3" placeholder="Ghi rõ điều kiện được đổi khi giao hàng lỗi"></textarea></label>
-                  <label>Hình thức giao
-                    <select name="deliveryMode">
-                      <option value="text">Tin nhắn văn bản</option>
-                      <option value="file">Tệp TXT</option>
-                    </select>
-                  </label>
-                  <label>Fulfillment
-                    <select name="fulfillmentMode">
-                      <option value="inventory">Từ kho · Inventory</option>
-                      <option value="seat_email">Seat qua email khách hàng</option>
-                    </select>
-                  </label>
-                  <label>Thời hạn Seat (tháng)<input name="seatTermMonths" type="number" min="1" max="120" value="1"></label>
-                  <label>Giá hãng tham khảo<input name="officialPriceNote" placeholder="Official: $20/mo"></label>
-                  <label>Giá bán<input name="price" type="number" min="1" value="10000" required></label>
-                  <label>Tiền tệ · Currency<input name="currency" value="VND" required></label>
-                  <label class="checkbox-label"><input name="hot" type="checkbox" value="true"> Sản phẩm nổi bật · Hot</label>
-                </div>
+                <fieldset class="editor-section">
+                  <legend><span data-lucide="scan-line" aria-hidden="true"></span>Nhận diện sản phẩm</legend>
+                  <p>Thông tin dùng để tìm kiếm, phân nhóm và hiển thị trong catalog.</p>
+                  <div class="editor-grid create-editor-grid">
+                    <label>Danh mục · Category<input name="category" placeholder="AI Accounts" value="AI Accounts" required></label>
+                    <label>Thương hiệu · Brand<input name="brand" placeholder="ChatGPT" required></label>
+                    <label>Gói · Package<input name="packageType" placeholder="Plus 1M"></label>
+                    <label>SKU<input name="sku" placeholder="chatgpt-plus-1m" required></label>
+                    <label class="editor-span-2">Tên sản phẩm<input name="name" placeholder="ChatGPT Plus - 1 tháng" required></label>
+                    <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3"></textarea></label>
+                  </div>
+                </fieldset>
+                <fieldset class="editor-section">
+                  <legend><span data-lucide="badge-dollar-sign" aria-hidden="true"></span>Bán hàng &amp; giao nhận</legend>
+                  <p>Giá bán hiện tại và cách hệ thống hoàn tất đơn hàng.</p>
+                  <div class="editor-grid create-editor-grid">
+                    <label>Giá bán<input name="price" type="number" min="1" value="10000" required></label>
+                    <label>Tiền tệ · Currency<input name="currency" value="VND" required></label>
+                    <label>Giá hãng tham khảo<input name="officialPriceNote" placeholder="Official: $20/mo"></label>
+                    <label>Hình thức giao
+                      <select name="deliveryMode">
+                        <option value="text">Tin nhắn văn bản</option>
+                        <option value="file">Tệp TXT</option>
+                      </select>
+                    </label>
+                    <label>Fulfillment
+                      <select name="fulfillmentMode">
+                        <option value="inventory">Từ kho · Inventory</option>
+                        <option value="seat_email">Seat qua email khách hàng</option>
+                      </select>
+                    </label>
+                    <label>Thời hạn Seat (tháng)<input name="seatTermMonths" type="number" min="1" max="120" value="1"></label>
+                    <label class="checkbox-label"><input name="hot" type="checkbox" value="true"> Sản phẩm nổi bật · Hot</label>
+                  </div>
+                </fieldset>
+                <fieldset class="editor-section editor-section-policy">
+                  <legend><span data-lucide="shield-check" aria-hidden="true"></span>Thông tin &amp; chính sách</legend>
+                  <p>Nội dung hỗ trợ khách hàng ra quyết định và xử lý sau bán.</p>
+                  <div class="editor-grid create-editor-grid">
+                    <label class="editor-span-2">Loại tài khoản<textarea name="accountType" rows="2" placeholder="Tài khoản riêng, slot dùng chung, kích hoạt hoặc gói tài khoản"></textarea></label>
+                    <label>Chính sách bảo hành<textarea name="warrantyPolicy" rows="3" placeholder="Ghi rõ thời hạn và phạm vi bảo hành"></textarea></label>
+                    <label>Chính sách đổi mới<textarea name="replacementPolicy" rows="3" placeholder="Ghi rõ điều kiện được đổi khi giao hàng lỗi"></textarea></label>
+                  </div>
+                </fieldset>
                 <div class="actions accordion-actions">
                   <button type="submit"><span class="icon" data-lucide="plus" aria-hidden="true"></span><span>Tạo sản phẩm</span></button>
                 </div>
               </div>
             </form>
-            <section class="panel">
-              <div class="panel-head">
+
+            <section class="panel product-catalog-panel">
+              <div class="panel-head product-catalog-head">
                 <div>
                   <h2>Danh mục sản phẩm <small>Product Catalog</small></h2>
-                  <p class="panel-subtitle">Nhóm theo danh mục và thương hiệu</p>
+                  <p class="panel-subtitle">Quét nhanh giá, tồn kho, fulfillment và trạng thái bán</p>
                 </div>
-                <span id="productCountBadge" class="badge available">0 products</span>
+                <span id="productCountBadge" class="badge available">0 sản phẩm</span>
               </div>
-              <div class="toolbar">
-                <label>
+              <div class="toolbar product-toolbar">
+                <label class="product-search-field">
                   Tìm kiếm
-                  <input id="productSearch" type="search" placeholder="Thương hiệu, gói hoặc SKU">
+                  <input id="productSearch" type="search" placeholder="Tên, thương hiệu, gói hoặc SKU">
                 </label>
                 <label>
                   Thương hiệu
                   <select id="productBrandFilter"></select>
                 </label>
                 <label>
-                  Trạng thái
+                  Tình trạng
                   <select id="productStatusFilter">
-                    <option value="all">Tất cả</option>
+                    <option value="all">Tất cả sản phẩm</option>
                     <option value="active">Đang bán</option>
                     <option value="inactive">Đã tắt</option>
-                    <option value="low-stock">Sắp hết</option>
+                    <option value="inventory">Quản lý bằng kho</option>
+                    <option value="seat">Seat qua email</option>
+                    <option value="low-stock">Cần nhập kho</option>
+                  </select>
+                </label>
+                <label>
+                  Sắp xếp
+                  <select id="productSort">
+                    <option value="priority">Ưu tiên catalog</option>
+                    <option value="name">Tên A–Z</option>
+                    <option value="price-asc">Giá thấp trước</option>
+                    <option value="price-desc">Giá cao trước</option>
+                    <option value="stock-asc">Tồn kho thấp trước</option>
                   </select>
                 </label>
                 <button id="productFilterReset" class="secondary filter-reset" type="button">
                   <span class="icon" data-lucide="rotate-ccw" aria-hidden="true"></span><span>Đặt lại</span>
                 </button>
               </div>
-              <div id="productsList"></div>
+              <div class="product-results-bar">
+                <span id="productFilterSummary" aria-live="polite">Hiển thị toàn bộ sản phẩm</span>
+                <span id="productGroupSummary">0 nhóm</span>
+              </div>
+              <div class="product-list-columns" aria-hidden="true">
+                <span>Sản phẩm</span><span>Giá bán</span><span>Fulfillment</span><span>Tồn kho</span><span>Thao tác</span>
+              </div>
+              <div id="productsList" class="product-catalog-list" aria-live="polite"></div>
             </section>
           </div>
         </section>
@@ -244,6 +348,55 @@
           </div>
         </section>
 
+        <section id="discountsTab" class="tab">
+          <div class="grid two discount-layout">
+            <form id="discountForm" class="panel discount-create-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Tạo mã dùng một lần</h2>
+                  <p class="panel-subtitle">Mỗi mã chỉ có thể hoàn tất thanh toán cho một đơn hàng.</p>
+                </div>
+                <span class="badge reserved">1 lượt dùng</span>
+              </div>
+              <div class="discount-code-field">
+                <label>Mã giảm giá
+                  <input id="discountCodeInput" name="code" minlength="4" maxlength="32" pattern="[A-Za-z0-9_-]+" placeholder="KAITO-7F3X9Q" autocomplete="off" required>
+                </label>
+                <button id="discountGenerateBtn" class="secondary" type="button">
+                  <span class="icon" data-lucide="sparkles" aria-hidden="true"></span><span>Tạo mã</span>
+                </button>
+              </div>
+              <div class="discount-form-grid">
+                <label>Kiểu giảm
+                  <select name="type" required>
+                    <option value="fixed">Số tiền cố định</option>
+                    <option value="percent">Phần trăm</option>
+                  </select>
+                </label>
+                <label>Giá trị giảm<input name="value" type="number" min="1" step="1" placeholder="50000" required></label>
+                <label>Đơn tối thiểu<input name="minOrderTotal" type="number" min="0" step="1000" value="0"></label>
+                <label>Hết hạn lúc<input name="expiresAt" type="datetime-local"></label>
+              </div>
+              <div class="discount-rule-note">
+                <span data-lucide="shield-check" aria-hidden="true"></span>
+                <span>Mã được giữ khi tạo đơn, tự trả lại nếu đơn bị hủy hoặc hết hạn, và chỉ ghi nhận đã dùng sau thanh toán.</span>
+              </div>
+              <button type="submit"><span class="icon" data-lucide="ticket-plus" aria-hidden="true"></span><span>Tạo mã giảm giá</span></button>
+            </form>
+
+            <section class="panel discount-list-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Danh sách mã</h2>
+                  <p class="panel-subtitle">Theo dõi mã khả dụng, đang giữ và đã sử dụng.</p>
+                </div>
+                <span id="discountCodeCount" class="badge available">0 mã</span>
+              </div>
+              <div id="discountCodesList" class="discount-codes-list"></div>
+            </section>
+          </div>
+        </section>
+
         <section id="inventoryTab" class="tab">
           <div class="grid two">
             <form id="inventoryForm" class="panel">
@@ -265,12 +418,19 @@
             <div class="panel-head">
               <div>
                 <h2>Seat Guard</h2>
-                <p class="panel-subtitle">Đối chiếu quyền workspace với Seat đã thanh toán và thời hạn 30 ngày được cấu hình.</p>
+                <p class="panel-subtitle">Đối chiếu quyền <strong id="seatGuardProviderLabel">ChatGPT</strong> với Seat đã thanh toán và thời hạn 30 ngày được cấu hình.</p>
               </div>
-              <button class="secondary icon-button" data-action="refresh-seat-guard">
-                <span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span>
-                <span>Làm mới Seat Guard</span>
-              </button>
+              <div class="seat-guard-toolbar">
+                <div id="seatGuardProviderSwitcher" class="seat-guard-provider-switcher" role="group" aria-label="Nền tảng Seat Guard">
+                  <button type="button" class="active" data-seat-guard-provider="chatgpt" aria-pressed="true">ChatGPT</button>
+                  <button type="button" data-seat-guard-provider="canva" aria-pressed="false">Canva</button>
+                  <button type="button" data-seat-guard-provider="claude" aria-pressed="false">Claude</button>
+                </div>
+                <button class="secondary icon-button" data-action="refresh-seat-guard">
+                  <span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span>
+                  <span>Làm mới</span>
+                </button>
+              </div>
             </div>
             <div id="seatGuardConnection" class="seat-guard-connection"></div>
             <div class="stats seat-guard-stats">
@@ -330,6 +490,7 @@
               <form id="devOrderForm" class="inline-form">
                 <input name="sku" placeholder="SKU" required>
                 <input name="quantity" type="number" min="1" value="1">
+                <input name="discountCode" placeholder="Mã giảm giá (không bắt buộc)">
                 <textarea name="recipientEmails" rows="2" placeholder="Email Seat: mỗi dòng một email (không bắt buộc)"></textarea>
                 <button type="submit">Tạo đơn thử</button>
               </form>

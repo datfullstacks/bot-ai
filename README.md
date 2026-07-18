@@ -6,7 +6,7 @@ It includes:
 
 - Telegram bot commands for product browsing and ordering.
 - Four-step Telegram checkout: category, brand, package details, then explicit confirmation.
-- Admin dashboard for products, inventory, orders, payments, and audit logs.
+- Admin dashboard for products, one-time discount codes, inventory, orders, payments, audit logs, and 30-day operational analytics.
 - AES-256-GCM inventory encryption, reservation, buyer cancellation, payment resume, and delivery.
 - Payment provider adapter with mock and SePay providers.
 - Manual payment-review resolution for approving delivery or marking a review order refunded.
@@ -243,15 +243,17 @@ failures stay in `awaiting_fulfillment` for an admin retry. Claude Seat orders
 use the same durable operation contract as Canva. A per-SKU account mapping can
 route the 1x and 6.5x products to different Claude organizations.
 
-The admin dashboard includes **Seat Guard** for the configured ChatGPT target.
-It reads live members and pending invitations, compares them with paid Seat
-orders, and highlights unauthorized, expired, unverified allow-list, or
-needs-review entries. The member-service `allowedMembers` list is operational
-state, not proof of payment: entries found only there are shown as **unverified
-allow-list** and can be reviewed manually. Owner/admin roles and
-`GPT_SEAT_PROTECTED_EMAILS` are never offered for removal. Removing a member or
-cancelling an invitation requires an exact email confirmation, uses an
-idempotent action generation, and is written to the bot audit log.
+The admin dashboard includes **Seat Guard** for configured ChatGPT, Canva, and
+Claude targets. A provider switcher loads the matching member-service snapshot,
+compares members and pending invitations with paid Seat orders, and highlights
+unauthorized, expired, protected, or needs-review entries. ChatGPT's
+`allowedMembers` list is operational state, not proof of payment: entries found
+only there are shown as **unverified allow-list** and can be reviewed manually.
+Owner/admin roles, locked members, and each provider's
+`*_SEAT_PROTECTED_EMAILS` are never offered for removal. Removing a member or
+cancelling an invitation requires an exact email confirmation, uses a
+provider-scoped idempotent action generation, and is written to the bot audit
+log.
 
 Seat time starts at `deliveredAt` (or the fulfillment completion timestamp).
 Each configured Seat month is exactly 30 x 24 hours, so a 1M ChatGPT Seat
@@ -261,15 +263,17 @@ the earlier payment time. Repeated delivered orders for the same email extend
 the previous entitlement, while paid orders still awaiting fulfillment remain
 authorized. New Seat products should set `seatTermMonths`; legacy orders fall
 back to the duration encoded in the SKU/package and then
-`GPT_SEAT_DEFAULT_TERM_MONTHS`. Orders whose saved integration target cannot be
-matched to the current ChatGPT target also fail closed to **needs review**.
+the provider's `*_SEAT_DEFAULT_TERM_MONTHS`. Orders whose saved integration
+target cannot be matched to the selected provider target also fail closed to
+**needs review**.
 
-Seat Guard intentionally starts in review/manual-removal mode. Set
-`GPT_SEAT_EXPIRY_AUTO_REMOVE=true` only after reviewing the first Seat Guard
-snapshot. Automatic cleanup requires PostgreSQL row mode and a guard key with
+Seat Guard intentionally starts in review/manual-removal mode. Set the matching
+`GPT_`, `CANVA_`, or `CLAUDE_SEAT_EXPIRY_AUTO_REMOVE=true` only after reviewing
+that provider's first Seat Guard snapshot. Automatic cleanup requires
+PostgreSQL row mode and a guard key with
 `accounts:read,members:remove`. It only acts on bot orders with a verified
 target and an expired delivery term; active, pending, needs-review,
-manual-allow-list, owner/admin, and `GPT_SEAT_PROTECTED_EMAILS` entries are
+manual-allow-list, owner/admin, locked, and `*_SEAT_PROTECTED_EMAILS` entries are
 never auto-removed. `DATABASE_POOL_MAX` must be at least
 `(2 * MEMBER_FULFILLMENT_CONCURRENCY) + 2` (6 with the defaults; the recommended
 value remains 10). Cleanup uses a shared per-email PostgreSQL advisory lock,
@@ -348,6 +352,14 @@ The personalized price is applied both when the bot renders the catalog and when
 the order is created. Existing orders keep their original price snapshot. Removing
 a username price list immediately restores the independent base price for future
 orders, or the product's current price when that base SKU has not been configured.
+
+### One-time discount codes
+
+Use the admin dashboard's **Mã giảm giá** tab to create a fixed-amount or
+percentage discount with an optional minimum order total and expiry. Each code
+can complete exactly one paid order. Checkout reserves the code until the order
+expires or is cancelled, then consumes it only after a matching payment succeeds.
+Both inventory and Seat-email Telegram checkout flows support entering a code.
 
 ## System Status
 

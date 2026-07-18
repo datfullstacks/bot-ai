@@ -12,15 +12,32 @@ const telegramPricing = await readFile(resolve(process.cwd(), 'src', 'telegramPr
 const jsonShopStore = await readFile(resolve(process.cwd(), 'src', 'shopStores', 'jsonShopStore.js'), 'utf8');
 const postgresShopStore = await readFile(resolve(process.cwd(), 'src', 'shopStores', 'postgresShopStore.js'), 'utf8');
 const postgresStore = await readFile(resolve(process.cwd(), 'src', 'postgresStore.js'), 'utf8');
+const dashboardAnalytics = await readFile(resolve(process.cwd(), 'src', 'dashboardAnalytics.js'), 'utf8');
+const discountCodes = await readFile(resolve(process.cwd(), 'src', 'discountCodes.js'), 'utf8');
+const shop = await readFile(resolve(process.cwd(), 'src', 'shop.js'), 'utf8');
+const telegram = await readFile(resolve(process.cwd(), 'src', 'telegram.js'), 'utf8');
 const { getBrandAsset } = await import('../public/brand-assets.js');
 
 for (const id of [
   'productSearch',
   'productBrandFilter',
   'productStatusFilter',
+  'productSort',
   'productFilterReset',
   'productCreateToggle',
   'productCreateContent',
+  'productMetricActive',
+  'productMetricStock',
+  'productMetricLowStock',
+  'productMetricSeat',
+  'productFilterSummary',
+  'productGroupSummary',
+  'discountsTab',
+  'discountForm',
+  'discountCodeInput',
+  'discountGenerateBtn',
+  'discountCodeCount',
+  'discountCodesList',
   'adminSidebar',
   'sidebarToggle',
   'sidebarClose',
@@ -35,9 +52,16 @@ for (const id of [
   'systemStorageBadge',
   'telegramStatusBadge',
   'seatGuardConnection',
+  'seatGuardProviderSwitcher',
+  'seatGuardProviderLabel',
   'seatGuardMembers',
   'seatGuardInvitations',
-  'seatGuardEntitlements'
+  'seatGuardEntitlements',
+  'revenueTrendChart',
+  'orderStatusChart',
+  'topProductsChart',
+  'operationsFunnel',
+  'analyticsGeneratedAt'
 ]) {
   assert.ok(html.includes(`id="${id}"`), `Admin HTML should include #${id}.`);
 }
@@ -48,15 +72,22 @@ assert.ok(html.includes('data-lucide="refresh-cw"'), 'Refresh button should incl
 assert.ok(html.includes('data-lucide="log-out"'), 'Logout button should include a Lucide icon.');
 assert.ok(html.includes('data-tab="seatGuard"'), 'Admin nav should expose the Seat Guard tab.');
 assert.ok(html.includes('data-tab="pricing"'), 'Admin nav should expose Telegram username pricing.');
+assert.ok(html.includes('data-tab="discounts"'), 'Admin nav should expose one-time discount management.');
 assert.ok(html.includes('id="seatGuardTab"'), 'Admin HTML should include the Seat Guard panel.');
 assert.ok(html.includes('data-lucide="shield-check"'), 'Seat Guard nav should include a shield icon.');
 assert.ok(html.includes('thời hạn 30 ngày'), 'Seat Guard should explain its fixed 30-day entitlement term.');
+for (const provider of ['chatgpt', 'canva', 'claude']) {
+  assert.ok(html.includes(`data-seat-guard-provider="${provider}"`), `Seat Guard should expose the ${provider} provider.`);
+}
 assert.ok(html.includes('<html lang="vi">'), 'Admin content should declare Vietnamese as its primary language.');
 assert.ok(html.includes('aria-controls="productCreateContent"'), 'Create-product accordion should expose its controlled region.');
 assert.ok(html.includes('id="productCreateContent" class="accordion-content hidden"'), 'Create-product accordion should start closed.');
 
 for (const fn of [
   'renderProductFilters',
+  'renderProductCatalogMetrics',
+  'renderDiscountCodes',
+  'discountDisplayState',
   'setSidebarOpen',
   'setButtonBusy',
   'setProductCreateOpen',
@@ -69,6 +100,11 @@ for (const fn of [
   'resolvedCatalogBasePrice',
   'renderTelegramPricing',
   'renderTelegramPricingProducts',
+  'renderRevenueTrendChart',
+  'renderOrderStatusChart',
+  'renderTopProductsChart',
+  'renderOperationsFunnel',
+  'renderDashboardAnalytics',
   'renderOrderTable',
   'renderOrderRecipients',
   'renderStatusPill',
@@ -77,6 +113,7 @@ for (const fn of [
   'renderSeatGuardMembers',
   'renderSeatGuardInvitations',
   'renderSeatGuardEntitlements',
+  'syncSeatGuardProviderControls',
   'pollSeatGuardOperation',
   'runSeatGuardAction',
   'refreshIcons'
@@ -88,6 +125,9 @@ assert.ok(js.includes('lucide.createIcons'), 'Admin JS should refresh Lucide ico
 assert.ok(js.includes("event.key === 'Escape'"), 'The mobile navigation drawer should close with Escape.');
 assert.ok(js.includes("setAttribute('aria-expanded'"), 'The mobile navigation trigger should expose its expanded state.');
 assert.ok(js.includes('closeSidebarAndRestoreFocus'), 'Closing the mobile drawer should return focus to its trigger.');
+assert.ok(html.includes('data-dashboard-range="7"'), 'Overview trend chart should expose a seven-day range.');
+assert.ok(html.includes('data-dashboard-range="30"'), 'Overview trend chart should expose a thirty-day range.');
+assert.ok(html.includes('aria-pressed="true"'), 'The active chart range should expose its pressed state.');
 assert.ok(html.includes('class="stat-icon"'), 'Overview statistics should include visual metric icons.');
 assert.ok(html.includes('class="auth-security"'), 'Login should expose the protected-admin trust cue.');
 assert.ok(js.includes("from './brand-assets.js'"), 'Admin JS should import shared brand assets.');
@@ -96,6 +136,7 @@ assert.ok(js.includes("icon('package'"), 'Product cards should render package ic
 assert.ok(js.includes("icon('shopping-cart'"), 'Order action buttons should render action icons.');
 assert.ok(js.includes("state.productSearch"), 'Admin JS should track product search state.');
 assert.ok(js.includes("state.productBrand"), 'Admin JS should track product brand filter.');
+assert.ok(js.includes("productSort: 'priority'"), 'Admin JS should track the selected product catalog sort.');
 assert.ok(js.includes('state.telegramPricing'), 'Admin JS should retain Telegram username price lists.');
 assert.ok(js.includes('basePriceList'), 'Admin JS should retain the independent catalog base-price list.');
 assert.ok(js.includes('Giá hiện tại'), 'Base pricing should distinguish product price from the independent base price.');
@@ -105,7 +146,9 @@ assert.ok(js.includes("method: 'PUT'"), 'Admin should save a username price list
 assert.ok(js.includes("method: 'DELETE'"), 'Admin should remove a username price list with DELETE.');
 assert.ok(js.includes("state.orderStatus"), 'Admin JS should track order status filter.');
 assert.ok(js.includes("state.seatGuard"), 'Admin JS should retain the latest Seat Guard snapshot.');
-assert.ok(js.includes("api('/api/seat-guard')"), 'Seat Guard should load the backend reconciliation snapshot.');
+assert.ok(js.includes("seatGuardUrl('/api/seat-guard', provider)"), 'Seat Guard should load the selected provider snapshot.');
+assert.ok(js.includes("seatGuardProvider: 'chatgpt'"), 'Seat Guard should default safely to ChatGPT.');
+assert.ok(js.includes('provider=${encodeURIComponent(provider)}'), 'Seat Guard API calls should preserve the selected provider.');
 assert.ok(js.includes("if (state.tab === 'seatGuard') await renderSeatGuard()"), 'Refreshing the active Seat Guard tab should reload its snapshot.');
 assert.ok(js.includes("seat-guard-remove-member"), 'Removable members should expose a guarded remove action.');
 assert.ok(js.includes("seat-guard-cancel-invitation"), 'Cancelable invitations should expose a guarded cancel action.');
@@ -120,6 +163,11 @@ assert.ok(js.includes('PostgreSQL row mode'), 'Seat Guard should explain when ex
 assert.ok(html.includes('id="seatGuardMemberSearch"'), 'Seat Guard should support searching large member workspaces.');
 assert.ok(html.includes('id="seatGuardInviteRiskCount"'), 'Seat Guard should surface risky invitations in its summary.');
 assert.ok(js.includes("filteredProducts()"), 'Product rendering should use filteredProducts().');
+assert.ok(html.includes('data-product-health-filter="low-stock"'), 'Product health metrics should act as quick catalog filters.');
+assert.ok(html.includes('<option value="inventory">Quản lý bằng kho</option>'), 'Product filters should distinguish inventory-managed products.');
+assert.ok(html.includes('<option value="seat">Seat qua email</option>'), 'Product filters should distinguish Seat products.');
+assert.ok(js.includes("state.productSort === 'stock-asc'"), 'Product catalog should support operational low-stock sorting.');
+assert.ok(js.includes("button.setAttribute('aria-pressed'"), 'Product health quick filters should expose their pressed state.');
 assert.ok(js.includes('data-product-editor'), 'Product cards should include an inline product editor form.');
 assert.ok(js.includes('data-action="toggle-product-editor"'), 'Product editors should be controlled by accessible accordion buttons.');
 assert.ok(js.includes('closeProductEditors('), 'Opening a product editor should close other inline editors.');
@@ -132,11 +180,24 @@ assert.equal(server.includes('100000'), false, 'Dev order API must not create fa
 assert.ok(server.includes('TELEGRAM_OWNER_USER_ID'), 'Dev order API should fall back to the configured owner chat when no test chat is supplied.');
 assert.ok(server.includes("pathname === '/api/telegram-pricing'"), 'Server should expose the authenticated Telegram pricing overview.');
 assert.ok(server.includes("pathname === '/api/catalog-pricing'"), 'Server should expose the authenticated base price-list update.');
+assert.ok(server.includes("pathname === '/api/discount-codes'"), 'Server should expose authenticated discount list and creation endpoints.');
+assert.ok(server.includes("routeParams('/api/discount-codes/:id'"), 'Server should expose discount activation mutations.');
+assert.ok(shop.includes('previewDiscountForUser'), 'The active shop store should expose discount previews to Telegram checkout.');
+assert.ok(discountCodes.includes('discountReservationIsLive'), 'Discount domain should model live one-order reservations.');
+assert.ok(discountCodes.includes('usageLimit: 1'), 'Public discount data should expose the fixed one-use limit.');
+assert.ok(jsonShopStore.includes('consumeDiscountReservation'), 'JSON checkout should consume a reserved code after payment.');
+assert.ok(postgresShopStore.includes('consumeDiscountReservation'), 'Postgres checkout should consume a reserved code transactionally.');
+assert.ok(postgresStore.includes("discountCodes: 'discountCodes'"), 'Postgres document snapshots should persist discount codes.');
+assert.ok(telegram.includes('discount_confirm:'), 'Telegram should support confirming a discounted checkout.');
+assert.ok(telegram.includes('seat_discount:'), 'Seat checkout should also support one-time discounts.');
 assert.ok(server.includes("routeParams('/api/telegram-pricing/:username'"), 'Server should expose per-username price-list mutations.');
 assert.ok(telegramPricing.includes('resolveCatalogBasePrice'), 'Telegram pricing should resolve the independent base price before product.price fallback.');
 assert.ok(jsonShopStore.includes('db.catalogPriceLists'), 'JSON storage should persist base prices separately from products.');
 assert.ok(postgresShopStore.includes("upsertDoc(client, 'catalogPriceLists'"), 'Postgres row mode should persist the independent base-price document.');
 assert.ok(postgresStore.includes("catalogPriceLists: 'catalogPriceLists'"), 'Postgres document mode should include base-price documents in snapshots.');
+assert.ok(dashboardAnalytics.includes('buildDashboardAnalytics'), 'Dashboard summary should use a deterministic analytics aggregation.');
+assert.ok(jsonShopStore.includes('buildDashboardAnalytics'), 'JSON dashboard summary should expose analytics.');
+assert.ok(postgresShopStore.includes('analyticsOrders'), 'Postgres dashboard summary should aggregate a bounded analytics window.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
 for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
@@ -175,7 +236,8 @@ assert.ok(server.includes("'seat_guard.member.remove_queued'"), 'Seat member rem
 assert.ok(server.includes("'seat_guard.invitation.cancel_queued'"), 'Seat invitation cancellation should be written to the audit log.');
 assert.ok(server.includes('await requestSeatFulfillmentRetry(params.id'), 'Retry Auto should persist a durable retry request before returning 202.');
 assert.ok(server.includes('startSeatFulfillmentAutomation'), 'Server should resume pending automatic Seat operations after restart.');
-assert.ok(server.includes('startSeatExpiryAutomation()'), 'Server should start the guarded Seat expiry scheduler.');
+assert.ok(server.includes("for (const provider of ['chatgpt', 'canva', 'claude'])"), 'Server should initialize Seat Guard lifecycle jobs for every provider.');
+assert.ok(server.includes('startSeatExpiryAutomation({ provider })'), 'Server should scope the guarded Seat expiry scheduler by provider.');
 assert.ok(js.includes('automaticFulfillmentProvider'), 'Admin automation actions should use the backend SKU mapping instead of hardcoded SKUs.');
 assert.ok(js.includes("actionButton('refund-after-cleanup'"), 'Failed external operations should require cleanup before refund.');
 assert.ok(js.includes('confirmExternalCleanup: true'), 'Confirmed cleanup should be sent explicitly to the refund guard.');
@@ -201,7 +263,18 @@ for (const selector of [
   '.sidebar-backdrop',
   'body.sidebar-open',
   '.product-card',
+  '.product-card-summary',
+  '.product-health-grid',
+  '.product-health-card',
+  '.product-results-bar',
+  '.product-list-columns',
+  '.product-row-actions',
   '.product-editor',
+  '.editor-section',
+  '.discount-code-field',
+  '.discount-form-grid',
+  '.discount-code-token',
+  '.discount-table',
   '.editor-grid',
   '.data-table',
   '.status-dot',
@@ -222,6 +295,11 @@ for (const selector of [
   '.accordion-toggle',
   '.pricing-row.has-override',
   '.base-price-row.has-base-price',
+  '.analytics-grid',
+  '.trend-svg',
+  '.status-donut',
+  '.top-products-chart',
+  '.operations-funnel',
   '.responsive-table'
 ]) {
   assert.ok(css.includes(selector), `Admin CSS should style ${selector}.`);

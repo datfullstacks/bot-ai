@@ -216,10 +216,33 @@ export const config = {
         enabled: enabled(process.env.CANVA_MEMBER_SERVICE_ENABLED, Boolean(canvaMemberServiceUrl)),
         serviceUrl: canvaMemberServiceUrl,
         apiKey: String(process.env.CANVA_MEMBER_SERVICE_API_KEY || '').trim(),
+        seatGuardApiKey: String(
+          process.env.CANVA_SEAT_GUARD_API_KEY || process.env.CANVA_MEMBER_SERVICE_API_KEY || ''
+        ).trim(),
         accountRef: String(
           process.env.CANVA_MEMBER_ACCOUNT_REF || process.env.CANVA_MEMBER_SERVICE_ACCOUNT_REF || ''
         ).trim(),
         skus: commaSeparated(process.env.CANVA_MEMBER_SKUS, 'canva-pro-1m,canva-pro-6m'),
+        protectedEmails: commaSeparated(process.env.CANVA_SEAT_PROTECTED_EMAILS),
+        defaultSeatTermMonths: boundedEnv('CANVA_SEAT_DEFAULT_TERM_MONTHS', 1, { min: 1, max: 120 }),
+        seatGuardMaxResponseBytes: boundedEnv('CANVA_SEAT_GUARD_MAX_RESPONSE_BYTES', 2 * 1024 * 1024, {
+          min: 64 * 1024,
+          max: 10 * 1024 * 1024
+        }),
+        expiryAutoRemove: enabled(process.env.CANVA_SEAT_EXPIRY_AUTO_REMOVE, false),
+        expirySweepMs: boundedEnv('CANVA_SEAT_EXPIRY_SWEEP_MS', 15 * 60_000, {
+          min: 60_000,
+          max: 24 * 60 * 60_000
+        }),
+        expiryBatchSize: boundedEnv('CANVA_SEAT_EXPIRY_BATCH_SIZE', 10, { min: 1, max: 100 }),
+        expiryGraceMs: boundedEnv('CANVA_SEAT_EXPIRY_GRACE_MS', 0, {
+          min: 0,
+          max: 7 * 24 * 60 * 60_000
+        }),
+        expiryRetryWindowMs: boundedEnv('CANVA_SEAT_EXPIRY_RETRY_WINDOW_MS', 15 * 60_000, {
+          min: 15 * 60_000,
+          max: 7 * 24 * 60 * 60_000
+        }),
         requestTimeoutMs: boundedEnv('CANVA_MEMBER_REQUEST_TIMEOUT_MS', 10_000, { min: 1_000, max: 120_000 }),
         operationTimeoutMs: boundedEnv('CANVA_MEMBER_OPERATION_TIMEOUT_MS', 600_000, { min: 1_000, max: 1_800_000 }),
         pollIntervalMs: boundedEnv('CANVA_MEMBER_POLL_INTERVAL_MS', 2_000, { min: 100, max: 60_000 })
@@ -228,6 +251,9 @@ export const config = {
         enabled: enabled(process.env.CLAUDE_MEMBER_SERVICE_ENABLED, Boolean(claudeMemberServiceUrl)),
         serviceUrl: claudeMemberServiceUrl,
         apiKey: String(process.env.CLAUDE_MEMBER_SERVICE_API_KEY || '').trim(),
+        seatGuardApiKey: String(
+          process.env.CLAUDE_SEAT_GUARD_API_KEY || process.env.CLAUDE_MEMBER_SERVICE_API_KEY || ''
+        ).trim(),
         accountRef: String(
           process.env.CLAUDE_MEMBER_ACCOUNT_REF || process.env.CLAUDE_MEMBER_SERVICE_ACCOUNT_REF || ''
         ).trim(),
@@ -239,6 +265,26 @@ export const config = {
           process.env.CLAUDE_MEMBER_SKUS,
           'claude-business-seat-1x-1m,claude-business-seat-6-5x-1m'
         ),
+        protectedEmails: commaSeparated(process.env.CLAUDE_SEAT_PROTECTED_EMAILS),
+        defaultSeatTermMonths: boundedEnv('CLAUDE_SEAT_DEFAULT_TERM_MONTHS', 1, { min: 1, max: 120 }),
+        seatGuardMaxResponseBytes: boundedEnv('CLAUDE_SEAT_GUARD_MAX_RESPONSE_BYTES', 2 * 1024 * 1024, {
+          min: 64 * 1024,
+          max: 10 * 1024 * 1024
+        }),
+        expiryAutoRemove: enabled(process.env.CLAUDE_SEAT_EXPIRY_AUTO_REMOVE, false),
+        expirySweepMs: boundedEnv('CLAUDE_SEAT_EXPIRY_SWEEP_MS', 15 * 60_000, {
+          min: 60_000,
+          max: 24 * 60 * 60_000
+        }),
+        expiryBatchSize: boundedEnv('CLAUDE_SEAT_EXPIRY_BATCH_SIZE', 10, { min: 1, max: 100 }),
+        expiryGraceMs: boundedEnv('CLAUDE_SEAT_EXPIRY_GRACE_MS', 0, {
+          min: 0,
+          max: 7 * 24 * 60 * 60_000
+        }),
+        expiryRetryWindowMs: boundedEnv('CLAUDE_SEAT_EXPIRY_RETRY_WINDOW_MS', 15 * 60_000, {
+          min: 15 * 60_000,
+          max: 7 * 24 * 60 * 60_000
+        }),
         requestTimeoutMs: boundedEnv('CLAUDE_MEMBER_REQUEST_TIMEOUT_MS', 10_000, { min: 1_000, max: 120_000 }),
         operationTimeoutMs: boundedEnv('CLAUDE_MEMBER_OPERATION_TIMEOUT_MS', 600_000, { min: 1_000, max: 1_800_000 }),
         pollIntervalMs: boundedEnv('CLAUDE_MEMBER_POLL_INTERVAL_MS', 2_000, { min: 100, max: 60_000 })

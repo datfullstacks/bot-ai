@@ -318,17 +318,63 @@ await withServer(async (req, res) => {
   );
 }
 
-{
+for (const provider of ['canva', 'claude']) {
+  const prefix = provider === 'canva' ? 'canva-accounts' : 'claude-accounts';
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    const pathname = new URL(url).pathname;
+    requests.push({ pathname, method: options.method, idempotencyKey: options.headers?.['Idempotency-Key'] });
+    if (pathname.endsWith('/me')) {
+      return new Response(JSON.stringify({
+        tenantId: `tenant-${provider}`,
+        apiKeyId: `key-${provider}`,
+        permissions: ['accounts:read', 'members:remove']
+      }), { status: 200 });
+    }
+    if (options.method === 'GET' && pathname.endsWith('/members')) {
+      return new Response(JSON.stringify({
+        account: { id: `${provider}-account`, loginEmail: `owner@${provider}.example` },
+        members: [{ id: `${provider}-member`, email: `member@${provider}.example` }],
+        snapshotCapturedAt: '2026-07-18T01:00:00.000Z'
+      }), { status: 200 });
+    }
+    if (options.method === 'GET' && pathname.endsWith('/invitations')) {
+      return new Response(JSON.stringify({
+        account: { id: `${provider}-account`, loginEmail: `owner@${provider}.example` },
+        invitations: [{ id: `${provider}-invite`, email: `pending@${provider}.example` }],
+        snapshotCapturedAt: '2026-07-18T02:00:00.000Z'
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      operation: operation(`op_${provider}_seat_guard`, 'queued'),
+      replayed: true
+    }), { status: 200 });
+  };
   const client = createMemberFulfillmentClient({
-    provider: 'canva',
-    baseUrl: 'https://canva.invalid/api/v1',
-    apiKey: 'gsk-canva-seat-guard'
+    provider,
+    baseUrl: `https://${provider}.invalid/api/v1`,
+    apiKey: `gsk-${provider}-seat-guard`,
+    fetchImpl
   });
-  await assert.rejects(() => client.getIdentity(), /require the chatgpt provider/);
-  await assert.rejects(
-    () => client.removeAccountMember('team-a', 'member-1', { idempotencyKey: 'seat-remove-0001' }),
-    /require the chatgpt provider/
-  );
+
+  assert.equal((await client.getIdentity()).tenantId, `tenant-${provider}`);
+  const snapshot = await client.getAccountMembers(`${provider}-account`);
+  assert.equal(snapshot.members[0].email, `member@${provider}.example`);
+  assert.equal(snapshot.invitations[0].email, `pending@${provider}.example`);
+  assert.equal(snapshot.observedAt, '2026-07-18T02:00:00.000Z');
+  assert.equal((await client.removeAccountMember(`${provider}-account`, `member@${provider}.example`, {
+    idempotencyKey: `seat-${provider}-remove-0001`
+  })).operationId, `op_${provider}_seat_guard`);
+  assert.equal((await client.cancelAccountInvitation(`${provider}-account`, `pending@${provider}.example`, {
+    idempotencyKey: `seat-${provider}-cancel-0001`
+  })).replayed, true);
+  assert.deepEqual(requests.map(({ pathname, method }) => ({ pathname, method })), [
+    { pathname: '/api/v1/me', method: 'GET' },
+    { pathname: `/api/v1/${prefix}/${provider}-account/members`, method: 'GET' },
+    { pathname: `/api/v1/${prefix}/${provider}-account/invitations`, method: 'GET' },
+    { pathname: `/api/v1/${prefix}/${provider}-account/members/member%40${provider}.example`, method: 'DELETE' },
+    { pathname: `/api/v1/${prefix}/${provider}-account/invitations/pending%40${provider}.example`, method: 'DELETE' }
+  ]);
 }
 
 await withServer(async (req, res) => {

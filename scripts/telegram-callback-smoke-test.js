@@ -382,12 +382,52 @@ try {
   });
   assert.equal((await storage.readStore()).orders.length, 1, 'Another user must not confirm the Seat draft.');
 
+  await shop.createDiscountCode('telegram-smoke', {
+    code: 'SEAT-100K',
+    type: 'fixed',
+    value: 100000,
+    minOrderTotal: 500000
+  });
+  const seatDiscountButton = refreshedSeatReview.body.reply_markup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith('seat_discount:'));
+  assert.ok(seatDiscountButton, 'Seat review should expose one-time discount entry.');
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_seat_discount_start',
+      data: seatDiscountButton.callback_data,
+      message: { chat: { id: 91003, type: 'private' }, message_id: 60 },
+      from: { id: 91003, username: 'seat-buyer', first_name: 'Seat' }
+    }
+  });
+  assert.ok(calls.some((call) => call.url.includes('/editMessageText') && call.body.text.includes('Nhập mã giảm giá')));
+
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    message: {
+      chat: { id: 91003, type: 'private' },
+      message_id: 61,
+      text: 'seat-100k',
+      from: { id: 91003, username: 'seat-buyer', first_name: 'Seat' }
+    }
+  });
+  const discountedSeatReview = calls.find((call) => (
+    call.url.includes('/sendMessage') && call.body.text.includes('Xác nhận email mua Seat')
+  ));
+  assert.ok(discountedSeatReview, 'A valid Seat discount should return to the Seat review.');
+  assert.match(discountedSeatReview.body.text, /700\.000 VND/);
+  const discountedSeatConfirmButton = discountedSeatReview.body.reply_markup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith('seat_confirm:'));
+  assert.ok(discountedSeatConfirmButton);
+
   calls.length = 0;
   const seatConfirmUpdate = {
     callback_query: {
       id: 'cb_seat_confirm_owner',
-      data: refreshedSeatConfirmButton.callback_data,
-      message: { chat: { id: 91003 }, message_id: 60 },
+      data: discountedSeatConfirmButton.callback_data,
+      message: { chat: { id: 91003 }, message_id: 61 },
       from: { id: 91003, username: 'seat-buyer', first_name: 'Seat' }
     }
   };
@@ -404,7 +444,7 @@ try {
   const seatQrCall = calls.find((call) => (
     call.url.includes('/sendPhoto')
     && String(call.body.photo).includes('qr.sepay.vn/img')
-    && String(call.body.photo).includes('amount=800000')
+    && String(call.body.photo).includes('amount=700000')
   ));
   assert.ok(seatQrCall, 'Seat confirmation should immediately send the full-order QR image.');
 
@@ -413,7 +453,10 @@ try {
   const seatOrder = db.orders.find((item) => item.productSku === seatProduct.sku);
   assert.ok(seatOrder);
   assert.equal(seatOrder.quantity, 2);
-  assert.equal(seatOrder.total, 800000);
+  assert.equal(seatOrder.subtotal, 800000);
+  assert.equal(seatOrder.discount.code, 'SEAT-100K');
+  assert.equal(seatOrder.discount.amount, 100000);
+  assert.equal(seatOrder.total, 700000);
   assert.equal(seatOrder.status, 'pending_payment');
   assert.equal(seatOrder.fulfillment.mode, 'seat_email');
   assert.deepEqual(
@@ -425,7 +468,77 @@ try {
   await telegram.handleTelegramUpdate(seatConfirmUpdate);
   assert.equal((await storage.readStore()).orders.length, 2, 'A consumed Seat draft must not create another order.');
 
-  console.log(JSON.stringify({ ok: true, checked: 'inventory and Seat email Telegram checkouts' }, null, 2));
+  await shop.createDiscountCode('telegram-smoke', {
+    code: 'TG-ONCE-20K',
+    type: 'fixed',
+    value: 20000,
+    minOrderTotal: 50000
+  });
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_discount_buy_review',
+      data: `buy:${product.id}:1`,
+      message: { chat: { id: 91005, type: 'private' }, message_id: 70 },
+      from: { id: 91005, username: 'discount-buyer', first_name: 'Discount' }
+    }
+  });
+  const discountStartButton = calls
+    .find((call) => call.url.includes('/editMessageText') && call.body.text.includes('Xác nhận mua'))
+    ?.body.reply_markup.inline_keyboard.flat()
+    .find((button) => button.callback_data?.startsWith('discount_start:'));
+  assert.ok(discountStartButton, 'Inventory checkout review should expose one-time discount entry.');
+
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_discount_start',
+      data: discountStartButton.callback_data,
+      message: { chat: { id: 91005, type: 'private' }, message_id: 70 },
+      from: { id: 91005, username: 'discount-buyer', first_name: 'Discount' }
+    }
+  });
+  assert.ok(calls.some((call) => call.url.includes('/editMessageText') && call.body.text.includes('Nhập mã giảm giá')));
+
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    message: {
+      chat: { id: 91005, type: 'private' },
+      message_id: 71,
+      text: 'tg-once-20k',
+      from: { id: 91005, username: 'discount-buyer', first_name: 'Discount' }
+    }
+  });
+  const discountReview = calls.find((call) => (
+    call.url.includes('/sendMessage') && call.body.text.includes('Mã giảm giá hợp lệ')
+  ));
+  assert.ok(discountReview, 'A valid code should show the discounted checkout total.');
+  assert.match(discountReview.body.text, /79\.000 VND/);
+  const discountConfirmButton = discountReview.body.reply_markup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith('discount_confirm:'));
+  assert.ok(discountConfirmButton);
+
+  calls.length = 0;
+  await telegram.handleTelegramUpdate({
+    callback_query: {
+      id: 'cb_discount_confirm',
+      data: discountConfirmButton.callback_data,
+      message: { chat: { id: 91005, type: 'private' }, message_id: 71 },
+      from: { id: 91005, username: 'discount-buyer', first_name: 'Discount' }
+    }
+  });
+  db = await storage.readStore();
+  const discountOrder = db.orders.find((item) => item.discount?.code === 'TG-ONCE-20K');
+  assert.ok(discountOrder, 'Discount confirmation should persist the code snapshot on the order.');
+  assert.equal(discountOrder.subtotal, 99000);
+  assert.equal(discountOrder.discount.amount, 20000);
+  assert.equal(discountOrder.total, 79000);
+  assert.ok(calls.some((call) => (
+    call.url.includes('/sendPhoto') && String(call.body.photo).includes('amount=79000')
+  )), 'Discount checkout QR should use the reduced total.');
+
+  console.log(JSON.stringify({ ok: true, checked: 'inventory, Seat email and one-time discount Telegram checkouts' }, null, 2));
 } finally {
   await rm(dataFile, { force: true });
   await rm(startImageFile, { force: true });
