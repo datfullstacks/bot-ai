@@ -40,6 +40,16 @@ function enabled(value, fallback = false) {
   return String(value).trim().toLowerCase() === 'true';
 }
 
+function timeZone(value, name) {
+  const zone = String(value || '').trim();
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone }).format(new Date());
+  } catch {
+    throw new Error(`${name} must be a valid IANA time zone`);
+  }
+  return zone;
+}
+
 function accountRefsBySku(value, name) {
   const raw = String(value || '').trim();
   if (!raw) return {};
@@ -116,6 +126,9 @@ export const config = {
   inventory: {
     encryptionKey: process.env.INVENTORY_ENCRYPTION_KEY || ''
   },
+  analytics: {
+    timeZone: timeZone(process.env.ANALYTICS_TIME_ZONE || 'Asia/Bangkok', 'ANALYTICS_TIME_ZONE')
+  },
   auth: {
     secret: process.env.AUTH_SECRET || generatedSecret,
     secureCookie: process.env.NODE_ENV === 'production'
@@ -161,6 +174,11 @@ export const config = {
       order: process.env.TELEGRAM_ORDER_STICKER_ID || '',
       delivery: process.env.TELEGRAM_DELIVERY_STICKER_ID || ''
     }
+  },
+  gemini: {
+    apiKey: String(process.env.GEMINI_API_KEY || '').trim(),
+    model: String(process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim(),
+    requestTimeoutMs: boundedEnv('GEMINI_REQUEST_TIMEOUT_MS', 15_000, { min: 1_000, max: 120_000 })
   },
   payment: {
     provider: process.env.PAYMENT_PROVIDER || 'mock',

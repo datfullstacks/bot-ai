@@ -1614,7 +1614,7 @@ export function productMessage(products) {
       grouped.push('', bold(categoryLabel(product.category)), bold(brandLabel(product.brand)));
     }
     grouped.push([
-      bold(product.name),
+      bold([product.emoji, product.name].filter(Boolean).join(' ')),
       product.packageType ? `${uiTextEmoji('offers')} Gói: ${escapeHtml(product.packageType)}` : '',
       `${uiTextEmoji('promotions')} SKU: ${code(product.sku)}`,
       `${sloganTextEmoji('payment')} Giá: ${escapeHtml(money(product.price, product.currency))}`,
@@ -2078,7 +2078,7 @@ export function productDetailMessage(product) {
   const normalized = normalizePublicProduct(product);
   const available = availableStock(normalized);
   return [
-    `${brandHtmlLabel(normalized.brand)} <b>${escapeHtml(normalized.name)}</b>`,
+    `${brandHtmlLabel(normalized.brand)} <b>${normalized.emoji ? `${escapeHtml(normalized.emoji)} ` : ''}${escapeHtml(normalized.name)}</b>`,
     normalized.packageType ? `${newsEmoji('shopping-bag')} Gói: ${escapeHtml(normalized.packageType)}` : '',
     '',
     `${newsEmoji('info')} Mô tả: ${policyText(normalized.description)}`,
@@ -2127,7 +2127,7 @@ export function confirmationMessage(product, quantity = 1) {
   return [
     `${newsEmoji('check')} <b>Xác nhận mua</b>`,
     '',
-    `${newsEmoji('shopping-bag')} Sản phẩm: ${escapeHtml(normalized.name)}`,
+    `${newsEmoji('shopping-bag')} Sản phẩm: ${normalized.emoji ? `${escapeHtml(normalized.emoji)} ` : ''}${escapeHtml(normalized.name)}`,
     `${newsEmoji('chart')} Số lượng: ${qty}`,
     `${newsEmoji('dollar')} Đơn giá: ${escapeHtml(money(normalized.price, normalized.currency))}`,
     `${newsEmoji('dollar')} Tổng tiền: <b>${escapeHtml(money(normalized.price * qty, normalized.currency))}</b>`,
@@ -2142,7 +2142,7 @@ export function seatEmailPromptMessage(product) {
   const normalized = normalizePublicProduct(product);
   return [
     `${newsEmoji('info')} <b>Nhập email nhận Seat</b>`,
-    `${newsEmoji('shopping-bag')} Sản phẩm: ${escapeHtml(normalized.name)}`,
+    `${newsEmoji('shopping-bag')} Sản phẩm: ${normalized.emoji ? `${escapeHtml(normalized.emoji)} ` : ''}${escapeHtml(normalized.name)}`,
     `${newsEmoji('dollar')} Đơn giá mỗi Seat: ${escapeHtml(money(normalized.price, normalized.currency))}`,
     '',
     `Gửi từ 1 đến ${config.orders.maxQuantity} email, <b>mỗi email đúng một dòng</b>.`,

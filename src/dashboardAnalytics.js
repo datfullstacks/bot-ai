@@ -28,19 +28,45 @@ function completeBreakdown(input = {}, keys = []) {
   return output;
 }
 
-function dayKey(value) {
+function dayKey(value, timeZone) {
   const timestamp = Date.parse(String(value || ''));
-  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(0, 10) : '';
+  if (!Number.isFinite(timestamp)) return '';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(timestamp));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
-function dateKeys(days, now = new Date()) {
-  const today = new Date(now);
-  today.setUTCHours(0, 0, 0, 0);
+function dateKeys(days, now = new Date(), timeZone = 'Asia/Bangkok') {
+  const currentKey = dayKey(now, timeZone);
+  const today = new Date(`${currentKey}T12:00:00.000Z`);
   return Array.from({ length: days }, (_, index) => {
     const date = new Date(today);
     date.setUTCDate(today.getUTCDate() - (days - index - 1));
     return date.toISOString().slice(0, 10);
   });
+}
+
+function daySnapshot(orders, date, timeZone) {
+  const snapshot = { date, orders: 0, paidOrders: 0, deliveredOrders: 0, revenue: 0 };
+  for (const order of orders) {
+    if (dayKey(order.createdAt, timeZone) === date) snapshot.orders += 1;
+    const revenueOrder = REVENUE_ORDER_STATUSES.has(String(order.status || ''));
+    const revenueAt = order.paidAt || order.deliveredAt || order.createdAt;
+    if (revenueOrder && dayKey(revenueAt, timeZone) === date) {
+      snapshot.paidOrders += 1;
+      snapshot.revenue += Number(order.total || 0);
+    }
+    const deliveredAt = order.deliveredAt || order.paidAt || order.createdAt;
+    if (String(order.status || '') === 'delivered' && dayKey(deliveredAt, timeZone) === date) {
+      snapshot.deliveredOrders += 1;
+    }
+  }
+  return snapshot;
 }
 
 function deltaPercent(current, previous) {
@@ -68,9 +94,10 @@ export function buildDashboardAnalytics({
   orderStatusBreakdown = null,
   paymentStatusBreakdown = null,
   now = new Date(),
-  days = 30
+  days = 30,
+  timeZone = 'Asia/Bangkok'
 } = {}) {
-  const keys = dateKeys(days, now);
+  const keys = dateKeys(days, now, timeZone);
   const keySet = new Set(keys);
   const dailyByDate = new Map(keys.map((date) => [date, {
     date,
@@ -82,7 +109,7 @@ export function buildDashboardAnalytics({
   const topProducts = new Map();
 
   for (const order of orders) {
-    const date = dayKey(order.createdAt);
+    const date = dayKey(order.createdAt, timeZone);
     if (!keySet.has(date)) continue;
     const day = dailyByDate.get(date);
     day.orders += 1;
@@ -111,6 +138,8 @@ export function buildDashboardAnalytics({
   const current7d = sumDaily(daily, Math.max(0, daily.length - 7), daily.length);
   const previous7d = sumDaily(daily, Math.max(0, daily.length - 14), Math.max(0, daily.length - 7));
   const period30d = sumDaily(daily, 0, daily.length);
+  const todaySnapshot = daySnapshot(orders, keys.at(-1), timeZone);
+  const yesterdaySnapshot = daySnapshot(orders, keys.at(-2), timeZone);
   const statuses = completeBreakdown(orderStatusBreakdown || countBy(orders, 'status'), ORDER_STATUSES);
   const inventoryCounts = completeBreakdown(inventoryBreakdown || countBy(inventory, 'status'), INVENTORY_STATUSES);
   const paymentCounts = completeBreakdown(paymentStatusBreakdown || countBy(payments, 'status'));
@@ -121,7 +150,14 @@ export function buildDashboardAnalytics({
   return {
     generatedAt: new Date(now).toISOString(),
     windowDays: days,
+    timeZone,
     daily,
+    today: {
+      ...todaySnapshot,
+      revenueDeltaPercent: deltaPercent(todaySnapshot.revenue, yesterdaySnapshot.revenue),
+      orderDeltaPercent: deltaPercent(todaySnapshot.orders, yesterdaySnapshot.orders)
+    },
+    yesterday: yesterdaySnapshot,
     current7d: {
       ...current7d,
       revenueDeltaPercent: deltaPercent(current7d.revenue, previous7d.revenue),

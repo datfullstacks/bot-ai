@@ -29,7 +29,14 @@ for (const id of [
   'productCreateContent',
   'productCreateToggleMeta',
   'productCreateDraftStatus',
+  'productAiTitle',
+  'productAiBadge',
+  'productAiPrompt',
+  'productAiGenerate',
+  'productAiStatus',
   'productBrandInput',
+  'productEmojiInput',
+  'productEmojiPreview',
   'productNameInput',
   'productSkuInput',
   'productSkuGenerate',
@@ -51,8 +58,17 @@ for (const id of [
   'productGroupSummary',
   'discountsTab',
   'discountForm',
+  'discountCreateToggle',
+  'discountCreatePanel',
+  'discountCreateClose',
   'discountCodeInput',
   'discountGenerateBtn',
+  'discountValueInput',
+  'discountValueSuffix',
+  'discountCreateChecklist',
+  'discountFormError',
+  'discountFormReset',
+  'discountFormSubmit',
   'discountCodeCount',
   'discountCodesList',
   'discountMetricTotal',
@@ -107,7 +123,15 @@ for (const id of [
   'orderStatusChart',
   'topProductsChart',
   'operationsFunnel',
-  'analyticsGeneratedAt'
+  'analyticsGeneratedAt',
+  'todayOverviewTitle',
+  'todayDateLabel',
+  'todayRevenue',
+  'todayRevenueMeta',
+  'todayOrders',
+  'todayOrdersMeta',
+  'todayPaidOrders',
+  'todayDeliveredOrders'
 ]) {
   assert.ok(html.includes(`id="${id}"`), `Admin HTML should include #${id}.`);
 }
@@ -133,6 +157,9 @@ assert.ok(html.includes('type="radio" name="fulfillmentMode"'), 'Create-product 
 assert.ok(html.includes('data-product-inventory-fields'), 'Create-product flow should expose inventory-only controls.');
 assert.ok(html.includes('data-product-seat-fields'), 'Create-product flow should expose Seat-only controls.');
 assert.ok(html.includes('data-product-seat-term="12"'), 'Create-product flow should provide quick Seat-term presets.');
+assert.ok(html.includes('data-product-brand="Gemini"'), 'Create-product flow should expose Gemini as a visible brand preset.');
+assert.ok(html.includes('data-product-emoji="✨"'), 'Create-product flow should expose an accessible product emoji picker.');
+assert.ok(html.includes('/brand/Gemini.png'), 'Gemini assistant and brand preset should use the exact local logo.');
 assert.ok(html.includes('<details class="product-optional-details">'), 'Optional policies should not crowd primary fields.');
 assert.ok(html.includes('role="progressbar"'), 'Create-product flow should expose accessible completion progress.');
 assert.ok(js.includes('deliveryMode.disabled = seatEmail'), 'Hidden inventory fields should not be submitted for Seat products.');
@@ -147,6 +174,9 @@ for (const fn of [
   'filteredDiscountCodes',
   'renderDiscountMetrics',
   'renderDiscountFormPreview',
+  'newDiscountCode',
+  'setDiscountCreateOpen',
+  'resetDiscountForm',
   'copyDiscountCode',
   'syncNotificationForm',
   'renderNotifications',
@@ -154,6 +184,9 @@ for (const fn of [
   'setSidebarOpen',
   'setButtonBusy',
   'setProductCreateOpen',
+  'defaultProductEmoji',
+  'loadProductAssistantStatus',
+  'applyGeminiProductDraft',
   'productSkuSlug',
   'generateProductSku',
   'renderProductCreateExperience',
@@ -162,6 +195,7 @@ for (const fn of [
   'filteredProducts',
   'renderProductCard',
   'renderProductEditor',
+  'todayDeltaLabel',
   'renderCatalogPricingProducts',
   'catalogBasePrices',
   'resolvedCatalogBasePrice',
@@ -193,7 +227,11 @@ assert.ok(js.includes("event.key === 'Escape'"), 'The mobile navigation drawer s
 assert.ok(js.includes("setAttribute('aria-expanded'"), 'The mobile navigation trigger should expose its expanded state.');
 assert.ok(js.includes('closeSidebarAndRestoreFocus'), 'Closing the mobile drawer should return focus to its trigger.');
 assert.ok(html.includes('data-dashboard-range="7"'), 'Overview trend chart should expose a seven-day range.');
+assert.ok(html.includes('data-dashboard-range="1"'), 'Overview trend chart should expose a today range.');
 assert.ok(html.includes('data-dashboard-range="30"'), 'Overview trend chart should expose a thirty-day range.');
+assert.ok(html.includes('Nhịp vận hành trong ngày'), 'Overview should expose a dedicated today snapshot.');
+assert.ok(js.includes('analytics.today'), 'Overview should render the backend today analytics contract.');
+assert.ok(js.includes("days === 1 && analytics?.today"), 'The today chart should use payment-time today metrics.');
 assert.ok(html.includes('aria-pressed="true"'), 'The active chart range should expose its pressed state.');
 assert.ok(html.includes('class="stat-icon"'), 'Overview statistics should include visual metric icons.');
 assert.ok(html.includes('class="auth-security"'), 'Login should expose the protected-admin trust cue.');
@@ -255,6 +293,8 @@ assert.ok(server.includes("pathname === '/api/notifications/campaigns'"), 'Serve
 assert.ok(server.includes("routeParams('/api/notifications/campaigns/:id/send'"), 'Server should expose queued notification sending.');
 assert.ok(notificationCenter.includes('DEFAULT_NOTIFICATION_PREFERENCES'), 'Notification preferences should have explicit safe defaults.');
 assert.ok(notificationCenter.includes('userAllowsNotification'), 'Campaign targeting should honor user opt-in preferences.');
+assert.ok(notificationCenter.includes('buildInventoryRestockNotification'), 'Successful inventory imports should build a stock notification campaign.');
+assert.ok(server.includes('inventory notification'), 'Inventory imports should queue their restock notification asynchronously.');
 assert.ok(jsonShopStore.includes('claimNotificationCampaign'), 'JSON storage should claim notification campaigns idempotently.');
 assert.ok(postgresShopStore.includes('claimNotificationCampaign'), 'Postgres storage should claim notification campaigns transactionally.');
 assert.ok(postgresStore.includes("notificationCampaigns: 'notificationCampaigns'"), 'Document snapshots should persist notification campaigns.');
@@ -270,6 +310,11 @@ assert.ok(discountCodes.includes('reservedByUserId'), 'Admin discount data shoul
 assert.ok(discountCodes.includes('usedByUserId'), 'Admin discount data should expose the user who consumed a code.');
 assert.ok(html.includes('name="campaignName"'), 'Discount creation should capture an internal campaign name.');
 assert.ok(html.includes('name="internalNote"'), 'Discount creation should capture a private operations note.');
+assert.ok(html.includes('id="discountCreateToggle"') && html.includes('aria-controls="discountCreatePanel"'), 'Discount creation should use an accessible reveal control.');
+assert.ok(html.includes('id="discountForm" class="panel discount-create-panel hidden"'), 'Discount builder should stay collapsed until the operator needs it.');
+assert.ok(html.includes('data-discount-value="50000"'), 'Discount builder should expose quick value presets.');
+assert.ok(html.includes('data-discount-expiry-days="none"'), 'Discount builder should expose a no-expiry shortcut.');
+assert.ok(html.includes('<details class="discount-optional-details">'), 'Private voucher notes should not crowd the primary workflow.');
 assert.ok(js.includes('toggle-discount-detail'), 'Discount rows should expose lifecycle details.');
 assert.ok(js.includes('copy-discount-code'), 'Discount rows should provide a copy action.');
 assert.ok(jsonShopStore.includes('consumeDiscountReservation'), 'JSON checkout should consume a reserved code after payment.');
@@ -287,7 +332,7 @@ assert.ok(jsonShopStore.includes('buildDashboardAnalytics'), 'JSON dashboard sum
 assert.ok(postgresShopStore.includes('analyticsOrders'), 'Postgres dashboard summary should aggregate a bounded analytics window.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
-for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
+for (const field of ['emoji', 'description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
   assert.ok(html.includes(`name="${field}"`), `Create product form should expose ${field}.`);
   assert.ok(js.includes(`name="${field}"`), `Product editor should expose ${field}.`);
 }
@@ -343,6 +388,9 @@ for (const field of ['automation.attempt', 'automation.retryCount', 'automation.
 }
 assert.ok(server.includes("isSeatEmailFulfillment(delivery.order?.productSnapshot)"), 'Seat completion notices should be resendable without inventory secrets.');
 assert.ok(catalogSeed.includes('fulfillmentMode: product.fulfillmentMode'), 'Catalog seed should synchronize fulfillment mode.');
+assert.ok(server.includes("pathname === '/api/products/ai-assistant'"), 'Server should expose the authenticated Gemini product assistant.');
+assert.ok(js.includes("api('/api/products/ai-assistant'"), 'Admin should request Gemini drafts without exposing the API key.');
+assert.ok(js.includes('result.draft'), 'Admin should apply the structured Gemini draft to the create form.');
 
 for (const selector of [
   '.toolbar',
@@ -360,6 +408,12 @@ for (const selector of [
   '.editor-section',
   '.discount-code-field',
   '.discount-form-grid',
+  '.discount-create-workspace',
+  '.discount-builder-section',
+  '.discount-builder-aside',
+  '.discount-ticket',
+  '.discount-create-checklist',
+  '.discount-empty-state',
   '.discount-code-token',
   '.discount-table',
   '.discount-metrics',
@@ -394,6 +448,9 @@ for (const selector of [
   '.pricing-table',
   '.accordion-toggle',
   '.product-create-workspace',
+  '.product-ai-assistant',
+  '.product-brand-presets',
+  '.product-emoji-presets',
   '.product-mode-option',
   '.product-create-aside',
   '.product-create-preview',
@@ -403,6 +460,9 @@ for (const selector of [
   '.pricing-row.has-override',
   '.base-price-row.has-base-price',
   '.analytics-grid',
+  '.overview-today',
+  '.overview-today-grid',
+  '.today-metric',
   '.trend-svg',
   '.status-donut',
   '.top-products-chart',

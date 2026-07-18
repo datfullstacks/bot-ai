@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { config } from './config.js';
 import { isSeatEmailFulfillment } from './catalog.js';
+import { generateGeminiProductDraft, geminiProductAssistantStatus } from './geminiProductAssistant.js';
+import { buildInventoryRestockNotification } from './notificationCenter.js';
 import { clearSessionCookie, loginForRequest, logout, makeSessionCookie, requireAdmin } from './auth.js';
 import { initStore, readStore } from './storage.js';
 import {
@@ -356,6 +358,21 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, await listProducts({ includeInactive: true }));
   }
 
+  if (pathname === '/api/products/ai-assistant' && req.method === 'GET') {
+    return sendJson(res, 200, geminiProductAssistantStatus(), { 'cache-control': 'no-store' });
+  }
+
+  if (pathname === '/api/products/ai-assistant' && req.method === 'POST') {
+    const { body } = await readJson(req);
+    const result = await generateGeminiProductDraft(body);
+    await recordAudit(admin.id, 'product.ai_draft', 'product_draft', result.draft.sku || 'unsaved', {
+      model: result.model,
+      brand: result.draft.brand,
+      sku: result.draft.sku
+    });
+    return sendJson(res, 200, result, { 'cache-control': 'no-store' });
+  }
+
   if (req.method === 'GET' && pathname === '/api/telegram-pricing') {
     return sendJson(res, 200, await getTelegramPricingOverview(), { 'cache-control': 'no-store' });
   }
@@ -435,7 +452,24 @@ async function handleApi(req, res, url) {
   if (params && req.method === 'POST') {
     const { body } = await readJson(req);
     const lines = Array.isArray(body.items) ? body.items : String(body.items || '').split(/\r?\n/);
-    return sendJson(res, 201, await importInventory(admin.id, params.id, lines));
+    const result = await importInventory(admin.id, params.id, lines);
+    let notification = null;
+    const campaignInput = buildInventoryRestockNotification(result.product, result);
+    if (campaignInput) {
+      try {
+        const campaign = await createNotificationCampaign(admin.id, campaignInput);
+        notification = { campaignId: campaign.id, queued: true };
+        setImmediate(() => {
+          sendNotificationCampaign(campaign.id, { actorId: admin.id }).catch((error) => {
+            console.error(`[telegram] inventory notification ${campaign.id} failed:`, error.message);
+          });
+        });
+      } catch (error) {
+        notification = { queued: false, error: error.message };
+        console.error(`[telegram] inventory notification setup failed for ${params.id}:`, error.message);
+      }
+    }
+    return sendJson(res, 201, { ...result, notification });
   }
 
   if (req.method === 'GET' && pathname === '/api/inventory') {

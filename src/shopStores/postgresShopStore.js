@@ -5,6 +5,7 @@ import {
   isSeatEmailFulfillment,
   normalizeDeliveryMode,
   normalizeFulfillmentMode,
+  normalizeProductEmoji,
   normalizeProductInput,
   normalizePublicProduct
 } from '../catalog.js';
@@ -361,7 +362,9 @@ export async function getDashboardSummary() {
     `);
     const analyticsStart = new Date();
     analyticsStart.setUTCHours(0, 0, 0, 0);
-    analyticsStart.setUTCDate(analyticsStart.getUTCDate() - 29);
+    // Include a full UTC-day buffer; the aggregator applies the configured
+    // business time zone and removes rows outside its exact 30 date keys.
+    analyticsStart.setUTCDate(analyticsStart.getUTCDate() - 30);
     const analyticsOrders = await client.query(
       `SELECT doc
        FROM app_documents
@@ -396,7 +399,8 @@ export async function getDashboardSummary() {
         orders: analyticsOrders.rows.map((row) => row.doc),
         inventoryBreakdown: breakdown('inventory'),
         orderStatusBreakdown: breakdown('orders'),
-        paymentStatusBreakdown: breakdown('payments')
+        paymentStatusBreakdown: breakdown('payments'),
+        timeZone: config.analytics.timeZone
       }),
       recentOrders: recentOrders.rows.map((row) => publicOrder(row.doc)),
       lowStock: products.filter((product) => (
@@ -1013,6 +1017,7 @@ export async function updateProduct(actorId, productId, input) {
     ]) {
       if (input[key] !== undefined) product[key] = String(input[key]);
     }
+    if (input.emoji !== undefined) product.emoji = normalizeProductEmoji(input.emoji, { strict: true });
     if (input.price !== undefined) product.price = Number(input.price);
     if (input.sortOrder !== undefined) product.sortOrder = Number(input.sortOrder || 1000);
     if (input.active !== undefined) product.active = Boolean(input.active);
@@ -1074,6 +1079,7 @@ export async function importInventory(actorId, productId, lines) {
     const existingFingerprints = new Set(existing.rows.map(({ doc }) => (
       inventorySecretFingerprint(decryptInventorySecret(doc.secret))
     )));
+    const availableBefore = existing.rows.filter(({ doc }) => doc.status === 'available').length;
     const secrets = requested.filter((secret) => !existingFingerprints.has(inventorySecretFingerprint(secret)));
     for (const secret of secrets) {
       await insertDoc(client, 'inventory', {
@@ -1096,7 +1102,15 @@ export async function importInventory(actorId, productId, lines) {
     });
     return {
       imported: secrets.length,
-      skippedDuplicates: requested.length - secrets.length
+      skippedDuplicates: requested.length - secrets.length,
+      availableBefore,
+      availableAfter: availableBefore + secrets.length,
+      product: {
+        id: productRow.doc.id,
+        sku: productRow.doc.sku,
+        name: productRow.doc.name,
+        active: productRow.doc.active !== false
+      }
     };
   });
 }
@@ -1291,6 +1305,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         description: product.description || '',
         category: product.category || '',
         brand: product.brand || '',
+        emoji: product.emoji || '',
         packageType: product.packageType || '',
         accountType: product.accountType || '',
         warrantyPolicy: product.warrantyPolicy || '',

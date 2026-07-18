@@ -26,6 +26,7 @@ for (const product of DEFAULT_CATALOG_PRODUCTS) {
       description: product.description,
       category: product.category,
       brand: product.brand,
+      ...(product.emoji ? { emoji: product.emoji } : {}),
       packageType: product.packageType,
       price: product.price,
       currency: product.currency,

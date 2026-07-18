@@ -163,3 +163,22 @@ export function notificationDeliverySummary(deliveries = []) {
     clicked: deliveries.filter((item) => item.clickedAt).length
   };
 }
+
+export function buildInventoryRestockNotification(product = {}, importResult = {}) {
+  const imported = Number(importResult.imported || 0);
+  if (imported <= 0 || product.active === false || !String(product.sku || '').trim()) return null;
+  const availableBefore = Math.max(0, Number(importResult.availableBefore || 0));
+  const availableAfter = Math.max(availableBefore + imported, Number(importResult.availableAfter || 0));
+  const productName = String(product.name || product.sku).trim();
+  const returnedToStock = availableBefore === 0;
+  return {
+    title: returnedToStock ? `${productName} vừa có hàng trở lại` : `${productName} vừa được bổ sung hàng`,
+    message: `Shop vừa bổ sung ${imported.toLocaleString('vi-VN')} mục vào kho. Hiện có ${availableAfter.toLocaleString('vi-VN')} mục sẵn sàng giao tự động.`,
+    category: 'stock',
+    emojiKey: 'shopping-bag',
+    audienceType: 'subscribers',
+    ctaType: 'product',
+    ctaValue: product.sku,
+    ctaLabel: 'Xem sản phẩm'
+  };
+}

@@ -34,10 +34,26 @@ global.fetch = async (url, options = {}) => {
 const storage = await import('../src/storage.js');
 const shop = await import('../src/shop.js');
 const telegram = await import('../src/telegram.js');
+const notificationDomain = await import('../src/notificationCenter.js');
 
 try {
   await storage.initStore();
   const actorId = 'notification-test-admin';
+  const restock = notificationDomain.buildInventoryRestockNotification(
+    { sku: 'chatgpt-plus-1m', name: 'ChatGPT Plus', active: true },
+    { imported: 5, availableBefore: 0, availableAfter: 5 }
+  );
+  assert.equal(restock.category, 'stock');
+  assert.equal(restock.ctaValue, 'chatgpt-plus-1m');
+  assert.match(restock.title, /có hàng trở lại/);
+  assert.equal(notificationDomain.buildInventoryRestockNotification(
+    { sku: 'chatgpt-plus-1m', name: 'ChatGPT Plus', active: true },
+    { imported: 0, availableBefore: 5, availableAfter: 5 }
+  ), null, 'Duplicate-only imports should not create a notification.');
+  assert.equal(notificationDomain.buildInventoryRestockNotification(
+    { sku: 'hidden-product', name: 'Hidden', active: false },
+    { imported: 1, availableBefore: 0, availableAfter: 1 }
+  ), null, 'Inactive products should not notify users.');
   const optedIn = await shop.upsertTelegramUser({ id: 'notify-opted-in', username: 'notify_yes', first_name: 'Yes' });
   const defaultUser = await shop.upsertTelegramUser({ id: 'notify-default', username: 'notify_default', first_name: 'Default' });
   const blockedUser = await shop.upsertTelegramUser({ id: 'notify-blocked', username: 'notify_blocked', first_name: 'Blocked' });
@@ -105,7 +121,7 @@ try {
 
   console.log(JSON.stringify({
     ok: true,
-    checked: 'notification preferences, segmentation, scheduling, delivery, blocked users and CTA tracking'
+    checked: 'notification preferences, inventory restock, segmentation, scheduling, delivery, blocked users and CTA tracking'
   }, null, 2));
 } finally {
   await rm(dataFile, { force: true });

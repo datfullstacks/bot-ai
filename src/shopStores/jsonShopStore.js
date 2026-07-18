@@ -4,6 +4,7 @@ import {
   isSeatEmailFulfillment,
   normalizeDeliveryMode,
   normalizeFulfillmentMode,
+  normalizeProductEmoji,
   normalizeProductInput
 } from '../catalog.js';
 import {
@@ -204,7 +205,8 @@ export async function getDashboardSummary() {
       products: db.products,
       inventory: db.inventory,
       orders: db.orders,
-      payments: db.payments
+      payments: db.payments,
+      timeZone: config.analytics.timeZone
     }),
     recentOrders: db.orders.slice(-8).reverse().map(publicOrder),
     lowStock: db.products
@@ -692,6 +694,7 @@ export async function updateProduct(actorId, productId, input) {
     ]) {
       if (input[key] !== undefined) product[key] = String(input[key]);
     }
+    if (input.emoji !== undefined) product.emoji = normalizeProductEmoji(input.emoji, { strict: true });
     if (input.price !== undefined) product.price = Number(input.price);
     if (input.sortOrder !== undefined) product.sortOrder = Number(input.sortOrder || 1000);
     if (input.active !== undefined) product.active = Boolean(input.active);
@@ -742,6 +745,7 @@ export async function importInventory(actorId, productId, lines) {
     }
 
     assertInventoryEncryptionReadyForImport();
+    const availableBefore = db.inventory.filter((item) => item.productId === productId && item.status === 'available').length;
     const requested = [...new Set(lines.map((line) => String(line).trim()).filter(Boolean))];
     const existingFingerprints = new Set(
       db.inventory
@@ -769,7 +773,15 @@ export async function importInventory(actorId, productId, lines) {
     });
     return {
       imported: created.length,
-      skippedDuplicates: requested.length - created.length
+      skippedDuplicates: requested.length - created.length,
+      availableBefore,
+      availableAfter: availableBefore + created.length,
+      product: {
+        id: product.id,
+        sku: product.sku,
+        name: product.name,
+        active: product.active !== false
+      }
     };
   });
 }
@@ -889,6 +901,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         description: product.description || '',
         category: product.category || '',
         brand: product.brand || '',
+        emoji: product.emoji || '',
         packageType: product.packageType || '',
         accountType: product.accountType || '',
         warrantyPolicy: product.warrantyPolicy || '',

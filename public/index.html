@@ -112,6 +112,19 @@
             <div class="stat stat-review"><span class="stat-icon" data-lucide="shield-alert"></span><div class="stat-copy"><span>Cần kiểm tra</span><strong id="statReview">0</strong><small id="statReviewMeta">0 hoàn tiền</small></div></div>
             <div class="stat stat-revenue"><span class="stat-icon" data-lucide="chart-no-axes-combined"></span><div class="stat-copy"><span>Doanh thu · Revenue</span><strong id="statRevenue">0 VND</strong><small id="statRevenueMeta">AOV 30 ngày: 0 VND</small></div></div>
           </div>
+          <section class="overview-today" aria-labelledby="todayOverviewTitle">
+            <div class="overview-today-head">
+              <span class="overview-today-icon" data-lucide="calendar-days" aria-hidden="true"></span>
+              <div><span class="chart-kicker">Nhịp vận hành trong ngày</span><h2 id="todayOverviewTitle">Hôm nay</h2></div>
+              <span id="todayDateLabel" class="chart-updated">—</span>
+            </div>
+            <div class="overview-today-grid">
+              <div class="today-metric today-revenue"><span>Doanh thu ghi nhận</span><strong id="todayRevenue">0 VND</strong><small id="todayRevenueMeta">So với hôm qua</small></div>
+              <div class="today-metric"><span>Đơn được tạo</span><strong id="todayOrders">0</strong><small id="todayOrdersMeta">So với hôm qua</small></div>
+              <div class="today-metric"><span>Đã thanh toán</span><strong id="todayPaidOrders">0</strong><small>Đơn phát sinh doanh thu hôm nay</small></div>
+              <div class="today-metric"><span>Đã giao</span><strong id="todayDeliveredOrders">0</strong><small>Hoàn tất trong ngày</small></div>
+            </div>
+          </section>
           <div class="analytics-grid analytics-grid-primary">
             <section class="panel chart-panel trend-panel">
               <div class="panel-head chart-panel-head">
@@ -121,6 +134,7 @@
                   <p class="panel-subtitle" id="trendChartSummary">Theo dõi xu hướng vận hành theo ngày</p>
                 </div>
                 <div class="chart-range" aria-label="Chọn khoảng thời gian">
+                  <button class="chart-range-button" type="button" data-dashboard-range="1" aria-pressed="false">Hôm nay</button>
                   <button class="chart-range-button" type="button" data-dashboard-range="7" aria-pressed="false">7N</button>
                   <button class="chart-range-button active" type="button" data-dashboard-range="14" aria-pressed="true">14N</button>
                   <button class="chart-range-button" type="button" data-dashboard-range="30" aria-pressed="false">30N</button>
@@ -211,6 +225,20 @@
 
                 <div class="product-create-workspace">
                   <div class="product-create-fields">
+                    <section class="product-ai-assistant" aria-labelledby="productAiTitle">
+                      <div class="product-ai-head">
+                        <span class="product-ai-logo"><img src="/brand/Gemini.png" alt="" aria-hidden="true"></span>
+                        <span><strong id="productAiTitle">Phác thảo với Gemini</strong><small>Gemini chỉ gợi ý nội dung; bạn vẫn kiểm tra và bấm tạo sản phẩm.</small></span>
+                        <span id="productAiBadge" class="badge reserved">Đang kiểm tra</span>
+                      </div>
+                      <label for="productAiPrompt">Mô tả sản phẩm bạn muốn bán</label>
+                      <div class="product-ai-compose">
+                        <textarea id="productAiPrompt" rows="3" maxlength="2000" placeholder="Ví dụ: Gemini Advanced 1 tháng, giao tài khoản từ kho, mô tả ngắn gọn cho người dùng học tập và research"></textarea>
+                        <button id="productAiGenerate" class="secondary" type="button"><span data-lucide="sparkles" aria-hidden="true"></span><span>Tạo bản nháp</span></button>
+                      </div>
+                      <div class="product-ai-foot"><span id="productAiStatus" role="status" aria-live="polite">Điền mô tả hoặc vài trường bên dưới để Gemini hoàn thiện bản nháp.</span><small>Nội dung AI không tự lưu và không thay đổi giá bán.</small></div>
+                    </section>
+
                     <fieldset class="editor-section product-fulfillment-picker">
                       <legend><span data-lucide="route" aria-hidden="true"></span>1. Chọn cách giao hàng</legend>
                       <p>Cấu hình này quyết định đơn hàng dùng kho mã hay quy trình mời Seat.</p>
@@ -235,11 +263,21 @@
                       <p>Các trường có dấu <span class="required-mark">*</span> là bắt buộc và sẽ xuất hiện trong catalog.</p>
                       <div class="editor-grid create-editor-grid">
                         <label>Danh mục <span class="required-mark">*</span><input name="category" list="productCategoryOptions" placeholder="AI Accounts" value="AI Accounts" required autocomplete="off"></label>
-                        <label>Thương hiệu <span class="required-mark">*</span><input id="productBrandInput" name="brand" list="productBrandOptions" placeholder="Ví dụ: ChatGPT" required autocomplete="off"></label>
+                        <div class="product-brand-field">
+                          <label>Thương hiệu <span class="required-mark">*</span><input id="productBrandInput" name="brand" list="productBrandOptions" placeholder="Ví dụ: Gemini" required autocomplete="off"></label>
+                          <div class="product-brand-presets" aria-label="Chọn nhanh thương hiệu">
+                            <button type="button" data-product-brand="Gemini"><img src="/brand/Gemini.png" alt=""><span>Gemini</span></button>
+                            <button type="button" data-product-brand="ChatGPT"><img src="/brand/ChatGPT.png" alt=""><span>ChatGPT</span></button>
+                            <button type="button" data-product-brand="Claude"><img src="/brand/Claude.png" alt=""><span>Claude</span></button>
+                            <button type="button" data-product-brand="Canva"><span aria-hidden="true">🎨</span><span>Canva</span></button>
+                          </div>
+                        </div>
                         <datalist id="productCategoryOptions"><option value="AI Accounts"></option><option value="Design"></option><option value="Productivity"></option><option value="Social Accounts"></option><option value="Developer Tools"></option></datalist>
                         <datalist id="productBrandOptions"><option value="ChatGPT"></option><option value="Claude"></option><option value="Canva"></option><option value="Gemini"></option><option value="Perplexity"></option><option value="Cursor"></option><option value="Figma"></option><option value="Microsoft"></option><option value="Google Workspace"></option></datalist>
                         <label>Gói sản phẩm<input name="packageType" placeholder="Ví dụ: Plus 1M"><small class="field-help">Tên gói ngắn gọn, chẳng hạn Pro 1M hoặc Business Seat.</small></label>
-                        <label>Tên hiển thị <span class="required-mark">*</span><input id="productNameInput" name="name" placeholder="Ví dụ: ChatGPT Plus - 1 tháng" required></label>
+                        <label>Emoji sản phẩm<span class="product-emoji-input"><input id="productEmojiInput" name="emoji" maxlength="32" placeholder="✨" autocomplete="off"><span id="productEmojiPreview" aria-hidden="true">📦</span></span><small class="field-help">Một emoji xuất hiện trong catalog và tin nhắn Telegram.</small></label>
+                        <div class="editor-span-2 product-emoji-presets" aria-label="Chọn nhanh emoji sản phẩm"><button type="button" data-product-emoji="✨" aria-label="Tia sáng">✨</button><button type="button" data-product-emoji="🤖" aria-label="Robot">🤖</button><button type="button" data-product-emoji="🧠" aria-label="Bộ não">🧠</button><button type="button" data-product-emoji="🎨" aria-label="Bảng màu">🎨</button><button type="button" data-product-emoji="🚀" aria-label="Tên lửa">🚀</button><button type="button" data-product-emoji="💎" aria-label="Kim cương">💎</button><button type="button" data-product-emoji="📦" aria-label="Gói hàng">📦</button><button type="button" data-product-emoji="⚡" aria-label="Tia chớp">⚡</button></div>
+                        <label class="editor-span-2">Tên hiển thị <span class="required-mark">*</span><input id="productNameInput" name="name" placeholder="Ví dụ: Gemini Advanced - 1 tháng" required></label>
                         <div class="editor-span-2 product-sku-field"><label for="productSkuInput">SKU <span class="required-mark">*</span></label>
                           <span class="product-input-action"><input id="productSkuInput" name="sku" placeholder="chatgpt-plus-1m" required spellcheck="false"><button id="productSkuGenerate" class="secondary" type="button"><span data-lucide="wand-sparkles" aria-hidden="true"></span><span>Tạo lại</span></button></span>
                           <small class="field-help">SKU được gợi ý từ thương hiệu và gói; bạn vẫn có thể sửa thủ công.</small>
@@ -400,80 +438,115 @@
 
         <section id="discountsTab" class="tab">
           <section class="panel discount-overview-panel">
-            <div class="panel-head">
+            <div class="panel-head discount-overview-head">
               <div>
-                <h2>Vận hành mã giảm giá</h2>
-                <p class="panel-subtitle">Theo dõi toàn bộ vòng đời voucher một lần từ lúc tạo, giữ cho đơn đến khi thanh toán.</p>
+                <span class="chart-kicker">Voucher operations</span>
+                <h2>Mã giảm giá dùng một lần</h2>
+                <p class="panel-subtitle">Tạo, kiểm soát và đối soát toàn bộ vòng đời mã từ lúc phát hành đến khi thanh toán.</p>
               </div>
-              <span class="badge reserved">Giới hạn cố định: 1 lượt</span>
+              <div class="discount-overview-actions">
+                <span class="discount-policy-chip"><span data-lucide="shield-check" aria-hidden="true"></span>Mỗi mã chỉ dùng cho 1 đơn</span>
+                <button id="discountCreateToggle" type="button" aria-expanded="false" aria-controls="discountCreatePanel"><span class="icon" data-lucide="ticket-plus" aria-hidden="true"></span><span>Tạo mã mới</span></button>
+              </div>
             </div>
             <div class="discount-metrics">
-              <button type="button" class="discount-metric active" data-discount-status="all" aria-pressed="true"><span>Tổng số</span><strong id="discountMetricTotal">0</strong><small>Tất cả mã</small></button>
-              <button type="button" class="discount-metric" data-discount-status="active" aria-pressed="false"><span>Khả dụng</span><strong id="discountMetricActive">0</strong><small>Có thể áp dụng</small></button>
-              <button type="button" class="discount-metric" data-discount-status="reserved" aria-pressed="false"><span>Đang giữ</span><strong id="discountMetricReserved">0</strong><small>Chờ thanh toán</small></button>
-              <button type="button" class="discount-metric" data-discount-status="used" aria-pressed="false"><span>Đã dùng</span><strong id="discountMetricUsed">0</strong><small>Đã thanh toán</small></button>
-              <button type="button" class="discount-metric" data-discount-status="unavailable" aria-pressed="false"><span>Không khả dụng</span><strong id="discountMetricUnavailable">0</strong><small>Hết hạn hoặc khóa</small></button>
+              <button type="button" class="discount-metric active" data-discount-status="all" aria-pressed="true"><span class="discount-metric-icon" data-lucide="tickets" aria-hidden="true"></span><span><small>Tổng số</small><strong id="discountMetricTotal">0</strong><em>Tất cả mã</em></span></button>
+              <button type="button" class="discount-metric metric-active" data-discount-status="active" aria-pressed="false"><span class="discount-metric-icon" data-lucide="circle-check-big" aria-hidden="true"></span><span><small>Khả dụng</small><strong id="discountMetricActive">0</strong><em>Có thể áp dụng</em></span></button>
+              <button type="button" class="discount-metric metric-reserved" data-discount-status="reserved" aria-pressed="false"><span class="discount-metric-icon" data-lucide="timer" aria-hidden="true"></span><span><small>Đang giữ</small><strong id="discountMetricReserved">0</strong><em>Chờ thanh toán</em></span></button>
+              <button type="button" class="discount-metric metric-used" data-discount-status="used" aria-pressed="false"><span class="discount-metric-icon" data-lucide="badge-check" aria-hidden="true"></span><span><small>Đã dùng</small><strong id="discountMetricUsed">0</strong><em>Đã thanh toán</em></span></button>
+              <button type="button" class="discount-metric metric-unavailable" data-discount-status="unavailable" aria-pressed="false"><span class="discount-metric-icon" data-lucide="circle-off" aria-hidden="true"></span><span><small>Không khả dụng</small><strong id="discountMetricUnavailable">0</strong><em>Hết hạn hoặc khóa</em></span></button>
             </div>
           </section>
 
-          <div class="discount-layout">
-            <form id="discountForm" class="panel discount-create-panel">
-              <div class="panel-head">
+          <form id="discountForm" class="panel discount-create-panel hidden">
+            <div id="discountCreatePanel">
+              <div class="panel-head discount-create-head">
                 <div>
-                  <h2>Tạo mã dùng một lần</h2>
-                  <p class="panel-subtitle">Điều kiện được chụp cố định sau khi tạo để bảo vệ đơn đang checkout.</p>
+                  <span class="chart-kicker">Voucher builder</span>
+                  <h2>Tạo mã mới</h2>
+                  <p class="panel-subtitle">Thiết lập quyền lợi, điều kiện và thời hạn. Dữ liệu chỉ được lưu sau khi xác nhận.</p>
                 </div>
-                <span class="badge available">Mã mới</span>
+                <button id="discountCreateClose" class="secondary icon-button" type="button"><span class="icon" data-lucide="x" aria-hidden="true"></span><span>Đóng</span></button>
               </div>
-              <div class="discount-form-section">
-                <span class="discount-section-label">1 · Nhận diện chiến dịch</span>
-                <label>Tên chiến dịch <small>Hiển thị nội bộ</small>
-                  <input name="campaignName" maxlength="80" placeholder="Khách hàng mới tháng 7">
-                </label>
-              </div>
-              <div class="discount-code-field">
-                <label>Mã giảm giá
-                  <input id="discountCodeInput" name="code" minlength="4" maxlength="32" pattern="[A-Za-z0-9_-]+" placeholder="KAITO-7F3X9Q" autocomplete="off" required>
-                </label>
-                <button id="discountGenerateBtn" class="secondary" type="button">
-                  <span class="icon" data-lucide="sparkles" aria-hidden="true"></span><span>Tạo mã</span>
-                </button>
-              </div>
-              <span class="field-help">4–32 ký tự, chỉ dùng A–Z, 0–9, dấu gạch ngang hoặc gạch dưới.</span>
-              <div class="discount-form-section">
-                <span class="discount-section-label">2 · Điều kiện áp dụng</span>
-              </div>
-              <div class="discount-form-grid">
-                <label>Kiểu giảm
-                  <select name="type" required>
-                    <option value="fixed">Số tiền cố định</option>
-                    <option value="percent">Phần trăm</option>
-                  </select>
-                </label>
-                <label>Giá trị giảm<input name="value" type="number" min="1" step="1" placeholder="50000" required></label>
-                <label>Đơn tối thiểu<input name="minOrderTotal" type="number" min="0" step="1000" value="0"></label>
-                <label>Hết hạn lúc<input name="expiresAt" type="datetime-local"></label>
-              </div>
-              <div class="discount-expiry-presets" aria-label="Chọn nhanh thời hạn">
-                <span>Thời hạn nhanh</span>
-                <button type="button" class="small secondary" data-discount-expiry-days="7">7 ngày</button>
-                <button type="button" class="small secondary" data-discount-expiry-days="30">30 ngày</button>
-                <button type="button" class="small secondary" data-discount-expiry-days="none">Không hết hạn</button>
-              </div>
-              <label class="discount-note-field">Ghi chú nội bộ <small>Không hiển thị cho khách hàng</small>
-                <textarea name="internalNote" rows="3" maxlength="500" placeholder="Mục đích phát hành, người nhận hoặc lưu ý đối soát..."></textarea>
-              </label>
-              <div id="discountFormPreview" class="discount-form-preview" aria-live="polite"></div>
-              <div class="discount-rule-note">
-                <span data-lucide="shield-check" aria-hidden="true"></span>
-                <span>Mã được giữ khi tạo đơn, tự trả lại nếu đơn bị hủy hoặc hết hạn, và chỉ ghi nhận đã dùng sau thanh toán.</span>
-              </div>
-              <button type="submit"><span class="icon" data-lucide="ticket-plus" aria-hidden="true"></span><span>Tạo mã giảm giá</span></button>
-            </form>
+              <div class="discount-create-workspace">
+                <div class="discount-builder-fields">
+                  <fieldset class="discount-builder-section">
+                    <legend><span>1</span>Nhận diện mã</legend>
+                    <p>Đặt tên nội bộ dễ tìm và dùng mã hệ thống tạo sẵn hoặc nhập mã của bạn.</p>
+                    <label>Tên chiến dịch <small>Chỉ Admin nhìn thấy</small>
+                      <input name="campaignName" maxlength="80" placeholder="Ví dụ: Khách hàng mới tháng 7">
+                    </label>
+                    <div class="discount-code-field">
+                      <label>Mã giảm giá <span class="required-mark">*</span>
+                        <input id="discountCodeInput" name="code" minlength="4" maxlength="32" pattern="[A-Za-z0-9_-]+" placeholder="KAITO-7F3X9Q" autocomplete="off" required>
+                      </label>
+                      <button id="discountGenerateBtn" class="secondary" type="button"><span class="icon" data-lucide="wand-sparkles" aria-hidden="true"></span><span>Tạo mã khác</span></button>
+                    </div>
+                    <span class="field-help">4–32 ký tự · A–Z, 0–9, dấu gạch ngang hoặc gạch dưới.</span>
+                  </fieldset>
 
-            <section class="panel discount-list-panel">
+                  <fieldset class="discount-builder-section">
+                    <legend><span>2</span>Quyền lợi &amp; điều kiện</legend>
+                    <p>Chọn mức giảm trước, sau đó đặt giá trị đơn tối thiểu nếu cần.</p>
+                    <div class="discount-form-grid">
+                      <label>Kiểu giảm
+                        <select name="type" required>
+                          <option value="fixed">Số tiền cố định</option>
+                          <option value="percent">Phần trăm</option>
+                        </select>
+                      </label>
+                      <label>Giá trị giảm <span class="required-mark">*</span><span class="discount-value-input"><input id="discountValueInput" name="value" type="number" min="1" step="1" placeholder="50000" inputmode="numeric" required><span id="discountValueSuffix">VND</span></span></label>
+                      <label class="discount-minimum-field">Đơn tối thiểu<input name="minOrderTotal" type="number" min="0" step="1000" value="0" inputmode="numeric"><small class="field-help">Để 0 nếu áp dụng cho mọi giá trị đơn.</small></label>
+                    </div>
+                    <div class="discount-value-presets" aria-label="Chọn nhanh mức giảm">
+                      <span>Chọn nhanh</span>
+                      <button type="button" data-discount-type="percent" data-discount-value="5">5%</button>
+                      <button type="button" data-discount-type="percent" data-discount-value="10">10%</button>
+                      <button type="button" data-discount-type="percent" data-discount-value="15">15%</button>
+                      <button type="button" data-discount-type="fixed" data-discount-value="50000">50K</button>
+                      <button type="button" data-discount-type="fixed" data-discount-value="100000">100K</button>
+                    </div>
+                  </fieldset>
+
+                  <fieldset class="discount-builder-section">
+                    <legend><span>3</span>Thời hạn</legend>
+                    <p>Mã không hết hạn vẫn có thể được Admin khóa thủ công bất kỳ lúc nào.</p>
+                    <label>Hết hạn lúc<input name="expiresAt" type="datetime-local"></label>
+                    <div class="discount-expiry-presets" aria-label="Chọn nhanh thời hạn">
+                      <button type="button" class="secondary" data-discount-expiry-days="1">24 giờ</button>
+                      <button type="button" class="secondary" data-discount-expiry-days="7">7 ngày</button>
+                      <button type="button" class="secondary" data-discount-expiry-days="30">30 ngày</button>
+                      <button type="button" class="secondary" data-discount-expiry-days="none">Không hết hạn</button>
+                    </div>
+                  </fieldset>
+
+                  <details class="discount-optional-details">
+                    <summary><span><span data-lucide="notebook-pen" aria-hidden="true"></span><strong>Ghi chú nội bộ</strong></span><small>Tùy chọn</small></summary>
+                    <label class="discount-note-field">Nội dung ghi chú
+                      <textarea name="internalNote" rows="3" maxlength="500" placeholder="Mục đích phát hành, người nhận hoặc lưu ý đối soát..."></textarea>
+                    </label>
+                  </details>
+                </div>
+
+                <aside class="discount-builder-aside" aria-label="Xem trước mã giảm giá">
+                  <div class="discount-preview-heading"><span data-lucide="scan-eye" aria-hidden="true"></span><span><strong>Xem trước</strong><small>Nội dung khách sẽ nhận</small></span></div>
+                  <div id="discountFormPreview" class="discount-form-preview" aria-live="polite"></div>
+                  <div id="discountCreateChecklist" class="discount-create-checklist"></div>
+                  <div class="discount-rule-note"><span data-lucide="shield-check" aria-hidden="true"></span><span>Mã được giữ khi tạo đơn, tự trả lại nếu đơn bị hủy hoặc hết hạn và chỉ ghi nhận đã dùng sau thanh toán.</span></div>
+                  <div id="discountFormError" class="product-create-error hidden" role="alert"></div>
+                  <div class="discount-create-actions">
+                    <button id="discountFormReset" class="secondary" type="button"><span class="icon" data-lucide="rotate-ccw" aria-hidden="true"></span><span>Đặt lại</span></button>
+                    <button id="discountFormSubmit" type="submit"><span class="icon" data-lucide="ticket-plus" aria-hidden="true"></span><span>Tạo mã giảm giá</span></button>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </form>
+
+          <section class="panel discount-list-panel">
               <div class="panel-head">
                 <div>
+                  <span class="chart-kicker">Voucher registry</span>
                   <h2>Danh sách mã</h2>
                   <p id="discountFilterSummary" class="panel-subtitle">Theo dõi mã khả dụng, đang giữ và đã sử dụng.</p>
                 </div>
@@ -493,8 +566,7 @@
                 <button id="discountFilterReset" class="secondary icon-button" type="button"><span class="icon" data-lucide="rotate-ccw" aria-hidden="true"></span><span>Đặt lại</span></button>
               </div>
               <div id="discountCodesList" class="discount-codes-list"></div>
-            </section>
-          </div>
+          </section>
         </section>
 
         <section id="notificationsTab" class="tab">

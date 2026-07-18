@@ -4,6 +4,7 @@ import {
   brandSortKey,
   normalizeDeliveryMode,
   normalizeFulfillmentMode,
+  normalizeProductEmoji,
   normalizeProductInput,
   normalizePublicProduct
 } from '../src/catalog.js';
@@ -11,6 +12,7 @@ import {
 assert.ok(DEFAULT_CATALOG_PRODUCTS.length >= 10, 'Catalog should include account package products across brands.');
 
 const bySku = new Map(DEFAULT_CATALOG_PRODUCTS.map((product) => [product.sku, product]));
+assert.equal(bySku.get('gemini-advanced-1m')?.emoji, '✨', 'Gemini should ship with its catalog emoji.');
 assert.equal(
   bySku.size,
   DEFAULT_CATALOG_PRODUCTS.length,
@@ -131,6 +133,7 @@ const normalized = normalizeProductInput({
   description: ' Gói tài khoản AI ',
   category: '',
   brand: '  ChatGPT ',
+  emoji: '🤖',
   packageType: ' Plus 1M ',
   price: '99000',
   currency: '',
@@ -148,6 +151,7 @@ assert.deepEqual(normalized, {
   description: 'Gói tài khoản AI',
   category: 'Accounts',
   brand: 'ChatGPT',
+  emoji: '🤖',
   packageType: 'Plus 1M',
   price: 99000,
   currency: 'VND',
@@ -165,6 +169,8 @@ assert.deepEqual(normalized, {
 assert.equal(normalizeFulfillmentMode('SEAT_EMAIL'), 'seat_email');
 assert.equal(normalizeFulfillmentMode('', { sku: 'chatgpt-business-seat-1m' }), 'seat_email');
 assert.equal(normalizePublicProduct({ sku: 'regular-product' }).fulfillmentMode, 'inventory');
+assert.equal(normalizeProductEmoji('👨‍💻', { strict: true }), '👨‍💻');
+assert.throws(() => normalizeProductEmoji('✨🚀', { strict: true }), /exactly one emoji/);
 assert.equal(normalizeDeliveryMode('TEXT'), 'text');
 assert.equal(normalizePublicProduct({ deliveryMode: 'invalid' }).deliveryMode, 'text');
 assert.throws(

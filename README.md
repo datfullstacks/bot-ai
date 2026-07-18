@@ -70,16 +70,47 @@ npm.cmd run verify
 
 The smoke test creates a temporary data file, then verifies admin login/logout, product creation, inventory import, paid delivery, duplicate payment idempotency, payment review approval, payment review refund, cancellation, and dashboard summary counts.
 
+The Admin overview includes a dedicated `Hôm nay` snapshot for orders created,
+payments recognized, revenue, and completed deliveries, plus a one-day chart
+range. Business-day boundaries use `ANALYTICS_TIME_ZONE` (default
+`Asia/Bangkok`); today's revenue follows `paidAt` and today's delivery follows
+`deliveredAt` instead of attributing both to the original order creation date.
+
 ## Telegram Notification Center
 
 The bot exposes `Thông báo` in its main menu and `/notifications` command. Transactional order, payment, and Seat messages always remain available; optional promotion, restock, news, and service categories are controlled independently by each user. Marketing categories default to off, while service updates default to on.
 
 The Admin `Thông báo` workspace can create campaigns for opted-in subscribers, paid customers, buyers of one SKU, or one Telegram username. Campaigns support semantic custom emoji, catalog/order/product CTAs, immediate queueing, future schedules, per-recipient delivery records, blocked-user suppression, retry, click tracking, and audit logs. The scheduler claims each campaign before sending so concurrent workers cannot start the same campaign twice.
 
+A successful inventory import automatically queues one `stock` campaign with a CTA to the imported product. Duplicate-only imports and inactive products do not notify users; delivery still respects each user's `Hàng mới / restock` preference.
+
 Run the focused regression suite with:
 
 ```powershell
 npm.cmd run test:notifications
+```
+
+## Gemini product assistant and product emoji
+
+The Admin product builder exposes Gemini as a visible brand preset, supports one
+Unicode emoji per product, and can ask Gemini for a structured draft containing
+the name, SKU, description, emoji, account type, and conservative policy text.
+Gemini suggestions never create the product automatically and do not change the
+operator-controlled price or fulfillment mode.
+
+The API key stays on the server. Enable the optional assistant with:
+
+```text
+GEMINI_API_KEY=<google-ai-studio-key>
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_REQUEST_TIMEOUT_MS=15000
+```
+
+Without `GEMINI_API_KEY`, normal manual product creation and emoji selection keep
+working and the assistant is shown as unavailable. Run its focused regression with:
+
+```powershell
+npm.cmd run test:gemini-product-assistant
 ```
 
 When `DATABASE_URL` points to a real PostgreSQL instance, run the same flow through the row-level production path:

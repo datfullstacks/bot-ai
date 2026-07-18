@@ -9,12 +9,14 @@ const state = {
   productSort: 'priority',
   productCreateDirty: false,
   productSkuManual: false,
+  productAssistant: null,
   dashboardAnalytics: null,
   dashboardRangeDays: 14,
   discountCodes: [],
   discountSearch: '',
   discountStatus: 'all',
   expandedDiscountId: '',
+  discountCreateOpen: false,
   notificationOverview: { campaigns: [], metrics: {}, audience: {} },
   telegramPricing: { basePriceList: { id: 'base', prices: {} }, priceLists: [], users: [] },
   telegramPricingUsername: '',
@@ -143,6 +145,68 @@ function productCreateFormData() {
   return form ? Object.fromEntries(new FormData(form).entries()) : {};
 }
 
+function defaultProductEmoji(brand) {
+  const key = String(brand || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return ({
+    gemini: '✨',
+    chatgpt: '🤖',
+    openai: '🤖',
+    claude: '🧠',
+    anthropic: '🧠',
+    canva: '🎨',
+    cursor: '🖱️',
+    perplexity: '🔎'
+  })[key] || '';
+}
+
+async function loadProductAssistantStatus() {
+  const badge = $('#productAiBadge');
+  const statusText = $('#productAiStatus');
+  const button = $('#productAiGenerate');
+  if (!badge || !statusText || !button) return;
+  try {
+    state.productAssistant = await api('/api/products/ai-assistant');
+    badge.textContent = state.productAssistant.configured ? state.productAssistant.model : 'Chưa cấu hình';
+    badge.className = `badge ${state.productAssistant.configured ? 'available' : 'reserved'}`;
+    button.disabled = !state.productAssistant.configured;
+    statusText.textContent = state.productAssistant.configured
+      ? 'Sẵn sàng phác thảo tên, SKU, mô tả, emoji và chính sách.'
+      : 'Thêm GEMINI_API_KEY trên server để bật tính năng tạo bản nháp.';
+  } catch {
+    state.productAssistant = null;
+    badge.textContent = 'Không khả dụng';
+    badge.className = 'badge payment_review';
+    button.disabled = true;
+    statusText.textContent = 'Không kiểm tra được trạng thái Gemini.';
+  }
+}
+
+function applyGeminiProductDraft(draft = {}) {
+  const form = $('#productForm');
+  if (!form) return;
+  for (const field of [
+    'category',
+    'brand',
+    'packageType',
+    'name',
+    'sku',
+    'emoji',
+    'description',
+    'officialPriceNote',
+    'accountType',
+    'warrantyPolicy',
+    'replacementPolicy'
+  ]) {
+    if (form.elements[field] && draft[field] !== undefined) form.elements[field].value = draft[field];
+  }
+  state.productCreateDirty = true;
+  state.productSkuManual = Boolean(String(draft.sku || '').trim());
+  if (draft.accountType || draft.warrantyPolicy || draft.replacementPolicy) {
+    $('.product-optional-details').open = true;
+  }
+  renderProductCreateExperience();
+}
+
 function generateProductSku(force = false) {
   const form = $('#productForm');
   const skuInput = $('#productSkuInput');
@@ -203,6 +267,7 @@ function renderProductCreateExperience() {
   `).join('');
 
   const brand = String(data.brand || '').trim() || 'Thương hiệu';
+  const productEmoji = String(data.emoji || '').trim() || defaultProductEmoji(brand) || '📦';
   const productName = String(data.name || '').trim() || 'Tên sản phẩm sẽ hiển thị ở đây';
   const sku = String(data.sku || '').trim() || 'sku-tu-dong';
   const description = String(data.description || '').trim() || 'Thêm mô tả ngắn để khách hàng hiểu nhanh quyền lợi sản phẩm.';
@@ -215,13 +280,16 @@ function renderProductCreateExperience() {
       <span class="badge ${seatEmail ? 'processing' : 'available'}">${escapeHtml(seatEmail ? 'Seat email' : 'Inventory')}</span>
     </div>
     <span class="product-preview-eyebrow">Xem trước catalog</span>
-    <h4>${escapeHtml(productName)}</h4>
+    <h4><span class="product-preview-emoji" aria-hidden="true">${escapeHtml(productEmoji)}</span>${escapeHtml(productName)}</h4>
     <code>${escapeHtml(sku)}</code>
     <p>${escapeHtml(description)}</p>
     <div class="product-preview-meta"><span>${icon('tag', 'inline-icon')}${escapeHtml(data.category || 'AI Accounts')}</span><span>${icon(seatEmail ? 'mail-check' : 'warehouse', 'inline-icon')}${escapeHtml(fulfillmentLabel)}</span></div>
     <div class="product-preview-price"><span>Giá bán</span><strong>${escapeHtml(money(Number(data.price || 0), data.currency || 'VND'))}</strong></div>
   `;
   $('#productDescriptionCount').textContent = `${String(data.description || '').length}/320`;
+  $('#productEmojiPreview').textContent = productEmoji;
+  $$('[data-product-emoji]').forEach((button) => button.classList.toggle('active', button.dataset.productEmoji === data.emoji));
+  $$('[data-product-brand]').forEach((button) => button.classList.toggle('active', button.dataset.productBrand.toLowerCase() === String(data.brand || '').trim().toLowerCase()));
   $('#productPriceCurrencySuffix').textContent = data.currency || 'VND';
   $('#productSeatProviderHint').textContent = seatEmail
     ? `${productSeatProviderLabel(data)} · thời hạn ${Number(data.seatTermMonths || 1)} tháng.`
@@ -959,6 +1027,7 @@ function renderProductEditor(product) {
         <div class="editor-grid">
           <label>Danh mục · Category<input name="category" value="${escapeHtml(product.category || 'Accounts')}" required></label>
           <label>Thương hiệu · Brand<input name="brand" value="${escapeHtml(product.brand || 'Other')}" required></label>
+          <label>Emoji sản phẩm<input name="emoji" maxlength="32" value="${escapeHtml(product.emoji || '')}" placeholder="📦"></label>
           <label>Gói · Package<input name="packageType" value="${escapeHtml(product.packageType || '')}"></label>
           <label>Tên sản phẩm<input name="name" value="${escapeHtml(product.name || '')}" required></label>
           <label class="editor-span-2">Mô tả · Description<textarea name="description" rows="3">${escapeHtml(product.description || '')}</textarea></label>
@@ -1023,7 +1092,7 @@ function renderProductCard(product) {
           <span class="product-brand-mark">${brandLogo(product.brand)}</span>
           <div>
             <div class="product-title-line">
-              <h3>${escapeHtml(product.name)}</h3>
+              <h3>${product.emoji ? `<span class="product-title-emoji" aria-hidden="true">${escapeHtml(product.emoji)}</span>` : ''}${escapeHtml(product.name)}</h3>
               ${product.hot ? '<span class="product-hot-badge">Hot</span>' : ''}
             </div>
             <span class="product-sku">${icon('barcode')}${escapeHtml(product.sku)}</span>
@@ -1291,6 +1360,41 @@ function selectTelegramPricingUsername(value) {
   renderTelegramPricingProducts();
 }
 
+function newDiscountCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(6);
+  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
+  else bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+  return `KAITO-${Array.from(bytes, (value) => alphabet[value % alphabet.length]).join('')}`;
+}
+
+function setDiscountCreateOpen(open, { restoreFocus = false } = {}) {
+  const expanded = Boolean(open);
+  state.discountCreateOpen = expanded;
+  $('#discountForm').classList.toggle('hidden', !expanded);
+  $('#discountCreateToggle').setAttribute('aria-expanded', String(expanded));
+  if (expanded) {
+    if (!$('#discountCodeInput').value.trim()) $('#discountCodeInput').value = newDiscountCode();
+    renderDiscountFormPreview();
+    requestAnimationFrame(() => $('#discountForm input[name="campaignName"]')?.focus({ preventScroll: true }));
+  } else if (restoreFocus) {
+    $('#discountCreateToggle').focus();
+  }
+}
+
+function resetDiscountForm() {
+  const form = $('#discountForm');
+  form.reset();
+  form.elements.code.value = newDiscountCode();
+  form.elements.value.removeAttribute('max');
+  form.elements.value.placeholder = '50000';
+  $('.discount-optional-details').open = false;
+  $('#discountFormError').textContent = '';
+  $('#discountFormError').classList.add('hidden');
+  $$('[data-discount-expiry-days]').forEach((button) => button.classList.remove('active'));
+  renderDiscountFormPreview();
+}
+
 function discountDisplayState(discount) {
   if (discount.usedAt || discount.usedByOrderId) return { key: 'used', label: 'Đã sử dụng', badge: 'delivered' };
   if (discount.reservedByOrderId && Number(new Date(discount.reservedUntil)) > Date.now()) {
@@ -1444,16 +1548,20 @@ function renderDiscountCodes(discounts = state.discountCodes) {
         </tbody>
       </table>
     </div>
-  ` : `<p class="meta empty-state">${state.discountCodes.length ? 'Không có mã phù hợp bộ lọc hiện tại.' : 'Chưa có mã giảm giá. Tạo mã đầu tiên để dùng trong Telegram checkout.'}</p>`;
+  ` : state.discountCodes.length
+    ? `<div class="discount-empty-state"><span>${icon('search-x')}</span><strong>Không tìm thấy mã phù hợp</strong><p>Thử bỏ bớt từ khóa hoặc đặt lại bộ lọc trạng thái.</p><button class="secondary" type="button" data-action="reset-discount-filter">${icon('rotate-ccw')}<span>Đặt lại bộ lọc</span></button></div>`
+    : `<div class="discount-empty-state"><span>${icon('ticket-plus')}</span><strong>Chưa có mã giảm giá</strong><p>Tạo mã dùng một lần đầu tiên để áp dụng trong Telegram checkout.</p><button type="button" data-action="open-discount-create">${icon('ticket-plus')}<span>Tạo mã đầu tiên</span></button></div>`;
   refreshIcons();
 }
 
 function renderDiscountFormPreview() {
   const form = $('#discountForm');
   const data = Object.fromEntries(new FormData(form).entries());
-  const code = String(data.code || '').trim().toUpperCase() || 'MA-GIAM-GIA';
+  const rawCode = String(data.code || '').trim().toUpperCase();
+  const code = rawCode || 'MA-GIAM-GIA';
   const value = Number(data.value || 0);
   const minimum = Number(data.minOrderTotal || 0);
+  const percent = data.type === 'percent';
   const valueLabel = value > 0
     ? discountValueLabel({ type: data.type, value })
     : 'Chưa nhập mức giảm';
@@ -1462,17 +1570,48 @@ function renderDiscountFormPreview() {
   const expiry = Number.isFinite(expiryTimestamp)
     ? discountDate(new Date(expiryTimestamp).toISOString())
     : 'Không hết hạn';
-  let example = 'Mã chỉ được dùng cho một đơn thanh toán thành công.';
-  if (value > 0 && data.type === 'percent' && minimum > 0) {
-    example = `Ví dụ ở mức đơn tối thiểu: giảm ${money(Math.floor(minimum * value / 100))}.`;
-  } else if (value > 0 && data.type === 'fixed' && minimum > 0 && value >= minimum) {
-    example = 'Lưu ý: tổng đơn thực tế phải lớn hơn số tiền giảm.';
-  }
+  const sampleOrder = minimum > 0
+    ? minimum
+    : percent
+      ? 200000
+      : Math.max(100000, value * 2);
+  const sampleDiscount = value > 0
+    ? percent ? Math.floor(sampleOrder * value / 100) : Math.min(value, sampleOrder)
+    : 0;
+  const sampleTotal = Math.max(0, sampleOrder - sampleDiscount);
+  const codeReady = /^[A-Z0-9_-]{4,32}$/.test(rawCode);
+  const valueReady = Number.isFinite(value) && value > 0 && (!percent || value < 100);
+  const minimumReady = minimum >= 0 && (percent || minimum === 0 || minimum > value);
+  const expiryReady = !data.expiresAt || (Number.isFinite(expiryTimestamp) && expiryTimestamp > Date.now());
+  form.elements.minOrderTotal.setCustomValidity(minimumReady ? '' : 'Đơn tối thiểu phải lớn hơn số tiền giảm.');
+  form.elements.expiresAt.min = discountExpiryInputValue(0);
+  form.elements.expiresAt.setCustomValidity(expiryReady ? '' : 'Thời hạn phải nằm trong tương lai.');
+  const ready = codeReady && valueReady && minimumReady && expiryReady;
+  $('#discountValueSuffix').textContent = percent ? '%' : 'VND';
+  $('#discountFormSubmit').disabled = !ready;
+  $$('[data-discount-type][data-discount-value]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.discountType === data.type && Number(button.dataset.discountValue) === value);
+  });
   $('#discountFormPreview').innerHTML = `
-    <span class="discount-preview-code">${escapeHtml(code)}</span>
-    <strong>${escapeHtml(valueLabel)} · ${escapeHtml(condition)}</strong>
-    <span>${escapeHtml(expiry)} · ${escapeHtml(example)}</span>
+    <div class="discount-ticket">
+      <div class="discount-ticket-brand"><span>${icon('ticket-percent', 'inline-icon')}KAITO AI SHOP</span><small>Dùng một lần</small></div>
+      <code class="discount-preview-code">${escapeHtml(code)}</code>
+      <strong>${escapeHtml(valueLabel)}</strong>
+      <div class="discount-ticket-meta"><span>${icon('shopping-cart', 'inline-icon')}${escapeHtml(condition)}</span><span>${icon('calendar-clock', 'inline-icon')}${escapeHtml(expiry)}</span></div>
+    </div>
+    <div class="discount-preview-example">
+      <span><small>Đơn mẫu</small><strong>${escapeHtml(money(sampleOrder))}</strong></span>
+      <span><small>Giảm giá</small><strong>−${escapeHtml(money(sampleDiscount))}</strong></span>
+      <span class="discount-preview-total"><small>Khách thanh toán</small><strong>${escapeHtml(money(sampleTotal))}</strong></span>
+    </div>
   `;
+  $('#discountCreateChecklist').innerHTML = [
+    [codeReady, 'Mã hợp lệ'],
+    [valueReady, percent ? 'Phần trăm từ 1–99%' : 'Số tiền giảm hợp lệ'],
+    [minimumReady, minimum > 0 ? (minimumReady ? `Đơn tối thiểu ${money(minimum)}` : 'Đơn tối thiểu phải lớn hơn mức giảm') : 'Áp dụng mọi giá trị đơn'],
+    [expiryReady, data.expiresAt ? `Hiệu lực đến ${expiry}` : 'Không giới hạn thời gian']
+  ].map(([complete, label]) => `<span class="${complete ? 'is-complete' : ''}">${icon(complete ? 'circle-check' : 'circle', 'inline-icon')}<span>${escapeHtml(label)}</span></span>`).join('');
+  refreshIcons();
 }
 
 function discountExpiryInputValue(days) {
@@ -1647,9 +1786,17 @@ function dashboardDeltaLabel(value) {
 }
 
 function dashboardDateLabel(value) {
-  const timestamp = Date.parse(String(value || ''));
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? `${value}T12:00:00.000Z` : value;
+  const timestamp = Date.parse(String(normalized || ''));
   if (!Number.isFinite(timestamp)) return '-';
   return new Date(timestamp).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+
+function todayDeltaLabel(value, yesterdayValue, formatter = (item) => Number(item || 0).toLocaleString('vi-VN')) {
+  const previous = formatter(yesterdayValue);
+  if (value === null || value === undefined) return `Hôm qua: ${previous} · phát sinh mới`;
+  const numeric = Number(value || 0);
+  return `Hôm qua: ${previous} · ${numeric > 0 ? '+' : ''}${numeric}%`;
 }
 
 function setStatMeta(id, text, tone = 'neutral') {
@@ -1663,12 +1810,15 @@ function renderRevenueTrendChart(analytics = state.dashboardAnalytics) {
   const target = $('#revenueTrendChart');
   if (!target) return;
   const days = Math.min(Number(state.dashboardRangeDays || 14), Number(analytics?.windowDays || 30));
-  const daily = (analytics?.daily || []).slice(-days);
+  const daily = days === 1 && analytics?.today
+    ? [analytics.today]
+    : (analytics?.daily || []).slice(-days);
   const totals = daily.reduce((sum, day) => ({
     orders: sum.orders + Number(day.orders || 0),
     revenue: sum.revenue + Number(day.revenue || 0)
   }), { orders: 0, revenue: 0 });
-  $('#trendChartSummary').textContent = `${days} ngày · ${totals.orders.toLocaleString('vi-VN')} đơn · ${money(totals.revenue)}`;
+  const rangeLabel = days === 1 ? 'Hôm nay' : `${days} ngày`;
+  $('#trendChartSummary').textContent = `${rangeLabel} · ${totals.orders.toLocaleString('vi-VN')} đơn · ${money(totals.revenue)}`;
   if (!daily.length || (!totals.orders && !totals.revenue)) {
     target.innerHTML = '<p class="meta empty-state">Chưa có giao dịch trong khoảng thời gian này.</p>';
     return;
@@ -1714,7 +1864,7 @@ function renderRevenueTrendChart(analytics = state.dashboardAnalytics) {
   )).join('');
 
   target.innerHTML = `
-    <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`Biểu đồ ${days} ngày: ${totals.orders} đơn, doanh thu ${money(totals.revenue)}`)}">
+    <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`Biểu đồ ${rangeLabel.toLowerCase()}: ${totals.orders} đơn, doanh thu ${money(totals.revenue)}`)}">
       <defs>
         <linearGradient id="revenueAreaGradient" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stop-color="#14b8a6" stop-opacity="0.24"></stop>
@@ -1840,6 +1990,8 @@ function renderDashboardAnalytics(analytics = {}) {
   const inventory = analytics.inventory || {};
   const statuses = analytics.orderStatuses || {};
   const current7d = analytics.current7d || {};
+  const today = analytics.today || {};
+  const yesterday = analytics.yesterday || {};
   const fulfillment = analytics.fulfillment || {};
   const revenueDelta = current7d.revenueDeltaPercent;
   const orderDelta = current7d.orderDeltaPercent;
@@ -1850,6 +2002,16 @@ function renderDashboardAnalytics(analytics = {}) {
   setStatMeta('statDeliveredMeta', `${fulfillment.paid || 0} đơn đã thanh toán`);
   setStatMeta('statReviewMeta', `${statuses.refunded || 0} hoàn tiền · ${statuses.expired || 0} hết hạn`, Number(statuses.payment_review || 0) ? 'negative' : 'neutral');
   setStatMeta('statRevenueMeta', `7 ngày: ${compactMoney(current7d.revenue || 0)} · ${dashboardDeltaLabel(revenueDelta)}`, Number(revenueDelta || 0) >= 0 ? 'positive' : 'negative');
+  $('#todayRevenue').textContent = money(today.revenue || 0);
+  $('#todayOrders').textContent = Number(today.orders || 0).toLocaleString('vi-VN');
+  $('#todayPaidOrders').textContent = Number(today.paidOrders || 0).toLocaleString('vi-VN');
+  $('#todayDeliveredOrders').textContent = Number(today.deliveredOrders || 0).toLocaleString('vi-VN');
+  setStatMeta('todayRevenueMeta', todayDeltaLabel(today.revenueDeltaPercent, yesterday.revenue, compactMoney), Number(today.revenueDeltaPercent || 0) >= 0 ? 'positive' : 'negative');
+  setStatMeta('todayOrdersMeta', todayDeltaLabel(today.orderDeltaPercent, yesterday.orders), Number(today.orderDeltaPercent || 0) >= 0 ? 'positive' : 'negative');
+  const generatedAt = analytics.generatedAt ? new Date(analytics.generatedAt) : null;
+  $('#todayDateLabel').textContent = generatedAt
+    ? `${generatedAt.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', timeZone: analytics.timeZone || 'Asia/Bangkok' })} · ${analytics.timeZone || 'Asia/Bangkok'}`
+    : '—';
   $('#analyticsGeneratedAt').textContent = analytics.generatedAt
     ? `Cập nhật ${new Date(analytics.generatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
     : '—';
@@ -2162,7 +2324,7 @@ async function boot() {
   try {
     const user = await api('/api/me');
     showDashboard(user);
-    await refresh();
+    await Promise.all([refresh(), loadProductAssistantStatus()]);
   } catch {
     showLogin();
   }
@@ -2179,7 +2341,7 @@ $('#loginForm').addEventListener('submit', async (event) => {
   try {
     const result = await api('/api/auth/login', { method: 'POST', body: JSON.stringify(data) });
     showDashboard(result.user);
-    await refresh();
+    await Promise.all([refresh(), loadProductAssistantStatus()]);
   } catch (error) {
     $('#loginError').textContent = error.message;
   } finally {
@@ -2212,6 +2374,10 @@ $('#sidebarBackdrop').addEventListener('click', closeSidebarAndRestoreFocus);
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
     closeSidebarAndRestoreFocus();
+    return;
+  }
+  if (event.key === 'Escape' && state.discountCreateOpen) {
+    setDiscountCreateOpen(false, { restoreFocus: true });
   }
 });
 
@@ -2221,10 +2387,14 @@ $('#productCreateToggle').addEventListener('click', (event) => {
 
 const productForm = $('#productForm');
 productForm.addEventListener('input', (event) => {
+  if (event.target === $('#productAiPrompt')) return;
   state.productCreateDirty = true;
   if (event.target === $('#productSkuInput')) {
     state.productSkuManual = Boolean(event.target.value.trim());
   } else if (['brand', 'packageType', 'name'].includes(event.target.name)) {
+    if (event.target.name === 'brand' && !productForm.elements.emoji.value.trim()) {
+      productForm.elements.emoji.value = defaultProductEmoji(event.target.value);
+    }
     generateProductSku();
   }
   $('#productCreateError').classList.add('hidden');
@@ -2249,6 +2419,52 @@ $('#productSkuGenerate').addEventListener('click', () => {
   generateProductSku(true);
   renderProductCreateExperience();
   $('#productSkuInput').focus();
+});
+
+$$('[data-product-brand]').forEach((button) => {
+  button.addEventListener('click', () => {
+    productForm.elements.brand.value = button.dataset.productBrand;
+    productForm.elements.emoji.value = defaultProductEmoji(button.dataset.productBrand);
+    state.productCreateDirty = true;
+    generateProductSku();
+    renderProductCreateExperience();
+    productForm.elements.packageType.focus();
+  });
+});
+
+$$('[data-product-emoji]').forEach((button) => {
+  button.addEventListener('click', () => {
+    productForm.elements.emoji.value = button.dataset.productEmoji;
+    state.productCreateDirty = true;
+    renderProductCreateExperience();
+  });
+});
+
+$('#productAiGenerate').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const status = $('#productAiStatus');
+  const error = $('#productCreateError');
+  const current = productCreateFormData();
+  error.classList.add('hidden');
+  error.textContent = '';
+  setButtonBusy(button, true);
+  status.textContent = 'Gemini đang phân tích và tạo bản nháp…';
+  try {
+    const result = await api('/api/products/ai-assistant', {
+      method: 'POST',
+      body: JSON.stringify({ brief: $('#productAiPrompt').value, current })
+    });
+    applyGeminiProductDraft(result.draft);
+    status.textContent = `Đã áp dụng bản nháp từ ${result.model}. Hãy kiểm tra lại trước khi tạo.`;
+    toast('Gemini đã hoàn thiện bản nháp sản phẩm');
+  } catch (requestError) {
+    status.textContent = requestError.message;
+    error.textContent = `Không thể tạo bản nháp: ${requestError.message}`;
+    error.classList.remove('hidden');
+    toast(requestError.message);
+  } finally {
+    setButtonBusy(button, false);
+  }
 });
 
 $$('[data-product-seat-term]').forEach((button) => {
@@ -2344,13 +2560,24 @@ $('#catalogPricingProducts').addEventListener('input', (event) => {
 });
 
 $('#discountGenerateBtn').addEventListener('click', () => {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = new Uint8Array(6);
-  crypto.getRandomValues(bytes);
-  const suffix = Array.from(bytes, (value) => alphabet[value % alphabet.length]).join('');
-  $('#discountCodeInput').value = `KAITO-${suffix}`;
+  $('#discountCodeInput').value = newDiscountCode();
   $('#discountCodeInput').focus();
   renderDiscountFormPreview();
+});
+
+$('#discountCreateToggle').addEventListener('click', () => {
+  const opening = !state.discountCreateOpen;
+  setDiscountCreateOpen(opening);
+  if (opening) $('#discountForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+$('#discountCreateClose').addEventListener('click', () => {
+  setDiscountCreateOpen(false, { restoreFocus: true });
+});
+
+$('#discountFormReset').addEventListener('click', () => {
+  resetDiscountForm();
+  $('#discountForm input[name="campaignName"]').focus();
 });
 
 $('#discountForm select[name="type"]').addEventListener('change', (event) => {
@@ -2362,7 +2589,33 @@ $('#discountForm select[name="type"]').addEventListener('change', (event) => {
   renderDiscountFormPreview();
 });
 
-$('#discountForm').addEventListener('input', renderDiscountFormPreview);
+$('#discountForm').addEventListener('input', (event) => {
+  if (event.target.name === 'expiresAt') {
+    $$('[data-discount-expiry-days]').forEach((button) => button.classList.remove('active'));
+  }
+  $('#discountFormError').classList.add('hidden');
+  renderDiscountFormPreview();
+});
+
+$('#discountForm').addEventListener('invalid', () => {
+  const invalid = $$('#discountForm :invalid');
+  const error = $('#discountFormError');
+  error.textContent = `Còn ${invalid.length} trường bắt buộc hoặc chưa hợp lệ.`;
+  error.classList.remove('hidden');
+}, true);
+
+$$('[data-discount-type][data-discount-value]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const form = $('#discountForm');
+    form.elements.type.value = button.dataset.discountType;
+    form.elements.value.value = button.dataset.discountValue;
+    if (button.dataset.discountType === 'percent') form.elements.value.setAttribute('max', '99');
+    else form.elements.value.removeAttribute('max');
+    form.elements.value.placeholder = button.dataset.discountType === 'percent' ? '10' : '50000';
+    renderDiscountFormPreview();
+    $$('[data-discount-type][data-discount-value]').forEach((item) => item.classList.toggle('active', item === button));
+  });
+});
 
 $$('[data-discount-expiry-days]').forEach((button) => {
   button.addEventListener('click', () => {
@@ -2370,6 +2623,7 @@ $$('[data-discount-expiry-days]').forEach((button) => {
     expiryInput.value = button.dataset.discountExpiryDays === 'none'
       ? ''
       : discountExpiryInputValue(button.dataset.discountExpiryDays);
+    $$('[data-discount-expiry-days]').forEach((item) => item.classList.toggle('active', item === button));
     renderDiscountFormPreview();
   });
 });
@@ -2407,19 +2661,23 @@ $('#discountForm').addEventListener('submit', async (event) => {
   data.minOrderTotal = Number(data.minOrderTotal || 0);
   data.expiresAt = data.expiresAt ? new Date(data.expiresAt).toISOString() : null;
   data.active = true;
+  const errorMessage = $('#discountFormError');
+  errorMessage.textContent = '';
+  errorMessage.classList.add('hidden');
   setButtonBusy(submit, true);
   try {
     await api('/api/discount-codes', { method: 'POST', body: JSON.stringify(data) });
-    form.reset();
-    form.elements.value.removeAttribute('max');
-    form.elements.value.placeholder = '50000';
-    renderDiscountFormPreview();
+    resetDiscountForm();
+    setDiscountCreateOpen(false);
     await refresh();
     toast(`Đã tạo mã ${data.code}`);
   } catch (error) {
+    errorMessage.textContent = `Không thể tạo mã: ${error.message}`;
+    errorMessage.classList.remove('hidden');
     toast(error.message);
   } finally {
     setButtonBusy(submit, false);
+    renderDiscountFormPreview();
   }
 });
 
@@ -2595,7 +2853,13 @@ $('#inventoryForm').addEventListener('submit', async (event) => {
     });
     form.elements.items.value = '';
     await refresh();
-    toast(`Đã nhập ${result.imported} mục${result.skippedDuplicates ? `; bỏ qua ${result.skippedDuplicates} dòng trùng` : ''}`);
+    const duplicateNote = result.skippedDuplicates ? `; bỏ qua ${result.skippedDuplicates} dòng trùng` : '';
+    const notificationNote = result.notification?.queued
+      ? '; đã xếp hàng thông báo restock'
+      : result.notification?.error
+        ? '; lưu kho thành công nhưng chưa tạo được thông báo'
+        : '';
+    toast(`Đã nhập ${result.imported} mục${duplicateNote}${notificationNote}`);
   } catch (error) {
     toast(error.message);
   } finally {
@@ -2690,6 +2954,17 @@ document.addEventListener('click', async (event) => {
   const { action, id } = target.dataset;
   if (action === 'toggle-product-editor') {
     toggleProductEditor(target);
+    return;
+  }
+  if (action === 'open-discount-create') {
+    setDiscountCreateOpen(true);
+    $('#discountForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (action === 'reset-discount-filter') {
+    state.discountSearch = '';
+    state.discountStatus = 'all';
+    renderDiscountCodes();
     return;
   }
   if (action === 'toggle-discount-detail') {

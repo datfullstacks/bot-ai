@@ -1,5 +1,6 @@
 const DELIVERY_MODES = new Set(['text', 'file']);
 const FULFILLMENT_MODES = new Set(['inventory', 'seat_email']);
+const PRODUCT_EMOJI_PATTERN = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3)/u;
 const LEGACY_SEAT_EMAIL_SKUS = new Set([
   'chatgpt-business-seat-1m',
   'claude-business-seat-1x-1m',
@@ -44,6 +45,18 @@ export function normalizeFulfillmentMode(value, { strict = false, sku = '' } = {
 
 export function isSeatEmailFulfillment(product = {}) {
   return normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }) === 'seat_email';
+}
+
+export function normalizeProductEmoji(value, { strict = false } = {}) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const graphemes = [...new Intl.Segmenter('vi', { granularity: 'grapheme' }).segment(raw)]
+    .map((item) => item.segment);
+  if (graphemes.length === 1 && raw.length <= 32 && PRODUCT_EMOJI_PATTERN.test(raw)) return raw;
+  if (strict) {
+    throw Object.assign(new Error('Product emoji must contain exactly one emoji'), { statusCode: 400 });
+  }
+  return '';
 }
 
 export const DEFAULT_CATALOG_PRODUCTS = [
@@ -130,6 +143,7 @@ export const DEFAULT_CATALOG_PRODUCTS = [
     sku: 'gemini-advanced-1m',
     category: 'AI Accounts',
     brand: 'Gemini',
+    emoji: '✨',
     packageType: 'Advanced 1M',
     name: 'Gemini Advanced - 1 tháng',
     description: 'Gói Gemini Advanced 1 tháng cho nhu cầu AI đa nền tảng Google.',
@@ -373,6 +387,7 @@ export function normalizeProductInput(input = {}) {
     description: String(input.description || '').trim(),
     category: String(input.category || '').trim() || 'Accounts',
     brand: String(input.brand || '').trim() || 'Other',
+    emoji: normalizeProductEmoji(input.emoji, { strict: true }),
     packageType: String(input.packageType || '').trim(),
     price: Number(input.price || 0),
     currency: String(input.currency || '').trim() || 'VND',
@@ -394,6 +409,7 @@ export function normalizePublicProduct(product = {}) {
     ...product,
     category: String(product.category || '').trim() || 'Accounts',
     brand: String(product.brand || '').trim() || 'Other',
+    emoji: normalizeProductEmoji(product.emoji),
     packageType: String(product.packageType || '').trim(),
     sortOrder: Number(product.sortOrder || 1000),
     hot: product.hot === true || String(product.hot || '').toLowerCase() === 'true',
