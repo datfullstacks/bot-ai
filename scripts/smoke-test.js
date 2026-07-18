@@ -104,7 +104,7 @@ try {
   const actorId = 'smoke-admin';
   const user = await shop.upsertTelegramUser({
     id: `700001${process.pid}`,
-    username: `smoke-user-${runId}`,
+    username: `smoke_user_${process.pid}`,
     first_name: 'Smoke',
     last_name: 'User'
   });
@@ -112,10 +112,33 @@ try {
   const controlledProduct = await createStockedProduct(actorId, `smoke-controlled-${runId}`, 1);
   const otherUser = await shop.upsertTelegramUser({
     id: `700002${process.pid}`,
-    username: `smoke-other-${runId}`,
+    username: `smoke_other_${process.pid}`,
     first_name: 'Other',
     last_name: 'User'
   });
+  await shop.setTelegramPriceList(actorId, `@${user.username.toUpperCase()}`, {
+    prices: { [controlledProduct.sku]: 7500 }
+  });
+  const pricingOverview = await shop.getTelegramPricingOverview();
+  assert.ok(
+    pricingOverview.priceLists.some((item) => item.username === user.username && item.prices[controlledProduct.sku] === 7500),
+    'Telegram pricing overview should expose the configured username price list.'
+  );
+  const publicControlledProduct = (await shop.listProducts()).find((product) => product.sku === controlledProduct.sku);
+  const personalizedControlledProduct = (await shop.listProducts({ user })).find((product) => product.sku === controlledProduct.sku);
+  assert.equal(publicControlledProduct.price, 10000, 'Public catalog pricing should remain unchanged.');
+  assert.equal(personalizedControlledProduct.price, 7500, 'Matching Telegram username should receive its custom SKU price.');
+  assert.equal(personalizedControlledProduct.basePrice, 10000);
+  assert.equal(personalizedControlledProduct.personalizedPrice, true);
+  await shop.setCatalogPriceList(actorId, {
+    prices: { [controlledProduct.sku]: 11000 }
+  });
+  const updatedBaseProduct = (await shop.listProducts()).find((product) => product.sku === controlledProduct.sku);
+  const personalizedAfterBaseUpdate = (await shop.listProducts({ user }))
+    .find((product) => product.sku === controlledProduct.sku);
+  assert.equal(updatedBaseProduct.price, 11000, 'The base price list should update the public catalog price.');
+  assert.equal(personalizedAfterBaseUpdate.price, 7500, 'A custom username price should override the updated base price.');
+  assert.equal(personalizedAfterBaseUpdate.basePrice, 11000);
   const originalSalesEnabled = config.sales.enabled;
   const originalTestTelegramIds = config.sales.testTelegramIds;
   try {
@@ -123,6 +146,9 @@ try {
     config.sales.testTelegramIds = [user.telegramId];
     const controlledOrder = await shop.createOrderForUser(user, controlledProduct.sku, 1);
     assert.equal(controlledOrder.order.status, 'pending_payment');
+    assert.equal(controlledOrder.order.unitPrice, 7500, 'Checkout must enforce the username-specific price.');
+    assert.equal(controlledOrder.order.total, 7500);
+    assert.equal(controlledOrder.order.productSnapshot.pricing.source, 'telegram_username');
     await shop.cancelOrderForUser(user.id, controlledOrder.order.id);
     await assert.rejects(
       () => shop.createOrderForUser(otherUser, controlledProduct.sku, 1),
@@ -132,6 +158,22 @@ try {
     config.sales.enabled = originalSalesEnabled;
     config.sales.testTelegramIds = originalTestTelegramIds;
   }
+  const userWithoutUsername = await shop.upsertTelegramUser({
+    id: user.telegramId,
+    first_name: 'Smoke',
+    last_name: 'User'
+  });
+  const productAfterUsernameRemoval = (await shop.listProducts({ user: userWithoutUsername }))
+    .find((product) => product.sku === controlledProduct.sku);
+  assert.equal(
+    productAfterUsernameRemoval.price,
+    11000,
+    'A removed Telegram username must not keep receiving pricing for the old username.'
+  );
+  await shop.deleteTelegramPriceList(actorId, user.username);
+  const catalogAfterPricingDelete = (await shop.listProducts({ user }))
+    .find((product) => product.sku === controlledProduct.sku);
+  assert.equal(catalogAfterPricingDelete.price, 11000, 'Removing a price list should restore the current base price.');
 
   const paidProduct = await createStockedProduct(actorId, `smoke-paid-${runId}`, 2, {
     deliveryMode: 'file'

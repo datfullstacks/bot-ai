@@ -12,10 +12,12 @@ import {
   completeSeatFulfillment,
   createOrderForUser,
   createProduct,
+  deleteTelegramPriceList,
   expireOrders,
   getDashboardSummary,
   getDeliveryForOrder,
   getPublicPaymentStatus,
+  getTelegramPricingOverview,
   importInventory,
   listAuditLogs,
   listInventory,
@@ -25,6 +27,8 @@ import {
   markOrderRefunded,
   markOrderPaidManually,
   recordAudit,
+  setCatalogPriceList,
+  setTelegramPriceList,
   updateProduct,
   upsertTelegramUser
 } from './shop.js';
@@ -323,6 +327,24 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'GET' && pathname === '/api/products') {
     return sendJson(res, 200, await listProducts({ includeInactive: true }));
+  }
+
+  if (req.method === 'GET' && pathname === '/api/telegram-pricing') {
+    return sendJson(res, 200, await getTelegramPricingOverview(), { 'cache-control': 'no-store' });
+  }
+
+  if (req.method === 'PUT' && pathname === '/api/catalog-pricing') {
+    const { body } = await readJson(req);
+    return sendJson(res, 200, await setCatalogPriceList(admin.id, body));
+  }
+
+  params = routeParams('/api/telegram-pricing/:username', pathname);
+  if (params && req.method === 'PUT') {
+    const { body } = await readJson(req);
+    return sendJson(res, 200, await setTelegramPriceList(admin.id, params.username, body));
+  }
+  if (params && req.method === 'DELETE') {
+    return sendJson(res, 200, await deleteTelegramPriceList(admin.id, params.username));
   }
 
   if (req.method === 'POST' && pathname === '/api/products') {

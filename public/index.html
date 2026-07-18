@@ -39,6 +39,7 @@
         <nav>
           <button class="nav active" data-tab="overview"><span class="nav-icon" data-lucide="layout-dashboard" aria-hidden="true"></span><span>Overview</span></button>
           <button class="nav" data-tab="products"><span class="nav-icon" data-lucide="package" aria-hidden="true"></span><span>Products</span></button>
+          <button class="nav" data-tab="pricing"><span class="nav-icon" data-lucide="badge-dollar-sign" aria-hidden="true"></span><span>Telegram Pricing</span></button>
           <button class="nav" data-tab="inventory"><span class="nav-icon" data-lucide="boxes" aria-hidden="true"></span><span>Inventory</span></button>
           <button class="nav" data-tab="seatGuard"><span class="nav-icon" data-lucide="shield-check" aria-hidden="true"></span><span>Seat Guard</span></button>
           <button class="nav" data-tab="orders"><span class="nav-icon" data-lucide="shopping-cart" aria-hidden="true"></span><span>Orders</span></button>
@@ -146,6 +147,51 @@
                 </label>
               </div>
               <div id="productsList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="pricingTab" class="tab">
+          <form id="catalogPricingForm" class="panel pricing-base-panel">
+            <div class="panel-head">
+              <div>
+                <h2>Bảng giá gốc</h2>
+                <p class="panel-subtitle">Default prices for every Telegram customer. Username prices override only the configured SKUs.</p>
+              </div>
+              <span class="badge available">Default</span>
+            </div>
+            <div id="catalogPricingProducts"></div>
+            <div class="actions">
+              <button type="submit">Lưu bảng giá gốc</button>
+            </div>
+          </form>
+          <div class="grid two pricing-grid">
+            <form id="telegramPricingForm" class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Price by Telegram username</h2>
+                  <p class="panel-subtitle">Blank SKU prices continue using the public catalog price.</p>
+                </div>
+              </div>
+              <label>Telegram username
+                <input id="telegramPricingUsername" name="username" list="telegramPricingUsers" placeholder="@username" autocomplete="off" required>
+                <datalist id="telegramPricingUsers"></datalist>
+              </label>
+              <div id="telegramPricingProducts"></div>
+              <div class="actions">
+                <button type="submit">Save price list</button>
+                <button id="telegramPricingResetBtn" class="secondary" type="button">New / reset form</button>
+              </div>
+            </form>
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Configured usernames</h2>
+                  <p class="panel-subtitle">Select a username to edit or remove its custom price list.</p>
+                </div>
+                <span id="telegramPricingCount" class="badge available">0 users</span>
+              </div>
+              <div id="telegramPricingLists"></div>
             </section>
           </div>
         </section>

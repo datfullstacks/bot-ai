@@ -14,6 +14,11 @@ for (const id of [
   'productSearch',
   'productBrandFilter',
   'productStatusFilter',
+  'catalogPricingForm',
+  'catalogPricingProducts',
+  'telegramPricingUsername',
+  'telegramPricingProducts',
+  'telegramPricingLists',
   'orderStatusFilter',
   'systemStorageBadge',
   'telegramStatusBadge',
@@ -30,6 +35,7 @@ assert.ok(html.includes('data-lucide="layout-dashboard"'), 'Admin nav should inc
 assert.ok(html.includes('data-lucide="refresh-cw"'), 'Refresh button should include a Lucide icon.');
 assert.ok(html.includes('data-lucide="log-out"'), 'Logout button should include a Lucide icon.');
 assert.ok(html.includes('data-tab="seatGuard"'), 'Admin nav should expose the Seat Guard tab.');
+assert.ok(html.includes('data-tab="pricing"'), 'Admin nav should expose Telegram username pricing.');
 assert.ok(html.includes('id="seatGuardTab"'), 'Admin HTML should include the Seat Guard panel.');
 assert.ok(html.includes('data-lucide="shield-check"'), 'Seat Guard nav should include a shield icon.');
 assert.ok(html.includes('configured 30-day term'), 'Seat Guard should explain its fixed 30-day entitlement term.');
@@ -39,6 +45,9 @@ for (const fn of [
   'filteredProducts',
   'renderProductCard',
   'renderProductEditor',
+  'renderCatalogPricingProducts',
+  'renderTelegramPricing',
+  'renderTelegramPricingProducts',
   'renderOrderTable',
   'renderOrderRecipients',
   'renderStatusPill',
@@ -61,6 +70,11 @@ assert.ok(js.includes("icon('package'"), 'Product cards should render package ic
 assert.ok(js.includes("icon('shopping-cart'"), 'Order action buttons should render action icons.');
 assert.ok(js.includes("state.productSearch"), 'Admin JS should track product search state.');
 assert.ok(js.includes("state.productBrand"), 'Admin JS should track product brand filter.');
+assert.ok(js.includes('state.telegramPricing'), 'Admin JS should retain Telegram username price lists.');
+assert.ok(js.includes("api('/api/telegram-pricing')"), 'Admin refresh should load Telegram username pricing.');
+assert.ok(js.includes("api('/api/catalog-pricing'"), 'Admin should save the base price list through its authenticated API.');
+assert.ok(js.includes("method: 'PUT'"), 'Admin should save a username price list with PUT.');
+assert.ok(js.includes("method: 'DELETE'"), 'Admin should remove a username price list with DELETE.');
 assert.ok(js.includes("state.orderStatus"), 'Admin JS should track order status filter.');
 assert.ok(js.includes("state.seatGuard"), 'Admin JS should retain the latest Seat Guard snapshot.');
 assert.ok(js.includes("api('/api/seat-guard')"), 'Seat Guard should load the backend reconciliation snapshot.');
@@ -86,6 +100,9 @@ assert.ok(js.includes("method: 'PATCH'"), 'Product editor should patch product f
 assert.ok(js.includes("form.elements.price.value"), 'Product editor should expose editable pricing.');
 assert.equal(server.includes('100000'), false, 'Dev order API must not create fake Telegram users that break startup broadcasts.');
 assert.ok(server.includes('TELEGRAM_OWNER_USER_ID'), 'Dev order API should fall back to the configured owner chat when no test chat is supplied.');
+assert.ok(server.includes("pathname === '/api/telegram-pricing'"), 'Server should expose the authenticated Telegram pricing overview.');
+assert.ok(server.includes("pathname === '/api/catalog-pricing'"), 'Server should expose the authenticated base price-list update.');
+assert.ok(server.includes("routeParams('/api/telegram-pricing/:username'"), 'Server should expose per-username price-list mutations.');
 assert.ok(html.includes('name="officialPriceNote"'), 'Product form should expose official pricing notes.');
 assert.ok(js.includes('product.officialPriceNote'), 'Product cards should render official pricing notes.');
 for (const field of ['description', 'accountType', 'warrantyPolicy', 'replacementPolicy', 'deliveryMode', 'fulfillmentMode']) {
@@ -162,7 +179,9 @@ for (const selector of [
   '.seat-guard-stats',
   '.seat-guard-connection',
   '.seat-guard-table',
-  '.seat-guard-reference-list'
+  '.seat-guard-reference-list',
+  '.pricing-base-panel',
+  '.pricing-table'
 ]) {
   assert.ok(css.includes(selector), `Admin CSS should style ${selector}.`);
 }

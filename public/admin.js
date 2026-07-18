@@ -6,6 +6,8 @@ const state = {
   productSearch: '',
   productBrand: 'all',
   productStatus: 'all',
+  telegramPricing: { priceLists: [], users: [] },
+  telegramPricingUsername: '',
   orderStatus: 'all',
   seatGuard: null,
   seatGuardMemberSearch: '',
@@ -88,6 +90,7 @@ function setTab(tab) {
   const titles = {
     overview: ['Overview', 'Operational snapshot'],
     products: ['Products', 'Create and manage sellable items'],
+    pricing: ['Telegram Pricing', 'Set SKU prices for individual Telegram usernames'],
     inventory: ['Inventory', 'Import account/code stock'],
     seatGuard: ['Seat Guard', 'Reconcile paid Seat access with workspace members'],
     orders: ['Orders', 'Track checkout and delivery'],
@@ -750,6 +753,131 @@ function renderProducts(products) {
   refreshIcons();
 }
 
+function normalizeTelegramUsername(value) {
+  return String(value || '').trim().replace(/^@+/, '').toLowerCase();
+}
+
+function selectedTelegramPriceList() {
+  const username = normalizeTelegramUsername(state.telegramPricingUsername);
+  return (state.telegramPricing.priceLists || []).find((item) => (
+    normalizeTelegramUsername(item.username) === username
+  ));
+}
+
+function renderCatalogPricingProducts() {
+  const products = sortedProducts(state.products);
+  $('#catalogPricingProducts').innerHTML = products.length ? `
+    <div class="table-wrap pricing-table-wrap">
+      <table class="data-table pricing-table">
+        <thead>
+          <tr><th>Product</th><th>SKU</th><th>Base price</th></tr>
+        </thead>
+        <tbody>
+          ${products.map((product) => `
+            <tr>
+              <td><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(product.brand || 'Other')}</span></td>
+              <td>${escapeHtml(product.sku)}</td>
+              <td>
+                <input
+                  data-catalog-price-sku="${escapeHtml(product.sku)}"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value="${escapeHtml(product.price)}"
+                  aria-label="Base price for ${escapeHtml(product.name)}"
+                  required
+                >
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '<p class="meta empty-state">Create a product before configuring the base price list.</p>';
+}
+
+function renderTelegramPricingProducts() {
+  const priceList = selectedTelegramPriceList();
+  const prices = priceList?.prices || {};
+  const products = sortedProducts(state.products);
+  $('#telegramPricingProducts').innerHTML = products.length ? `
+    <div class="table-wrap pricing-table-wrap">
+      <table class="data-table pricing-table">
+        <thead>
+          <tr><th>Product</th><th>Catalog price</th><th>Custom price</th></tr>
+        </thead>
+        <tbody>
+          ${products.map((product) => `
+            <tr>
+              <td>
+                <strong>${escapeHtml(product.name)}</strong>
+                <span>${escapeHtml(product.sku)}</span>
+              </td>
+              <td>${escapeHtml(money(product.price, product.currency))}</td>
+              <td>
+                <input
+                  data-telegram-price-sku="${escapeHtml(product.sku)}"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value="${escapeHtml(prices[product.sku] || '')}"
+                  placeholder="Catalog"
+                  aria-label="Custom price for ${escapeHtml(product.name)}"
+                >
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '<p class="meta empty-state">Create a product before configuring username pricing.</p>';
+}
+
+function renderTelegramPricing(pricing = state.telegramPricing) {
+  state.telegramPricing = pricing || { priceLists: [], users: [] };
+  const knownUsernames = [...new Set([
+    ...(state.telegramPricing.users || []).map((user) => normalizeTelegramUsername(user.username)),
+    ...(state.telegramPricing.priceLists || []).map((item) => normalizeTelegramUsername(item.username))
+  ].filter(Boolean))].sort();
+  $('#telegramPricingUsers').innerHTML = knownUsernames
+    .map((username) => `<option value="@${escapeHtml(username)}"></option>`)
+    .join('');
+  $('#telegramPricingCount').textContent = `${state.telegramPricing.priceLists.length} users`;
+  $('#telegramPricingLists').innerHTML = state.telegramPricing.priceLists.length
+    ? state.telegramPricing.priceLists.map((item) => {
+      const username = normalizeTelegramUsername(item.username);
+      const customPrices = Object.keys(item.prices || {}).length;
+      return `
+        <div class="row">
+          <div class="row-title">
+            <strong>${icon('user-round')}@${escapeHtml(username)}</strong>
+            <span class="badge available">${escapeHtml(customPrices)} SKU</span>
+          </div>
+          <div class="meta">Updated ${escapeHtml(new Date(item.updatedAt).toLocaleString())}</div>
+          <div class="actions">
+            <button class="small secondary" data-action="edit-telegram-pricing" data-username="${escapeHtml(username)}">${icon('pencil')}<span>Edit</span></button>
+            <button class="small danger" data-action="delete-telegram-pricing" data-username="${escapeHtml(username)}">${icon('trash-2')}<span>Remove</span></button>
+          </div>
+        </div>
+      `;
+    }).join('')
+    : '<p class="meta empty-state">No custom username price lists yet.</p>';
+  $('#telegramPricingUsername').value = state.telegramPricingUsername
+    ? `@${normalizeTelegramUsername(state.telegramPricingUsername)}`
+    : '';
+  renderCatalogPricingProducts();
+  renderTelegramPricingProducts();
+  refreshIcons();
+}
+
+function selectTelegramPricingUsername(value) {
+  state.telegramPricingUsername = normalizeTelegramUsername(value);
+  $('#telegramPricingUsername').value = state.telegramPricingUsername
+    ? `@${state.telegramPricingUsername}`
+    : '';
+  renderTelegramPricingProducts();
+}
+
 function renderSummary(summary) {
   $('#statProducts').textContent = summary.products;
   $('#statStock').textContent = summary.availableInventory;
@@ -1003,13 +1131,15 @@ async function renderSystem(system = null) {
 }
 
 async function refresh() {
-  const [summary, products, system] = await Promise.all([
+  const [summary, products, system, telegramPricing] = await Promise.all([
     api('/api/dashboard/summary'),
     api('/api/products'),
-    api('/api/system/status')
+    api('/api/system/status'),
+    api('/api/telegram-pricing')
   ]);
   renderQuickStatus(system);
   renderProducts(products);
+  renderTelegramPricing(telegramPricing);
   renderSummary(summary);
   if (state.tab === 'inventory') await renderInventory();
   if (state.tab === 'seatGuard') await renderSeatGuard();
@@ -1063,6 +1193,60 @@ $('#productBrandFilter').addEventListener('change', (event) => {
 $('#productStatusFilter').addEventListener('change', (event) => {
   state.productStatus = event.target.value;
   renderProducts(state.products);
+});
+
+$('#telegramPricingUsername').addEventListener('change', (event) => {
+  selectTelegramPricingUsername(event.currentTarget.value);
+});
+
+$('#catalogPricingForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const prices = {};
+  form.querySelectorAll('[data-catalog-price-sku]').forEach((input) => {
+    prices[input.dataset.catalogPriceSku] = Number(input.value);
+  });
+  try {
+    await api('/api/catalog-pricing', {
+      method: 'PUT',
+      body: JSON.stringify({ prices })
+    });
+    await refresh();
+    toast('Base price list updated');
+  } catch (error) {
+    toast(error.message);
+  }
+});
+
+$('#telegramPricingResetBtn').addEventListener('click', () => {
+  selectTelegramPricingUsername('');
+  $('#telegramPricingUsername').focus();
+});
+
+$('#telegramPricingForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const username = normalizeTelegramUsername(form.elements.username.value);
+  if (!username) {
+    toast('Telegram username is required');
+    return;
+  }
+  const prices = {};
+  form.querySelectorAll('[data-telegram-price-sku]').forEach((input) => {
+    const value = String(input.value || '').trim();
+    if (value) prices[input.dataset.telegramPriceSku] = Number(value);
+  });
+  try {
+    await api(`/api/telegram-pricing/${encodeURIComponent(username)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ prices })
+    });
+    state.telegramPricingUsername = username;
+    await refresh();
+    toast(`Saved pricing for @${username}`);
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 $('#orderStatusFilter').addEventListener('change', async (event) => {
@@ -1166,6 +1350,25 @@ document.addEventListener('click', async (event) => {
 
   const { action, id } = target.dataset;
   try {
+    if (action === 'edit-telegram-pricing') {
+      setTab('pricing');
+      selectTelegramPricingUsername(target.dataset.username);
+      $('#telegramPricingUsername').focus();
+      return;
+    }
+
+    if (action === 'delete-telegram-pricing') {
+      const username = normalizeTelegramUsername(target.dataset.username);
+      if (!window.confirm(`Remove custom pricing for @${username}?`)) return;
+      await api(`/api/telegram-pricing/${encodeURIComponent(username)}`, { method: 'DELETE' });
+      if (normalizeTelegramUsername(state.telegramPricingUsername) === username) {
+        state.telegramPricingUsername = '';
+      }
+      await refresh();
+      toast(`Removed pricing for @${username}`);
+      return;
+    }
+
     if (action === 'refresh-seat-guard') {
       await renderSeatGuard();
       toast('Seat Guard refreshed');

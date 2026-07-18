@@ -736,6 +736,28 @@ nav {
   color: var(--muted);
 }
 
+.pricing-grid {
+  align-items: start;
+}
+
+.pricing-base-panel {
+  margin-bottom: 20px;
+}
+
+.pricing-table-wrap {
+  max-height: 62vh;
+  overflow: auto;
+}
+
+.pricing-table {
+  min-width: 680px;
+}
+
+.pricing-table input {
+  min-width: 9rem;
+  width: 100%;
+}
+
 .seat-guard-table {
   min-width: 980px;
 }

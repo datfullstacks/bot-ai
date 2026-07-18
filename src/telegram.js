@@ -1716,7 +1716,7 @@ async function sendMenuAction(chatId, user, action, products, options = {}) {
   const messageId = options.messageId;
   if (action === 'catalog:all') {
     if (options.track) await trackTelegramClick(user, 'catalog');
-    const currentProducts = products || await listProducts();
+    const currentProducts = products || await listProducts({ user });
     await presentCustomTelegramMessage(
       chatId,
       messageId,
@@ -2409,7 +2409,7 @@ async function handleSeatEmailText(chatId, user, text) {
   }
   if (!draft || text.startsWith('/')) return false;
 
-  const products = await listProducts();
+  const products = await listProducts({ user });
   const product = findProduct(products, draft.productId || draft.productSku);
   if (!product || !isSeatEmailFulfillment(product)) {
     await discardSeatEmailDraft(user.id, chatId);
@@ -2469,7 +2469,7 @@ async function handleTextMessage(message) {
     discardSeatEmailDraftSoon(user.id, chatId);
     const payload = String(startMatch[1] || '').trim();
     if (payload.startsWith('p_')) {
-      const products = await listProducts();
+      const products = await listProducts({ user });
       const product = findProduct(products, payload.slice(2));
       if (product) {
         await sendCustomTelegramMessage(chatId, productDetailMessage(product), productCustomEmojiCandidates(product), {
@@ -2497,7 +2497,7 @@ async function handleTextMessage(message) {
       return;
     }
 
-    const products = await listProducts();
+    const products = await listProducts({ user });
     const product = findProduct(products, sku);
     if (!product) {
       discardSeatEmailDraftSoon(user.id, chatId);
@@ -2547,7 +2547,7 @@ async function handleCallbackQuery(callbackQuery) {
   if (!chatId) return;
 
   const user = await upsertTelegramUser(callbackQuery.from);
-  const products = await listProducts();
+  const products = await listProducts({ user });
   const categories = uniqueSorted(products.map((product) => normalizePublicProduct(product).category));
 
   if (data.startsWith('seat_') && !privateTelegramChat(callbackQuery.message?.chat)) {

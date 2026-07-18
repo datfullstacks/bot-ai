@@ -8,6 +8,7 @@ const collections = {
   admins: 'admins',
   sessions: 'sessions',
   users: 'users',
+  telegramPriceLists: 'telegramPriceLists',
   products: 'products',
   inventory: 'inventory',
   orders: 'orders',
@@ -27,6 +28,7 @@ export function emptyDb() {
     admins: [],
     sessions: [],
     users: [],
+    telegramPriceLists: [],
     products: [],
     inventory: [],
     orders: [],
@@ -118,6 +120,7 @@ function sortDb(db) {
   db.admins.sort(ascCreated);
   db.sessions.sort(ascCreated);
   db.users.sort(ascCreated);
+  db.telegramPriceLists.sort((a, b) => String(a.username || '').localeCompare(String(b.username || '')));
   db.products.sort(ascCreated);
   db.inventory.sort(ascCreated);
   db.orders.sort(ascCreated);

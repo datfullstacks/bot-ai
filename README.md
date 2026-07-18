@@ -335,6 +335,18 @@ Keep `SALES_ENABLED=false` during setup. In the admin dashboard:
    after every readiness warning except the intentional `sales` closed warning
    has been cleared.
 
+### Telegram username pricing
+
+Use the admin dashboard's **Telegram Pricing** tab to maintain the base price
+list and assign per-SKU prices to a specific Telegram `@username`. The base list
+is the default for every customer. Leave a username SKU blank to inherit its
+current base price. Usernames are matched case-insensitively and without the
+leading `@`.
+
+The personalized price is applied both when the bot renders the catalog and when
+the order is created. Existing orders keep their original price snapshot. Removing
+a username price list immediately restores public catalog prices for future orders.
+
 ## System Status
 
 Health and readiness endpoints:

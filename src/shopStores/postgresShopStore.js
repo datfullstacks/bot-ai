@@ -20,6 +20,12 @@ import { paymentProvider } from '../payments.js';
 import { assertSalesOrderAllowed, normalizeOrderQuantity } from '../salesGuard.js';
 import { parseSeatEmailLines } from '../seatFulfillment.js';
 import { lockSeatAccessTransaction } from '../seatAccessLock.js';
+import {
+  applyTelegramProductPricing,
+  normalizeTelegramPriceOverrides,
+  normalizeTelegramUsername,
+  resolveTelegramProductPricing
+} from '../telegramPricing.js';
 import { withPostgresClient, withPostgresTransaction } from '../postgresStore.js';
 
 const orderTtlMs = config.orders.ttlMinutes * 60 * 1000;
@@ -196,7 +202,21 @@ async function productStock(client, productId) {
   return stock;
 }
 
-export async function listProducts({ includeInactive = false } = {}) {
+async function telegramPriceListsForUser(client, user = {}) {
+  const username = normalizeTelegramUsername(user.username);
+  if (!username) return [];
+  const result = await client.query(
+    `SELECT doc
+     FROM app_documents
+     WHERE collection = 'telegramPriceLists'
+       AND lower(doc->>'username') = $1
+     LIMIT 1`,
+    [username]
+  );
+  return result.rows.map((row) => row.doc);
+}
+
+export async function listProducts({ includeInactive = false, user = null } = {}) {
   return withPostgresClient(async (client) => {
     const result = await client.query(
       `SELECT doc
@@ -207,9 +227,14 @@ export async function listProducts({ includeInactive = false } = {}) {
       [includeInactive]
     );
 
+    const priceLists = user ? await telegramPriceListsForUser(client, user) : [];
     const products = [];
     for (const row of result.rows) {
-      products.push(publicProduct(row.doc, await productStock(client, row.doc.id)));
+      products.push(applyTelegramProductPricing(
+        publicProduct(row.doc, await productStock(client, row.doc.id)),
+        user || {},
+        priceLists
+      ));
     }
     return products;
   });
@@ -284,13 +309,139 @@ export async function upsertTelegramUser(from) {
       };
       await insertDoc(client, 'users', user);
     } else {
-      user.username = from.username || user.username;
+      user.username = typeof from.username === 'string' ? from.username : '';
       user.firstName = from.first_name || user.firstName;
       user.lastName = from.last_name || user.lastName;
       user.updatedAt = nowIso();
       await upsertDoc(client, 'users', user);
     }
     return user;
+  });
+}
+
+export async function getTelegramPricingOverview() {
+  return withPostgresClient(async (client) => {
+    const [priceLists, users] = await Promise.all([
+      client.query(`
+        SELECT doc
+        FROM app_documents
+        WHERE collection = 'telegramPriceLists'
+        ORDER BY lower(doc->>'username') ASC
+      `),
+      client.query(`
+        SELECT doc
+        FROM app_documents
+        WHERE collection = 'users' AND coalesce(doc->>'username', '') <> ''
+        ORDER BY doc->>'updatedAt' DESC
+      `)
+    ]);
+    return {
+      priceLists: priceLists.rows.map((row) => row.doc),
+      users: users.rows
+        .map((row) => row.doc)
+        .filter((user) => normalizeTelegramUsername(user.username))
+        .map((user) => ({
+          id: user.id,
+          telegramId: user.telegramId,
+          username: normalizeTelegramUsername(user.username),
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          updatedAt: user.updatedAt
+        }))
+    };
+  });
+}
+
+export async function setTelegramPriceList(actorId, rawUsername, input = {}) {
+  return withPostgresTransaction(async (client) => {
+    const username = normalizeTelegramUsername(rawUsername, { strict: true });
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, [`telegram-pricing:${username}`]);
+    const productRows = await client.query(`SELECT doc FROM app_documents WHERE collection = 'products'`);
+    const prices = normalizeTelegramPriceOverrides(
+      input,
+      productRows.rows.map((row) => row.doc.sku)
+    );
+    const existing = await client.query(
+      `SELECT id, doc
+       FROM app_documents
+       WHERE collection = 'telegramPriceLists' AND lower(doc->>'username') = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [username]
+    );
+    const created = !existing.rows[0];
+    const priceList = existing.rows[0]?.doc || {
+      id: makeId('tpl'),
+      username,
+      prices: {},
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+    priceList.username = username;
+    priceList.prices = prices;
+    priceList.updatedAt = nowIso();
+    if (created) await insertDoc(client, 'telegramPriceLists', priceList);
+    else await upsertDoc(client, 'telegramPriceLists', priceList);
+    await addAuditDoc(
+      client,
+      actorId,
+      created ? 'telegram_pricing.create' : 'telegram_pricing.update',
+      'telegram_price_list',
+      priceList.id,
+      { username, productCount: Object.keys(prices).length }
+    );
+    return priceList;
+  });
+}
+
+export async function deleteTelegramPriceList(actorId, rawUsername) {
+  return withPostgresTransaction(async (client) => {
+    const username = normalizeTelegramUsername(rawUsername, { strict: true });
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, [`telegram-pricing:${username}`]);
+    const existing = await client.query(
+      `SELECT id, doc
+       FROM app_documents
+       WHERE collection = 'telegramPriceLists' AND lower(doc->>'username') = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [username]
+    );
+    if (!existing.rows[0]) {
+      throw Object.assign(new Error('Telegram price list not found'), { statusCode: 404 });
+    }
+    await client.query(
+      `DELETE FROM app_documents WHERE collection = 'telegramPriceLists' AND id = $1`,
+      [existing.rows[0].id]
+    );
+    await addAuditDoc(client, actorId, 'telegram_pricing.delete', 'telegram_price_list', existing.rows[0].id, { username });
+    return { ok: true, username };
+  });
+}
+
+export async function setCatalogPriceList(actorId, input = {}) {
+  return withPostgresTransaction(async (client) => {
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, ['catalog-pricing:base']);
+    const productRows = await client.query(
+      `SELECT id, doc
+       FROM app_documents
+       WHERE collection = 'products'
+       FOR UPDATE`
+    );
+    const prices = normalizeTelegramPriceOverrides(
+      input,
+      productRows.rows.map((row) => row.doc.sku)
+    );
+    for (const row of productRows.rows) {
+      const sku = String(row.doc.sku || '').trim().toLowerCase();
+      if (prices[sku] === undefined) continue;
+      row.doc.price = prices[sku];
+      row.doc.updatedAt = nowIso();
+      await upsertDoc(client, 'products', row.doc);
+    }
+    await addAuditDoc(client, actorId, 'catalog_pricing.update', 'catalog_price_list', 'base', {
+      productCount: Object.keys(prices).length
+    });
+    return { prices, updatedAt: nowIso() };
   });
 }
 
@@ -498,6 +649,7 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       throw Object.assign(new Error('Product is not available'), { statusCode: 404 });
     }
     assertSalesOrderAllowed(product, user);
+    const pricing = resolveTelegramProductPricing(product, user, await telegramPriceListsForUser(client, user));
     const seatEmailOrder = isSeatEmailFulfillment(product);
     const seatRecipients = seatEmailOrder
       ? seatOrderRecipients(options.recipientEmails)
@@ -577,8 +729,8 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
       productSku: product.sku,
       productName: product.name,
       quantity: qty,
-      unitPrice: product.price,
-      total: product.price * qty,
+      unitPrice: pricing.price,
+      total: pricing.price * qty,
       currency: product.currency,
       checkoutKey: checkoutKey || null,
       productSnapshot: {
@@ -591,7 +743,12 @@ export async function createOrderForUser(user, productSkuOrId, quantity = 1, opt
         replacementPolicy: product.replacementPolicy || '',
         seatTermMonths: product.seatTermMonths || null,
         deliveryMode: normalizeDeliveryMode(product.deliveryMode),
-        fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku })
+        fulfillmentMode: normalizeFulfillmentMode(product.fulfillmentMode, { sku: product.sku }),
+        pricing: pricing.personalized ? {
+          source: 'telegram_username',
+          username: pricing.username,
+          basePrice: pricing.basePrice
+        } : { source: 'catalog' }
       },
       ...(seatEmailOrder ? {
         fulfillment: {
